@@ -40,7 +40,7 @@ class FeatureMapQuantumControl:
             self._entangler_map = entangler_map
 
         self._num_parameters = self._num_qubits * self._depth # only single-qubit layers are parametrized
-        print('entangler map: {}'.format(self._entangler_map))
+        # print('entangler map: {}'.format(self._entangler_map))
 
     def construct_circuit(self, x=None, parameters=None, q=None, inverse=False, name=None):
         """Construct the feature map circuit.

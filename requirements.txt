@@ -1,0 +1,6 @@
+retworkx==0.7.2  # until 0.8 wheel is fixed
+qiskit-terra
+qiskit-aqua
+cvxopt
+jupyter
+git+https://github.com/jyu00/qiskit-ibmq-provider.git@runtime-service

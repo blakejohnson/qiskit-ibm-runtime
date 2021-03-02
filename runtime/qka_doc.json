@@ -1,0 +1,16 @@
+{ "name": "QKA",
+  "description": "Quantum kernel alignment algorithm.",
+  "id": "QKA123",
+  "parameters": [
+    {"name": "feature_map", "description": "quantum feature map", "type": "FeatureMapQuantumControl"},
+    {"name": "data", "description": "NxD array, where N is the number of data points, D is the feature dimension.", "type": "numpy.ndarray"},
+    {"name": "labels", "description": "Nx1 array of +/-1, where N is the number of data points", "type": "numpy.ndarray"},
+    {"name": "lambda_plus", "description": "Plus kernel parameter", "type": "numpy.ndarray"},
+    {"name": "lambda_minus", "description": "Minus kernel parameter", "type": "numpy.ndarray"},
+    {"name": "C", "description": "penalty parameter for soft-margin", "type": "float"}
+  ],
+  "return_values": [
+    {"name": "cost_plus", "description": "SVM objective function evaluated at (alpha_+, lambda_+)", "type": "float"},
+    {"name": "cost_minus", "description": "SVM objective function evaluated at (alpha_-, lambda_-)", "type": "float"}
+  ]
+}

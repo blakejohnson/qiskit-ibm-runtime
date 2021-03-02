@@ -31,7 +31,7 @@ class FeatureMapQuantumControl:
             self._entangler_map = entangler_map
 
         self._num_parameters = self._num_qubits * self._depth # only single-qubit layers are parametrized
-        print('entangler map: {}'.format(self._entangler_map))
+        # print('entangler map: {}'.format(self._entangler_map))
 
 
     def construct_circuit(self, x=None, parameters=None, q=None, inverse=False, name=None):
@@ -76,7 +76,10 @@ class FeatureMapQuantumControl:
         else:
             return circuit
 
-
+    def to_dict(self):
+        return {'feature_dimension': self._feature_dimension,
+                'depth': self._depth,
+                'entangler_map': self._entangler_map}
 
 
 class FeatureMapGaussian:
@@ -113,7 +116,7 @@ class FeatureMapGaussian:
             self._entangler_map = entangler_map
 
         self._num_parameters = (self._num_qubits + len(self._entangler_map)) * self._depth # Z and ZZ terms are parametrized
-        print('entangler map: {}'.format(self._entangler_map))
+        # print('entangler map: {}'.format(self._entangler_map))
 
 
 
@@ -159,3 +162,10 @@ class FeatureMapGaussian:
             return circuit.inverse()
         else:
             return circuit
+
+    def to_dict(self):
+        return {'feature_dimension': self._feature_dimension,
+                'depth': self._depth,
+                'copies': self._copies,
+                'sigma': self._sigma,
+                'entangler_map': self._entangler_map}
