@@ -1,6 +1,5 @@
 import numpy as np
-from qiskit import BasicAer
-from qiskit.aqua import QuantumInstance
+from qiskit import Aer
 from featuremaps import FeatureMapQuantumControl
 from kernel_matrix import KernelMatrix
 from qka import QKA
@@ -15,8 +14,7 @@ C=1            # SVM soft-margin penalty
 spsa_steps=11  # number of SPSA iterations
 
 
-bk = BasicAer.get_backend('statevector_simulator')
-qi = QuantumInstance(backend=bk)
+bk = Aer.get_backend('qasm_simulator')
 
 
 # create random test data and labels:
@@ -34,7 +32,7 @@ lambda_initial = np.random.uniform(-1,1, size=(fm._num_parameters))
 
 # Align the quantum kernel:
 
-qka = QKA(feature_map=fm, quantum_instance=qi)
+qka = QKA(feature_map=fm, backend=bk)
 qka_results = qka.align_kernel(data=x_train, labels=y_train,
                                lambda_initial=lambda_initial,
                                spsa_steps=spsa_steps, C=C)
@@ -49,7 +47,7 @@ kernel_aligned = qka_results['best_kernel_matrix']
 model = SVC(C=C, kernel='precomputed')
 model.fit(X=kernel_aligned, y=y_train)
 
-km = KernelMatrix(feature_map=fm, quantum_instance=qi)
+km = KernelMatrix(feature_map=fm, backend=bk)
 kernel_test = km.construct_kernel_matrix(x1_vec=x_test, x2_vec=x_train, parameters=qka_results['best_kernel_parameters'])
 labels_test = model.predict(X=kernel_test)
 accuracy_test = metrics.balanced_accuracy_score(y_true=y_test, y_pred=labels_test)
