@@ -1,16 +1,16 @@
-{ "name": "QKA",
-  "description": "Quantum kernel alignment algorithm.",
-  "id": "QKA123",
+{ "name": "Quantum-Kernel-Alignment",
+  "description": "Quantum kernel alignment algorithm that learns, on a given dataset, a quantum kernel maximizing the SVM classification margin.",
+  "id": "Quantum-Kernel-Alignment",
   "parameters": [
-    {"name": "feature_map", "description": "quantum feature map", "type": "FeatureMapQuantumControl"},
-    {"name": "data", "description": "NxD array, where N is the number of data points, D is the feature dimension.", "type": "numpy.ndarray"},
-    {"name": "labels", "description": "Nx1 array of +/-1, where N is the number of data points", "type": "numpy.ndarray"},
-    {"name": "lambda_plus", "description": "Plus kernel parameter", "type": "numpy.ndarray"},
-    {"name": "lambda_minus", "description": "Minus kernel parameter", "type": "numpy.ndarray"},
-    {"name": "C", "description": "penalty parameter for soft-margin", "type": "float"}
+    {"name": "feature_map", "description": "An instance of FeatureMapQuantumControl in dictionary format used to map classical data into a quantum state space.", "type": "dict"},
+    {"name": "data", "description": "NxD array of training data, where N is the number of samples and D is the feature dimension.", "type": "numpy.ndarray"},
+    {"name": "labels", "description": "Nx1 array of +/-1 labels of the N training samples.", "type": "numpy.ndarray"},
+    {"name": "lambda_initial", "description": "Initial parameters of the quantum feature map.", "type": "numpy.ndarray"},
+    {"name": "spsa_steps", "description": "Number of SPSA optimization steps.", "type": "int"},
+    {"name": "C", "description": "Penalty parameter for the soft-margin support vector machine.", "type": "float"}
   ],
   "return_values": [
-    {"name": "cost_plus", "description": "SVM objective function evaluated at (alpha_+, lambda_+)", "type": "float"},
-    {"name": "cost_minus", "description": "SVM objective function evaluated at (alpha_-, lambda_-)", "type": "float"}
+    {"name": "best_kernel_parameters", "description": "The optimized kernel parameters found from quantum kernel alignment.", "type": "numpy.ndarray"},
+    {"name": "best_kernel_matrix", "description": "The aligned quantum kernel matrix evaluated with the optimized kernel parameters on the training data.", "type": "numpy.ndarray"}
   ]
 }
