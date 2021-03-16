@@ -10,7 +10,7 @@
     {"name": "C", "description": "Penalty parameter for the soft-margin support vector machine.", "type": "float"}
   ],
   "return_values": [
-    {"name": "best_kernel_parameters", "description": "The optimized kernel parameters found from quantum kernel alignment.", "type": "numpy.ndarray"},
-    {"name": "best_kernel_matrix", "description": "The aligned quantum kernel matrix evaluated with the optimized kernel parameters on the training data.", "type": "numpy.ndarray"}
+    {"name": "aligned_kernel_parameters", "description": "The optimized kernel parameters found from quantum kernel alignment.", "type": "numpy.ndarray"},
+    {"name": "aligned_kernel_matrix", "description": "The aligned quantum kernel matrix evaluated with the optimized kernel parameters on the training data.", "type": "numpy.ndarray"}
   ]
 }

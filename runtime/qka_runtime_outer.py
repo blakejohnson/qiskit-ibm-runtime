@@ -2,7 +2,7 @@ import numpy as np
 from numpy.random import RandomState
 import itertools
 from qiskit import QuantumCircuit, QuantumRegister
-from qiskit.compiler import transpile
+from qiskit.compiler import transpile, assemble
 from cvxopt import matrix, solvers
 from typing import Any
 
