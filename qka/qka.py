@@ -12,9 +12,8 @@ class QKA:
 
         Args:
             feature_map (partial obj): the quantum feature map object
-            backend (Backend): the backend
+            backend (Backend): the backend instance
             verbose (bool): print output during course of algorithm
-
         """
 
         self.feature_map = feature_map
@@ -26,7 +25,7 @@ class QKA:
         self.num_parameters = self.feature_map._num_parameters  # number of parameters (lambdas) in the feature map
 
         self.verbose = verbose
-        self._return = {}
+        self.result = {}
 
         self.kernel_matrix = KernelMatrix(feature_map=self.feature_map, backend=self.backend)
 
@@ -36,19 +35,19 @@ class QKA:
         """Return array of precomputed SPSA parameters.
 
         Returns:
-            SPSA_params (array): [a, c, alpha, gamma, A]
+            SPSA_params (numpy.ndarray): [a, c, alpha, gamma, A]
 
-            The i-th optimization step, i>=0, the parameters evolve as
+        The i-th optimization step, i>=0, the parameters evolve as
 
-                a_i = a / (i + 1 + A) ** alpha,
-                c_i = c / (i + 1) ** gamma,
+            a_i = a / (i + 1 + A) ** alpha,
+            c_i = c / (i + 1) ** gamma,
 
-            for fixed coefficents a, c, alpha, gamma, A.
+        for fixed coefficents a, c, alpha, gamma, A.
 
-            Default Qiskit values are:
-            SPSA_params = [2*np.pi*0.1, 0.1, 0.602, 0.101, 0]
-
+        Default Qiskit values are:
+        SPSA_params = [2*np.pi*0.1, 0.1, 0.602, 0.101, 0]
         """
+
         SPSA_params = np.zeros((5))
         SPSA_params[0] = 0.01              # a
         SPSA_params[1] = 0.1               # c
@@ -60,15 +59,18 @@ class QKA:
 
 
 
-    def gradient_ascent_cvxopt(self, K, y, C, max_iters=10000, show_progress=False):
+    def cvxopt_solver(self, K, y, C, max_iters=10000, show_progress=False):
         """Convex optimization of SVM objective using cvxopt.
+
         Args:
-            K: nxn kernel (Gram) matrix
-            y: nx1 vector of labels +/-1
-            C: Box parameter (aka regularization parameter / margin penalty)
+            K (numpy.ndarray): nxn kernel (Gram) matrix
+            y (numpy.ndarray): nx1 vector of labels +/-1
+            C (float): soft-margin penalty
+            max_iters (int): maximum iterations for the solver
+            show_progress (bool): print progress of solver
 
         Returns;
-            alpha: optimized variables in SVM objective
+            ret (dict): results from the solver
         """
 
         if y.ndim == 1:
@@ -93,32 +95,27 @@ class QKA:
 
         ret = solvers.qp(P, q, G, h, A, b, kktsolver='ldl')
 
-        # optional data from 'ret':
-        # alpha = np.asarray(ret['x']) # optimized alphas (support vector weights)
-        # obj = ret['primal objective'] # value of the primal obj (1/2)*x'*P*x + q'*x
-
         return ret
 
 
 
     def spsa_step_one(self, lambdas, spsa_params, count):
-        """Evaluate +/- perturbations of kernel parameters (theta):
-        theta_+ = theta + c_spsa * delta and theta_- = theta - c_spsa * delta
+        """Evaluate +/- perturbations of kernel parameters (lambdas).
 
         Args:
-            lambdas (array): kernel parameters at step 'count' in SPSA optimization loop
-            spsa_params (array): SPSA parameters
-            count (int): the current step in the SPSA optimization loop.
+            lambdas (numpy.ndarray): kernel parameters at step 'count' in SPSA optimization loop
+            spsa_params (numpy.ndarray): SPSA parameters
+            count (int): the current step in the SPSA optimization loop
         Returns:
-            theta_plus (array): kernel parameters perturbed in + direction
-            theta_minus (array): kernel parameters perturbed in - direction
-            delta (array): random perturbation vector with elements {-1,1}
-
+            lambda_plus (numpy.ndarray): kernel parameters in + direction
+            lambda_minus (numpy.ndarray): kernel parameters in - direction
+            delta (numpy.ndarray): random vector with elements {-1,1}
         """
-        prng = RandomState(count) # use randomstate to ensure repeatable Deltas
+
+        prng = RandomState(count)
 
         c_spsa = float(spsa_params[1])/np.power(count+1, spsa_params[3])
-        delta = 2*prng.randint(0, 2, size=np.shape(lambdas)[0]) - 1 # array of random integers in 2*[0, 2)-1 --> {-1,1}
+        delta = 2*prng.randint(0, 2, size=np.shape(lambdas)[0]) - 1
 
         lambda_plus = lambdas + c_spsa * delta
         lambda_minus = lambdas - c_spsa * delta
@@ -135,29 +132,27 @@ class QKA:
         F(alpha, lambda) = 1^T * alpha - (1/2) * alpha^T * Y * K * Y * alpha
 
         Args:
-            cost_plus (float): Objective function F(alpha_+, lambda_+)
-            cost_minus (float): Objective function F(alpha_-, lambda_-)
-            lambdas (array): kernel parameters at step 'count' in SPSA optimization loop
-            spsa_params (array): SPSA parameters
-            delta (array): random perturbation vector with elements {-1,1}
+            cost_plus (float): objective function F(alpha_+, lambda_+)
+            cost_minus (float): objective function F(alpha_-, lambda_-)
+            lambdas (numpy.ndarray): kernel parameters at step 'count' in SPSA optimization loop
+            spsa_params (numpy.ndarray): SPSA parameters
+            delta (numpy.ndarray): random vector with elements {-1,1}
             count(int): the current step in the SPSA optimization loop
 
         Returns:
-            cost_final (list): estimate of updated SVM objective function F using average of F(alpha_+, lambda_+) and F(alpha_-, lambda_-) in format [[cost_final]]
-            lambdas_new (array): updated values of the kernel parameters after one SPSA optimization step
-
+            cost_final (float): estimate of updated SVM objective function F using average of F(alpha_+, lambda_+) and F(alpha_-, lambda_-)
+            lambdas_new (numpy.ndarray): updated values of the kernel parameters after one SPSA optimization step
         """
+
         a_spsa = float(spsa_params[0])/np.power(count+1+spsa_params[4], spsa_params[2])
         c_spsa = float(spsa_params[1])/np.power(count+1, spsa_params[3])
 
-        g_spsa = (cost_plus - cost_minus) * delta / (2.0 * c_spsa) # Approximate the gradient of SVM objective (note: 1/delta = delta)
+        g_spsa = (cost_plus - cost_minus) * delta / (2.0 * c_spsa)
 
-        lambdas_new = lambdas - a_spsa * g_spsa # update kernel params from initial values to new values using estimate of gradient
+        lambdas_new = lambdas - a_spsa * g_spsa
         lambdas_new = lambdas_new.flatten()
 
-        # Since direct value of alpha is not available because we did gradient ascent over alpha_+ and alpha_-, we cannot evaluate exact cost.
-        # Take the average of cost_plus and cost_minus as an approximation:
-        cost_final = (cost_plus+cost_minus)/2
+        cost_final = (cost_plus + cost_minus) / 2
 
         return cost_final, lambdas_new
 
@@ -167,27 +162,20 @@ class QKA:
     def align_kernel(self, data, labels, lambda_initial=None, spsa_steps=10, C=1):
         """Align the quantum kernel.
 
-        Uses SPSA for minimization wrt kernel parameters (lambda) and
-        gradient ascent for maximization wrt support vector weights (alpha):
+        Uses SPSA for minimization over kernel parameters (lambdas) and
+        convex optimization for maximization over lagrange multipliers (alpha):
 
-        min max cost_function
+        min_lambda max_alpha 1^T * alpha - (1/2) * alpha^T * Y * K_lambda * Y * alpha
 
         Args:
-            data (numpy.ndarray): NxD array, where N is the number of data points, D is the feature dimension.
-            labels (numpy.ndarray): Nx1 array of +/-1, where N is the number of data points
-            lambda_initial (array): initial lambdas for feature map
-            spsa_steps (int): number of SPSA steps
-            C (float): penalty parameter for soft-margin
+            data (numpy.ndarray): NxD array of training data, where N is the number of samples and D is the feature dimension
+            labels (numpy.ndarray): Nx1 array of +/-1 labels of the N training samples
+            lambda_initial (numpy.ndarray): Initial parameters of the quantum feature map
+            spsa_steps (int): number of SPSA optimization steps
+            C (float): penalty parameter for the soft-margin support vector machine
 
         Returns:
-            lambdas (array): list of best kernel parameters averaged over the last 10 SPSA steps
-            cost_plus_save (list): SVM objective function evaluated at (alpha_+, lambda_+) at each SPSA step
-            cost_minus_save (list): SVM objective function evaluated at (alpha_-, lambda_-) at each SPSA step
-            cost_final_save (list): estimate of updated SVM objective function F using average of F(alpha_+, lambda_+) and F(alpha_-, lambda_-) at each SPSA step
-            lambda_save(list): kernel parameters updated at each SPSA step
-            kernel_best (array): the final kernel matrix evaluated with best set of parameters averaged over the last 10 SPSA steps.
-            program_data: the full Results object for the final kernel matrix of each SPSA iteration
-
+            result (dict): the results of kernel alignment
         """
 
         if lambda_initial is not None:
@@ -228,10 +216,10 @@ class QKA:
             # Maximize SVM objective function over
             # support vectors in the (+) and (-) directions.
 
-            ret_plus = self.gradient_ascent_cvxopt(K=kernel_plus, y=labels, C=C)
+            ret_plus = self.cvxopt_solver(K=kernel_plus, y=labels, C=C)
             cost_plus = -1 * ret_plus['primal objective']
 
-            ret_minus = self.gradient_ascent_cvxopt(K=kernel_minus, y=labels, C=C)
+            ret_minus = self.cvxopt_solver(K=kernel_minus, y=labels, C=C)
             cost_minus = -1 * ret_minus['primal objective']
 
             # (STEP 4 OF PSEUDOCODE)
@@ -251,31 +239,21 @@ class QKA:
             cost_minus_save.append(cost_minus)
             cost_final_save.append(cost_final)
 
-            # (skip this) Use updated kernel parameters "lambdas" to compute kernel matrix:
-            # kernel_now = self.kernel_matrix.construct_kernel_matrix(x1_vec=data, x2_vec=data, parameters=lambdas)
-            # kernel_now_list.append(kernel_now)
-            #
-            # Compute alignment to the "reference" kernel:
-            # alignment = self.compute_alignment(kernel_1=np.outer(labels, labels), kernel_2=kernel_now)
-            # alignment_save.append(alignment)
-            #
-            # if self.verbose: print('\n\n\033[92m Alignment: {}\033[00m'.format(alignment))
-
             program_data.append(self.kernel_matrix.results)
 
 
-        # Evaluate aligned kernel matrix with best set of parameters averaged over last 10 steps:
+        # Evaluate aligned kernel matrix with optimized set of parameters averaged over last 10 SPSA steps:
         lambdas = np.sum(np.array(lambda_save)[-10:, :],axis = 0)/10
         kernel_best = self.kernel_matrix.construct_kernel_matrix(x1_vec=data, x2_vec=data, parameters=lambdas)
 
-        self._return['best_kernel_parameters'] = lambdas
-        self._return['best_kernel_matrix'] = kernel_best
+        self.result['aligned_kernel_parameters'] = lambdas
+        self.result['aligned_kernel_matrix'] = kernel_best
 
-        self._return['all_kernel_parameters'] = lambda_save
-        self._return['all_final_cost_evaluations'] = cost_final_save
-        self._return['all_positive_cost_evaluations'] = cost_plus_save
-        self._return['all_negative_cost_evaluations'] = cost_minus_save
+        self.result['all_kernel_parameters'] = lambda_save
+        self.result['all_final_cost_evaluations'] = cost_final_save
+        self.result['all_positive_cost_evaluations'] = cost_plus_save
+        self.result['all_negative_cost_evaluations'] = cost_minus_save
 
-        self._return['program_data'] = program_data
+        self.result['program_data'] = program_data
 
-        return self._return
+        return self.result

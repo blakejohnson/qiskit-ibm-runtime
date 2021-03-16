@@ -1,6 +1,6 @@
 import numpy as np
 from qiskit import Aer
-from featuremaps import FeatureMapQuantumControl
+from featuremaps import FeatureMapForrelation
 from kernel_matrix import KernelMatrix
 from qka import QKA
 from sklearn import metrics
@@ -25,7 +25,7 @@ y_train = np.concatenate((-1*np.ones(num_samples), np.ones(num_samples)))
 
 # Define the feature map and its initial parameters:
 
-fm = FeatureMapQuantumControl(feature_dimension=num_features, depth=depth, entangler_map=None)
+fm = FeatureMapForrelation(feature_dimension=num_features, depth=depth, entangler_map=None)
 lambda_initial = np.random.uniform(-1,1, size=(fm._num_parameters))
 
 
@@ -43,12 +43,12 @@ qka_results = qka.align_kernel(data=x_train, labels=y_train,
 x_test = np.random.rand(2*num_samples, num_features)
 y_test = np.concatenate((-1*np.ones(num_samples), np.ones(num_samples)))
 
-kernel_aligned = qka_results['best_kernel_matrix']
+kernel_aligned = qka_results['aligned_kernel_matrix']
 model = SVC(C=C, kernel='precomputed')
 model.fit(X=kernel_aligned, y=y_train)
 
 km = KernelMatrix(feature_map=fm, backend=bk)
-kernel_test = km.construct_kernel_matrix(x1_vec=x_test, x2_vec=x_train, parameters=qka_results['best_kernel_parameters'])
+kernel_test = km.construct_kernel_matrix(x1_vec=x_test, x2_vec=x_train, parameters=qka_results['aligned_kernel_parameters'])
 labels_test = model.predict(X=kernel_test)
 accuracy_test = metrics.balanced_accuracy_score(y_true=y_test, y_pred=labels_test)
 
