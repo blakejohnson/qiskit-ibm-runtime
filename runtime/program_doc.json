@@ -27,7 +27,7 @@
       {"name": "instruction_durations", "description": "Durations of instructions.", "type": "A list of tuples: [(instruction_name, qubits, duration, unit), ...]."},
       {"name": "dt", "description": "Backend sample time (resolution) in seconds.", "type": "float"},
       {"name": "seed_transpiler", "description": "Sets random seed for the stochastic parts of the transpiler.", "type": "int"},
-      {"name": "optimization_level", "description": "How much optimization to perform on the circuits (0-3). Higher levels generate more optimized circuits,", "type": "int"}
+      {"name": "optimization_level", "description": "How much optimization to perform on the circuits (0-3). Higher levels generate more optimized circuits.", "type": "int"}
     ],
     "return_values": [
       {"name": "results", "description": "Circuit execution results.", "type": "qiskit.result.Result object"}
