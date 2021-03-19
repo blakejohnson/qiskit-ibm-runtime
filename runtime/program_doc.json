@@ -1,0 +1,36 @@
+[
+  { "name": "Quantum-Kernel-Alignment",
+    "description": "Quantum kernel alignment algorithm that learns, on a given dataset, a quantum kernel maximizing the SVM classification margin.",
+    "id": "Quantum-Kernel-Alignment",
+    "parameters": [
+      {"name": "feature_map", "description": "An instance of FeatureMapForrelation in dictionary format used to map classical data into a quantum state space.", "type": "dict"},
+      {"name": "data", "description": "NxD array of training data, where N is the number of samples and D is the feature dimension.", "type": "numpy.ndarray"},
+      {"name": "labels", "description": "Nx1 array of +/-1 labels of the N training samples.", "type": "numpy.ndarray"},
+      {"name": "lambda_initial", "description": "Initial parameters of the quantum feature map.", "type": "numpy.ndarray"},
+      {"name": "spsa_steps", "description": "Number of SPSA optimization steps.", "type": "int"},
+      {"name": "C", "description": "Penalty parameter for the soft-margin support vector machine.", "type": "float"}
+    ],
+    "return_values": [
+      {"name": "aligned_kernel_parameters", "description": "The optimized kernel parameters found from quantum kernel alignment.", "type": "numpy.ndarray"},
+      {"name": "aligned_kernel_matrix", "description": "The aligned quantum kernel matrix evaluated with the optimized kernel parameters on the training data.", "type": "numpy.ndarray"}
+    ]
+  },
+  { "name": "Circuit-Runner",
+    "description": "A runtime program that takes one or more circuits, compiles them, executes them on the selected backend, and returns the results.",
+    "id": "Circuit-Runner",
+    "parameters": [
+      {"name": "initial_layout", "description": "Initial position of virtual qubits on physical qubits.", "type": "dict or list"},
+      {"name": "layout_method", "description": "Name of layout selection pass ('trivial', 'dense', 'noise_adaptive', 'sabre')", "type": "string"},
+      {"name": "routing_method", "description": "Name of routing pass ('basic', 'lookahead', 'stochastic', 'sabre').", "type": "string"},
+      {"name": "translation_method", "description": "Name of translation pass ('unroller', 'translator', 'synthesis').", "type": "string"},
+      {"name": "scheduling_method", "description": "Name of scheduling pass ('as_soon_as_possible', 'as_late_as_possible').", "type": "string"},
+      {"name": "instruction_durations", "description": "Durations of instructions.", "type": "A list of tuples: [(instruction_name, qubits, duration, unit), ...]."},
+      {"name": "dt", "description": "Backend sample time (resolution) in seconds.", "type": "float"},
+      {"name": "seed_transpiler", "description": "Sets random seed for the stochastic parts of the transpiler.", "type": "int"},
+      {"name": "optimization_level", "description": "How much optimization to perform on the circuits (0-3). Higher levels generate more optimized circuits,", "type": "int"}
+    ],
+    "return_values": [
+      {"name": "results", "description": "Circuit execution results.", "type": "qiskit.result.Result object"}
+    ]
+  }
+]

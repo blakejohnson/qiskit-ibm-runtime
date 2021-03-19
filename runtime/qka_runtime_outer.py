@@ -404,7 +404,7 @@ class QKA:
             intrim_result = {'cost': cost_final,
                              'lambda': lambdas, 'cost_plus': cost_plus,
                              'cost_minus': cost_minus, 'cost_final': cost_final}
-            post_intrim_result(intrim_result)
+            post_interim_result(intrim_result)
 
             lambda_save.append(lambdas)
             cost_plus_save.append(cost_plus)
@@ -431,7 +431,7 @@ class QKA:
         return self.result
 
 
-def post_intrim_result(text):
+def post_interim_result(text):
     print(json.dumps({'post': text}, cls=NumpyEncoder))
 
 
