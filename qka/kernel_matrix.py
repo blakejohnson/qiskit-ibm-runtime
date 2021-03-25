@@ -1,7 +1,5 @@
 import numpy as np
 import itertools
-from qiskit.compiler import transpile
-from qiskit.compiler import assemble
 
 
 class KernelMatrix:
@@ -17,8 +15,7 @@ class KernelMatrix:
         self._feature_map = feature_map
         self._feature_map_circuit = self._feature_map.construct_circuit # the feature map circuit
         self._backend = backend
-        self.results = {} # store the results object (program_data)
-
+        self.results = {}  # store the results object (program_data)
 
     def construct_kernel_matrix(self, x1_vec, x2_vec, parameters=None):
         """Create the kernel matrix for a given feature map and input data.
@@ -53,10 +50,7 @@ class KernelMatrix:
                 circuit.measure_all()
                 experiments.append(circuit)
 
-            experiments = transpile(experiments, backend=self._backend)
-            qobj = assemble(experiments, backend=self._backend, shots=1024)
-            program_data = self._backend.run(qobj).result()
-
+            program_data = self._run_circuits(experiments)
             self.results['program_data'] = program_data
 
             mat = np.eye(len(x1_vec), len(x1_vec))  # kernel matrix element on the diagonal is always 1
@@ -80,10 +74,7 @@ class KernelMatrix:
                     circuit.measure_all()
                     experiments.append(circuit)
 
-            experiments = transpile(experiments, backend=self._backend)
-            qobj = assemble(experiments, backend=self._backend, shots=1024)
-            program_data = self._backend.run(qobj).result()
-
+            program_data = self._run_circuits(experiments)
             self.results['program_data'] = program_data
 
             mat = np.zeros((len(x1_vec), len(x2_vec)))
@@ -98,3 +89,13 @@ class KernelMatrix:
                     i += 1
 
             return mat ** self._feature_map._copies
+
+    def _run_circuits(self, circuits):
+        """Execute the input circuits using runtime."""
+        provider = self._backend.provider()
+        runtime_params = {'circuits': circuits}
+        options = {'backend_name': self._backend.name()}
+        return provider.runtime.run(program_name="Circuit-Runner",
+                                    options=options,
+                                    params=runtime_params,
+                                    ).result()
