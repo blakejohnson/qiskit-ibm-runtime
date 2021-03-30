@@ -1,6 +1,8 @@
 import numpy as np
 import itertools
 
+from qiskit.compiler import transpile, assemble
+
 
 class KernelMatrix:
     """Build the kernel matrix from a quantum feature map."""
@@ -91,11 +93,17 @@ class KernelMatrix:
             return mat ** self._feature_map._copies
 
     def _run_circuits(self, circuits):
-        """Execute the input circuits using runtime."""
-        provider = self._backend.provider()
-        runtime_params = {'circuits': circuits}
-        options = {'backend_name': self._backend.name()}
-        return provider.runtime.run(program_name="Circuit-Runner",
-                                    options=options,
-                                    params=runtime_params,
-                                    ).result()
+        """Execute the input circuits."""
+        try:
+            provider = self._backend.provider()
+            runtime_params = {'circuits': circuits}
+            options = {'backend_name': self._backend.name()}
+            return provider.runtime.run(program_name="Circuit-Runner",
+                                        options=options,
+                                        params=runtime_params,
+                                        ).result()
+        except Exception:
+            # Fall back to run without runtime.
+            transpiled = transpile(circuits, backend=self._backend)
+            qobj = assemble(transpiled, backend=self._backend, shots=8192)
+            return self._backend.run(qobj).result()
