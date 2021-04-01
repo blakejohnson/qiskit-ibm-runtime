@@ -4,4 +4,5 @@ qiskit-aqua
 qiskit-aer
 cvxopt
 jupyter
+matplotlib
 git+https://github.com/jyu00/qiskit-ibmq-provider.git@runtime-service
