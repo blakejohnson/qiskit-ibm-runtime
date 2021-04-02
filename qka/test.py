@@ -1,53 +1,63 @@
 import numpy as np
 from qiskit import Aer
-from featuremaps import FeatureMapForrelation
+from featuremaps import FeatureMapACME
 from kernel_matrix import KernelMatrix
 from qka import QKA
 from sklearn import metrics
 from sklearn.svm import SVC
 
+from oct2py import octave
+octave.addpath('/Users/jen/Q/code/quantum_kernel_data')
 
-num_samples=5  # number of samples per class in the input data
-num_features=2 # number of features in the input data
-depth=2        # depth of the feature map circuit
-C=1            # SVM soft-margin penalty
-spsa_steps=11  # number of SPSA iterations
 
+# configure settings for the tony line:
+num_features=10  # number of features in the input data
+num_train=10      # number of training samples per class
+num_test=10       # number of test samples per class
+C=1              # SVM soft-margin penalty
+maxiters=21       # number of SPSA iterations
+
+entangler_map=[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,8],[8,9]]
+
+# Generate the data:
+state=42 # setting the state for the random number generator
+data_plus, data_minus = octave.generate_data(num_train+num_test, state, nout=2)
+
+x_train = np.concatenate((data_plus.T[:num_train], data_minus.T[:num_train]))
+y_train = np.concatenate((-1*np.ones(num_train), np.ones(num_train)))
+
+x_test = np.concatenate((data_plus.T[num_train:], data_minus.T[num_train:]))
+y_test = np.concatenate((-1*np.ones(num_test), np.ones(num_test)))
 
 bk = Aer.get_backend('qasm_simulator')
 
-
-# create random test data and labels:
-
-x_train = np.random.rand(2*num_samples, num_features)
-y_train = np.concatenate((-1*np.ones(num_samples), np.ones(num_samples)))
-
-
 # Define the feature map and its initial parameters:
+initial_kernel_parameters = [0.1] # np.pi/2 should yield 100% test accuracy
+fm = FeatureMapACME(feature_dimension=num_features, entangler_map=entangler_map)
+km = KernelMatrix(feature_map=fm, backend=bk)
 
-fm = FeatureMapForrelation(feature_dimension=num_features, depth=depth, entangler_map=None)
-lambda_initial = np.random.uniform(-1,1, size=(fm._num_parameters))
+# Train and test the initial kernel:
+kernel_init_train = km.construct_kernel_matrix(x1_vec=x_train, x2_vec=x_train, parameters=initial_kernel_parameters)
+model = SVC(C=C, kernel='precomputed')
+model.fit(X=kernel_init_train, y=y_train)
 
+kernel_init_test = km.construct_kernel_matrix(x1_vec=x_test, x2_vec=x_train, parameters=initial_kernel_parameters)
+labels_test = model.predict(X=kernel_init_test)
+accuracy_test = metrics.balanced_accuracy_score(y_true=y_test, y_pred=labels_test)
 
+print('Initial Kernel | Balanced Test Accuracy: {}'.format(accuracy_test))
 
-# Align the quantum kernel:
-
+# Align the parametrized kernel:
 qka = QKA(feature_map=fm, backend=bk)
 qka_results = qka.align_kernel(data=x_train, labels=y_train,
-                               lambda_initial=lambda_initial,
-                               spsa_steps=spsa_steps, C=C)
+                               initial_kernel_parameters=initial_kernel_parameters,
+                               maxiters=maxiters, C=C)
 
-
-# Test the aligned kernel on test data:
-
-x_test = np.random.rand(2*num_samples, num_features)
-y_test = np.concatenate((-1*np.ones(num_samples), np.ones(num_samples)))
-
+# Train and test the aligned kernel:
 kernel_aligned = qka_results['aligned_kernel_matrix']
 model = SVC(C=C, kernel='precomputed')
 model.fit(X=kernel_aligned, y=y_train)
 
-km = KernelMatrix(feature_map=fm, backend=bk)
 kernel_test = km.construct_kernel_matrix(x1_vec=x_test, x2_vec=x_train, parameters=qka_results['aligned_kernel_parameters'])
 labels_test = model.predict(X=kernel_test)
 accuracy_test = metrics.balanced_accuracy_score(y_true=y_test, y_pred=labels_test)

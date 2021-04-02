@@ -40,7 +40,7 @@ class KernelMatrix:
 
         experiments = []
 
-        measurement_basis = '0' * np.shape(x1_vec)[1]
+        measurement_basis = '0' * self._feature_map._num_qubits
 
         if is_identical:
 

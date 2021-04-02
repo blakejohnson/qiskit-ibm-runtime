@@ -49,7 +49,7 @@ class QKA:
         """
 
         SPSA_params = np.zeros((5))
-        SPSA_params[0] = 0.01              # a
+        SPSA_params[0] = 0.05              # a
         SPSA_params[1] = 0.1               # c
         SPSA_params[2] = 0.602             # alpha  (alpha range [0.5 - 1.0])
         SPSA_params[3] = 0.101             # gamma  (gamma range [0.0 - 0.5])
@@ -159,7 +159,7 @@ class QKA:
 
 
 
-    def align_kernel(self, data, labels, lambda_initial=None, spsa_steps=10, C=1):
+    def align_kernel(self, data, labels, initial_kernel_parameters=None, maxiters=10, C=1):
         """Align the quantum kernel.
 
         Uses SPSA for minimization over kernel parameters (lambdas) and
@@ -170,16 +170,16 @@ class QKA:
         Args:
             data (numpy.ndarray): NxD array of training data, where N is the number of samples and D is the feature dimension
             labels (numpy.ndarray): Nx1 array of +/-1 labels of the N training samples
-            lambda_initial (numpy.ndarray): Initial parameters of the quantum feature map
-            spsa_steps (int): number of SPSA optimization steps
+            initial_kernel_parameters (numpy.ndarray): Initial parameters of the quantum kernel
+            maxiters (int): number of SPSA optimization steps
             C (float): penalty parameter for the soft-margin support vector machine
 
         Returns:
             result (dict): the results of kernel alignment
         """
 
-        if lambda_initial is not None:
-            lambdas = lambda_initial
+        if initial_kernel_parameters is not None:
+            lambdas = initial_kernel_parameters
         else:
             lambdas = np.random.uniform(-1.0, 1.0, size=(self.num_parameters))
 
@@ -197,9 +197,9 @@ class QKA:
         # #####################
         # Start the alignment:
 
-        for count in range(spsa_steps):
+        for count in range(maxiters):
 
-            if self.verbose: print('\n\n  SPSA step {} of {}:\n'.format(count+1, spsa_steps))
+            if self.verbose: print('\n\n  SPSA step {} of {}:\n'.format(count+1, maxiters))
 
             # (STEP 1 OF PSEUDOCODE)
             # First stage of SPSA optimization.
@@ -242,8 +242,14 @@ class QKA:
             program_data.append(self.kernel_matrix.results)
 
 
-        # Evaluate aligned kernel matrix with optimized set of parameters averaged over last 10 SPSA steps:
-        lambdas = np.sum(np.array(lambda_save)[-10:, :],axis = 0)/10
+        # Evaluate aligned kernel matrix with optimized set of parameters averaged over last 10% of SPSA steps:
+        num_last_lambdas = int(len(lambda_save) * 0.10)
+        if num_last_lambdas > 0:
+            last_lambdas = np.array(lambda_save)[-num_last_lambdas:, :] # the last 10% of lambdas
+            lambdas = np.sum(last_lambdas, axis=0) / num_last_lambdas   # average over last 10% lambdas
+        else:
+            lambdas = np.array(lambda_save)[-1,:]
+
         kernel_best = self.kernel_matrix.construct_kernel_matrix(x1_vec=data, x2_vec=data, parameters=lambdas)
 
         self.result['aligned_kernel_parameters'] = lambdas

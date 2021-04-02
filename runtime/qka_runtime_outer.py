@@ -12,28 +12,20 @@ import json
 
 from qiskit import Aer
 
-
-class FeatureMapForrelation:
-    """Mapping data with the forrelation feature map from
-    Havlicek et al. https://www.nature.com/articles/s41586-019-0980-2.
-
-    Data is encoded in entangling blocks (Z and ZZ terms) interleaved with
-    layers of either phase gates parametrized by kernel parameters, lambda,
-    or of Hadamard gates.
+class FeatureMapACME:
+    """Mapping data with the feature map.
     """
 
-    def __init__(self, feature_dimension, depth=2, entangler_map=None):
+    def __init__(self, feature_dimension, entangler_map=None):
         """
         Args:
             feature_dimension (int): number of features
-            depth (int): number of repeated layers in the feature map
             entangler_map (list[list]): connectivity of qubits with a list of [source, target], or None for full entanglement.
                                         Note that the order in the list is the order of applying the two-qubit gate.
         """
-
         self._feature_dimension = feature_dimension
         self._num_qubits = self._feature_dimension = feature_dimension
-        self._depth = depth
+        self._depth = 1
         self._copies = 1
 
         if entangler_map is None:
@@ -41,7 +33,7 @@ class FeatureMapForrelation:
         else:
             self._entangler_map = entangler_map
 
-        self._num_parameters = self._num_qubits * self._depth
+        self._num_parameters = self._num_qubits
 
 
     def construct_circuit(self, x=None, parameters=None, q=None, inverse=False, name=None):
@@ -58,33 +50,40 @@ class FeatureMapForrelation:
         """
 
         if parameters is not None:
-            if len(parameters) != self._num_parameters:
-                raise ValueError('The number of feature map parameters has to be {}'.format(self._num_parameters))
+            if isinstance(parameters, int) or isinstance(parameters, float):
+                raise ValueError('Parameters must be a list.')
+            elif (len(parameters) == 1):
+                parameters = parameters * np.ones(self._num_qubits)
+            else:
+                if len(parameters) != self._num_parameters:
+                    raise ValueError('The number of feature map parameters must be {}.'.format(self._num_parameters))
+
+        if len(x) != 2*self._num_qubits:
+            raise ValueError('The input vector must be of length {}.'.format(2*self._num_qubits))
 
         if q is None:
             q = QuantumRegister(self._num_qubits, name='q')
 
         circuit=QuantumCircuit(q, name=name)
 
-        param_idx = 0
-        for layer in range(self._depth):
-            for i in range(self._num_qubits):
-                if parameters is not None:
-                    circuit.p(np.pi + 2 * np.pi * parameters[param_idx], q[i])
-                    circuit.h(q[i])
-                    param_idx += 1
-                else:
-                    circuit.h(q[i])
-                circuit.p(2 * x[i], q[i])
-            for source, target in self._entangler_map:
-                circuit.cx(q[source], q[target])
-                circuit.p(2 * (np.pi - x[source]) * (np.pi - x[target]), q[target])
-                circuit.cx(q[source], q[target])
+        for i in range(self._num_qubits):
+            circuit.ry(-parameters[i], q[i])
+
+        for source, target in self._entangler_map:
+            circuit.cz(q[source], q[target])
+
+        for i in range(self._num_qubits):
+            circuit.rz(-2*x[2*i+1], q[i])
+            circuit.rx(-2*x[2*i], q[i])
 
         if inverse:
             return circuit.inverse()
         else:
             return circuit
+
+    def to_dict(self):
+        return {'feature_dimension': self._feature_dimension,
+                'entangler_map': self._entangler_map}
 
 
 class KernelMatrix:
@@ -124,7 +123,7 @@ class KernelMatrix:
 
         experiments = []
 
-        measurement_basis = '0' * np.shape(x1_vec)[1]
+        measurement_basis = '0' * self._feature_map._num_qubits
 
         if is_identical:
 
@@ -137,7 +136,7 @@ class KernelMatrix:
                 experiments.append(circuit)
 
             experiments = transpile(experiments, backend=self._backend)
-            qobj = assemble(experiments, backend=self._backend, shots=1024)
+            qobj = assemble(experiments, backend=self._backend, shots=8192)
             program_data = self._backend.run(qobj).result()
 
             self.results['program_data'] = program_data
@@ -164,7 +163,7 @@ class KernelMatrix:
                     experiments.append(circuit)
 
             experiments = transpile(experiments, backend=self._backend)
-            qobj = assemble(experiments, backend=self._backend, shots=1024)
+            qobj = assemble(experiments, backend=self._backend, shots=8192)
             program_data = self._backend.run(qobj).result()
 
             self.results['program_data'] = program_data
@@ -226,7 +225,7 @@ class QKA:
         """
 
         SPSA_params = np.zeros((5))
-        SPSA_params[0] = 0.01              # a
+        SPSA_params[0] = 0.05              # a
         SPSA_params[1] = 0.1               # c
         SPSA_params[2] = 0.602             # alpha  (alpha range [0.5 - 1.0])
         SPSA_params[3] = 0.101             # gamma  (gamma range [0.0 - 0.5])
@@ -326,7 +325,7 @@ class QKA:
 
         return cost_final, lambdas_new
 
-    def align_kernel(self, data, labels, lambda_initial=None, spsa_steps=10, C=1):
+    def align_kernel(self, data, labels, initial_kernel_parameters=None, maxiters=10, C=1):
         """Align the quantum kernel.
 
         Uses SPSA for minimization over kernel parameters (lambdas) and
@@ -337,16 +336,16 @@ class QKA:
         Args:
             data (numpy.ndarray): NxD array of training data, where N is the number of samples and D is the feature dimension
             labels (numpy.ndarray): Nx1 array of +/-1 labels of the N training samples
-            lambda_initial (numpy.ndarray): Initial parameters of the quantum feature map
-            spsa_steps (int): number of SPSA optimization steps
+            initial_kernel_parameters (numpy.ndarray): Initial parameters of the quantum kernel
+            maxiters (int): number of SPSA optimization steps
             C (float): penalty parameter for the soft-margin support vector machine
 
         Returns:
             result (dict): the results of kernel alignment
         """
 
-        if lambda_initial is not None:
-            lambdas = lambda_initial
+        if initial_kernel_parameters is not None:
+            lambdas = initial_kernel_parameters
         else:
             lambdas = np.random.uniform(-1.0, 1.0, size=(self.num_parameters))
 
@@ -364,9 +363,9 @@ class QKA:
         # #####################
         # Start the alignment:
 
-        for count in range(spsa_steps):
+        for count in range(maxiters):
 
-            # if self.verbose: print('\n\n  SPSA step {} of {}:\n'.format(count+1, spsa_steps))
+            # if self.verbose: print('\n\n  SPSA step {} of {}:\n'.format(count+1, maxiters))
 
             # (STEP 1 OF PSEUDOCODE)
             # First stage of SPSA optimization.
@@ -402,8 +401,10 @@ class QKA:
             lambdas = lambda_best # updated kernel parameters
 
             intrim_result = {'cost': cost_final,
-                             'lambda': lambdas, 'cost_plus': cost_plus,
-                             'cost_minus': cost_minus, 'cost_final': cost_final}
+                             'kernel_parameters': lambdas}
+            # intrim_result = {'cost': cost_final,
+            #                  'lambda': lambdas, 'cost_plus': cost_plus,
+            #                  'cost_minus': cost_minus, 'cost_final': cost_final}
             post_interim_result(intrim_result)
 
             lambda_save.append(lambdas)
@@ -414,8 +415,14 @@ class QKA:
             program_data.append(self.kernel_matrix.results)
 
 
-        # Evaluate aligned kernel matrix with optimized set of parameters averaged over last 10 SPSA steps:
-        lambdas = np.sum(np.array(lambda_save)[-10:, :],axis = 0)/10
+        # Evaluate aligned kernel matrix with optimized set of parameters averaged over last 10% of SPSA steps:
+        num_last_lambdas = int(len(lambda_save) * 0.10)
+        if num_last_lambdas > 0:
+            last_lambdas = np.array(lambda_save)[-num_last_lambdas:, :] # the last 10% of lambdas
+            lambdas = np.sum(last_lambdas, axis=0) / num_last_lambdas   # average over last 10% lambdas
+        else:
+            lambdas = np.array(lambda_save)[-1,:]
+
         kernel_best = self.kernel_matrix.construct_kernel_matrix(x1_vec=data, x2_vec=data, parameters=lambdas)
 
         self.result['aligned_kernel_parameters'] = lambdas
@@ -467,7 +474,7 @@ def main(backend, *args, **kwargs):
 
     # Reconstruct the feature map object.
     feature_map = kwargs.pop('feature_map')
-    fm = FeatureMapForrelation(**feature_map)
+    fm = FeatureMapACME(**feature_map)
     qka = QKA(feature_map=fm, backend=backend)
     qka_results = qka.align_kernel(**kwargs)
 

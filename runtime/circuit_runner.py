@@ -64,7 +64,7 @@ def main(backend, **kwargs):
     if not circs:
         raise ValueError("Circuits are required.")
     transpiled = transpile(circuits=circs, backend=backend, **kwargs)
-    qobj = assemble(transpiled, backend=backend)  # TODO - remove when not using Aer
+    qobj = assemble(transpiled, backend=backend, shots=8192)  # TODO - remove when not using Aer
     result = backend.run(qobj).result()
 
     print(json.dumps({'results': result}, cls=RuntimeEncoder))
