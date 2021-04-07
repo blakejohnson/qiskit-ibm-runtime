@@ -83,6 +83,10 @@ provider.runtime.pprint_programs(refresh=True)
 provider.runtime.delete_program(program_id='id-to-delete')
 
 # Execute a program
+
+def interim_result_callback(job_id, interim_result):
+    print(interim_result)
+
 backend = provider.get_backend('ibmq_montreal')
 runtime_inputs = {
     'circuits': circuit
@@ -91,7 +95,8 @@ options = {'backend_name': backend.name()}
 job = provider.runtime.run(program_id="circuit-runner",
                            options=options,
                            inputs=runtime_inputs,
-                           )
+                           callback=interim_result_callback
+                          )
 
 # See job status
 print(job.status())
