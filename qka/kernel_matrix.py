@@ -1,7 +1,7 @@
 import numpy as np
 import itertools
 
-from qiskit.compiler import transpile, assemble
+from qiskit.compiler import transpile
 
 
 class KernelMatrix:
@@ -47,9 +47,11 @@ class KernelMatrix:
             my_product_list = list(itertools.combinations(range(len(x1_vec)), 2)) # all pairwise combos of datapoint indices
             for index_1, index_2 in my_product_list:
 
-                circuit = self._feature_map_circuit(x=x1_vec[index_1], parameters=parameters, name='{}_{}'.format(index_1, index_2))
-                circuit += self._feature_map_circuit(x=x1_vec[index_2], parameters=parameters, inverse=True)
+                circuit_1 = self._feature_map_circuit(x=x1_vec[index_1], parameters=parameters, name='{}_{}'.format(index_1, index_2))
+                circuit_2 = self._feature_map_circuit(x=x1_vec[index_2], parameters=parameters, inverse=True)
+                circuit = circuit_1.compose(circuit_2)
                 circuit.measure_all()
+
                 experiments.append(circuit)
 
             program_data = self._run_circuits(experiments)
@@ -71,9 +73,11 @@ class KernelMatrix:
             for index_1, point_1 in enumerate(x1_vec):
                 for index_2, point_2 in enumerate(x2_vec):
 
-                    circuit = self._feature_map_circuit(x=point_1, parameters=parameters, name='{}_{}'.format(index_1, index_2))
-                    circuit += self._feature_map_circuit(x=point_2, parameters=parameters, inverse=True)
+                    circuit_1 = self._feature_map_circuit(x=point_1, parameters=parameters, name='{}_{}'.format(index_1, index_2))
+                    circuit_2 = self._feature_map_circuit(x=point_2, parameters=parameters, inverse=True)
+                    circuit = circuit_1.compose(circuit_2)
                     circuit.measure_all()
+
                     experiments.append(circuit)
 
             program_data = self._run_circuits(experiments)
