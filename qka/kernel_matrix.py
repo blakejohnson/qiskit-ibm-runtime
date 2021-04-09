@@ -105,5 +105,4 @@ class KernelMatrix:
         except Exception:
             # Fall back to run without runtime.
             transpiled = transpile(circuits, backend=self._backend)
-            qobj = assemble(transpiled, backend=self._backend, shots=8192)
-            return self._backend.run(qobj).result()
+            return self._backend.run(transpiled, shots=8192).result()

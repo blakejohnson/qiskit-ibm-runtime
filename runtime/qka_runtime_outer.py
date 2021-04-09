@@ -134,8 +134,7 @@ class KernelMatrix:
                 experiments.append(circuit)
 
             experiments = transpile(experiments, backend=self._backend)
-            qobj = assemble(experiments, backend=self._backend, shots=8192)
-            program_data = self._backend.run(qobj).result()
+            program_data = self._backend.run(experiments, shots=8192).result()
 
             self.results['program_data'] = program_data
 
@@ -161,8 +160,7 @@ class KernelMatrix:
                     experiments.append(circuit)
 
             experiments = transpile(experiments, backend=self._backend)
-            qobj = assemble(experiments, backend=self._backend, shots=8192)
-            program_data = self._backend.run(qobj).result()
+            program_data = self._backend.run(experiments, shots=8192).result()
 
             self.results['program_data'] = program_data
 

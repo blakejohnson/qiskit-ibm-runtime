@@ -15,7 +15,7 @@ num_features=10  # number of features in the input data
 num_train=10      # number of training samples per class
 num_test=10       # number of test samples per class
 C=1              # SVM soft-margin penalty
-maxiters=21       # number of SPSA iterations
+maxiters=2       # number of SPSA iterations
 
 entangler_map=[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,8],[8,9]]
 
@@ -25,8 +25,6 @@ data_plus, data_minus = octave.generate_data(num_train+num_test, state, nout=2)
 
 x_train = np.concatenate((data_plus.T[:num_train], data_minus.T[:num_train]))
 y_train = np.concatenate((-1*np.ones(num_train), np.ones(num_train)))
-
-print(np.shape(x_train))
 
 x_test = np.concatenate((data_plus.T[num_train:], data_minus.T[num_train:]))
 y_test = np.concatenate((-1*np.ones(num_test), np.ones(num_test)))
