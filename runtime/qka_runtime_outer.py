@@ -95,9 +95,9 @@ class KernelMatrix:
         """
 
         self._feature_map = feature_map
-        self._feature_map_circuit = self._feature_map.construct_circuit  # the feature map circuit
+        self._feature_map_circuit = self._feature_map.construct_circuit
         self._backend = backend
-        self.results = {}  # store the results object (program_data)
+        self.results = {}
 
 
     def construct_kernel_matrix(self, x1_vec, x2_vec, parameters=None):
@@ -192,12 +192,11 @@ class QKA:
         """
 
         self.feature_map = feature_map
-        self.feature_map_circuit = self.feature_map.construct_circuit # the feature map circuit not yet evaluated with input arguments
+        self.feature_map_circuit = self.feature_map.construct_circuit
         self.backend = backend
-        self.num_parameters = self.feature_map._num_parameters  # number of parameters (lambdas) in the feature map
+        self.num_parameters = self.feature_map._num_parameters
 
         self.result = {}
-
         self.kernel_matrix = KernelMatrix(feature_map=self.feature_map, backend=self.backend)
 
     def SPSA_parameters(self):
@@ -212,16 +211,13 @@ class QKA:
             c_i = c / (i + 1) ** gamma,
 
         for fixed coefficents a, c, alpha, gamma, A.
-
-        Default Qiskit values are:
-        SPSA_params = [2*np.pi*0.1, 0.1, 0.602, 0.101, 0]
         """
 
         SPSA_params = np.zeros((5))
         SPSA_params[0] = 0.05              # a
         SPSA_params[1] = 0.1               # c
-        SPSA_params[2] = 0.602             # alpha  (alpha range [0.5 - 1.0])
-        SPSA_params[3] = 0.101             # gamma  (gamma range [0.0 - 0.5])
+        SPSA_params[2] = 0.602             # alpha
+        SPSA_params[3] = 0.101             # gamma
         SPSA_params[4] = 0                 # A
 
         return SPSA_params
@@ -249,13 +245,12 @@ class QKA:
 
         y = y.astype('float')
 
-        P = matrix(H)                                                 # (nxn) yy^T * K, element-wise multiplication
-        q = matrix(f)                                                 # (nx1) -ones
-        G = matrix(np.vstack((-np.eye((n)), np.eye((n)))))            # for soft-margin, (2nxn) matrix with -identity (+identity) in top (bottom) half
-        h = matrix(np.vstack((np.zeros((n,1)), np.ones((n,1)) * C)))  # for soft-margin, (2nx1) vector with 0's (C's) in top (bottom) half
-        A = matrix(y, y.T.shape)                                      # (1xn) y
-        b = matrix(np.zeros(1), (1, 1))                               # (1x1) zero
-
+        P = matrix(H)
+        q = matrix(f)
+        G = matrix(np.vstack((-np.eye((n)), np.eye((n)))))
+        h = matrix(np.vstack((np.zeros((n,1)), np.ones((n,1)) * C)))
+        A = matrix(y, y.T.shape)
+        b = matrix(np.zeros(1), (1, 1))
 
         solvers.options['maxiters'] = max_iters
         solvers.options['show_progress'] = show_progress
@@ -342,36 +337,17 @@ class QKA:
         else:
             lambdas = np.random.uniform(-1.0, 1.0, size=(self.num_parameters))
 
-        # Pre-computed spsa parameters:
         spsa_params = self.SPSA_parameters()
 
-        # Save data at each SPSA run in the following lists:
-        lambda_save = []       # updated kernel parameters after each spsa step
-        cost_final_save = []   # avgerage cost at each spsa step
-        cost_plus_save = []    # (+) cost at each spsa step
-        cost_minus_save = []   # (-) cost at each spsa step
-        program_data = []
-
-
-        # #####################
-        # Start the alignment:
+        lambda_save = []
+        cost_final_save = []
 
         for count in range(maxiters):
 
-            # (STEP 1 OF PSEUDOCODE)
-            # First stage of SPSA optimization.
-
             lambda_plus, lambda_minus, delta = self.spsa_step_one(lambdas=lambdas, spsa_params=spsa_params, count=count)
-
-            # (STEP 2 OF PSEUDOCODE)
-            # Evaluate kernel matrix for the (+) and (-) kernel parameters.
 
             kernel_plus = self.kernel_matrix.construct_kernel_matrix(x1_vec=data, x2_vec=data, parameters=lambda_plus)
             kernel_minus = self.kernel_matrix.construct_kernel_matrix(x1_vec=data, x2_vec=data, parameters=lambda_minus)
-
-            # (STEP 3 OF PSEUDOCODE)
-            # Maximize SVM objective function over
-            # support vectors in the (+) and (-) directions.
 
             ret_plus = self.cvxopt_solver(K=kernel_plus, y=labels, C=C)
             cost_plus = -1 * ret_plus['primal objective']
@@ -379,36 +355,24 @@ class QKA:
             ret_minus = self.cvxopt_solver(K=kernel_minus, y=labels, C=C)
             cost_minus = -1 * ret_minus['primal objective']
 
-            # (STEP 4 OF PSEUDOCODE)
-            # Second stage of SPSA optimization:
-            # (one iteration of SPSA on SVM objective function F
-            #  and return updated kernel parameters).
-
             cost_final, lambda_best = self.spsa_step_two(cost_plus=cost_plus, cost_minus=cost_minus,
                                                          lambdas=lambdas, spsa_params=spsa_params, delta=delta, count=count)
 
-            lambdas = lambda_best # updated kernel parameters
+            lambdas = lambda_best
 
             intrim_result = {'cost': cost_final,
                              'kernel_parameters': lambdas}
-            # intrim_result = {'cost': cost_final,
-            #                  'lambda': lambdas, 'cost_plus': cost_plus,
-            #                  'cost_minus': cost_minus, 'cost_final': cost_final}
+
             post_interim_result(intrim_result)
 
             lambda_save.append(lambdas)
-            cost_plus_save.append(cost_plus)
-            cost_minus_save.append(cost_minus)
             cost_final_save.append(cost_final)
-
-            program_data.append(self.kernel_matrix.results)
-
 
         # Evaluate aligned kernel matrix with optimized set of parameters averaged over last 10% of SPSA steps:
         num_last_lambdas = int(len(lambda_save) * 0.10)
         if num_last_lambdas > 0:
-            last_lambdas = np.array(lambda_save)[-num_last_lambdas:, :] # the last 10% of lambdas
-            lambdas = np.sum(last_lambdas, axis=0) / num_last_lambdas   # average over last 10% lambdas
+            last_lambdas = np.array(lambda_save)[-num_last_lambdas:, :]
+            lambdas = np.sum(last_lambdas, axis=0) / num_last_lambdas
         else:
             lambdas = np.array(lambda_save)[-1,:]
 
@@ -416,13 +380,6 @@ class QKA:
 
         self.result['aligned_kernel_parameters'] = lambdas
         self.result['aligned_kernel_matrix'] = kernel_best
-
-        # self.result['all_kernel_parameters'] = lambda_save
-        # self.result['all_final_cost_evaluations'] = cost_final_save
-        # self.result['all_positive_cost_evaluations'] = cost_plus_save
-        # self.result['all_negative_cost_evaluations'] = cost_minus_save
-
-        # self.result['program_data'] = program_data
 
         return self.result
 

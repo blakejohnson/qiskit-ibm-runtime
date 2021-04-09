@@ -183,13 +183,11 @@ class QKA:
         # Pre-computed spsa parameters:
         spsa_params = self.SPSA_parameters()
 
-        # Save data at each SPSA run in the following lists:
         lambda_save = []       # updated kernel parameters after each spsa step
         cost_final_save = []   # avgerage cost at each spsa step
         cost_plus_save = []    # (+) cost at each spsa step
         cost_minus_save = []   # (-) cost at each spsa step
         program_data = []
-
 
         # #####################
         # Start the alignment:
