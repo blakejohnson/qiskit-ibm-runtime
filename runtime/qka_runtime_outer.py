@@ -25,8 +25,6 @@ class FeatureMapACME:
         """
         self._feature_dimension = feature_dimension
         self._num_qubits = self._feature_dimension = feature_dimension
-        self._depth = 1
-        self._copies = 1
 
         if entangler_map is None:
             self._entangler_map = [[i, j] for i in range(self._feature_dimension) for j in range(i + 1, self._feature_dimension)]
@@ -150,7 +148,7 @@ class KernelMatrix:
                 mat[index_1][index_2] = counts.get(measurement_basis, 0) / shots # kernel matrix element is the probability of measuring all 0s
                 mat[index_2][index_1] = mat[index_1][index_2] # kernel matrix is symmetric
 
-            return mat ** self._feature_map._copies
+            return mat
 
         else:
 
@@ -179,30 +177,25 @@ class KernelMatrix:
                     mat[index_1][index_2] = counts.get(measurement_basis, 0) / shots
                     i += 1
 
-            return mat ** self._feature_map._copies
+            return mat
 
 
 class QKA:
     """The quantum kernel alignment algorithm."""
 
-    def __init__(self, feature_map, backend, verbose=True):
+    def __init__(self, feature_map, backend):
         """Constructor.
 
         Args:
             feature_map (partial obj): the quantum feature map object
             backend (Backend): the backend instance
-            verbose (bool): print output during course of algorithm
         """
 
         self.feature_map = feature_map
         self.feature_map_circuit = self.feature_map.construct_circuit # the feature map circuit not yet evaluated with input arguments
         self.backend = backend
-        self.num_qubits = self.feature_map._num_qubits
-        self.depth = self.feature_map._depth
-        self.entangler_map = self.feature_map._entangler_map
         self.num_parameters = self.feature_map._num_parameters  # number of parameters (lambdas) in the feature map
 
-        self.verbose = verbose
         self.result = {}
 
         self.kernel_matrix = KernelMatrix(feature_map=self.feature_map, backend=self.backend)
@@ -365,8 +358,6 @@ class QKA:
 
         for count in range(maxiters):
 
-            # if self.verbose: print('\n\n  SPSA step {} of {}:\n'.format(count+1, maxiters))
-
             # (STEP 1 OF PSEUDOCODE)
             # First stage of SPSA optimization.
 
@@ -395,8 +386,6 @@ class QKA:
 
             cost_final, lambda_best = self.spsa_step_two(cost_plus=cost_plus, cost_minus=cost_minus,
                                                          lambdas=lambdas, spsa_params=spsa_params, delta=delta, count=count)
-
-            # if self.verbose: print('\n\n\033[92m Cost: {}\033[00m'.format(cost_final))
 
             lambdas = lambda_best # updated kernel parameters
 

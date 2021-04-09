@@ -19,9 +19,6 @@ class QKA:
         self.feature_map = feature_map
         self.feature_map_circuit = self.feature_map.construct_circuit # the feature map circuit not yet evaluated with input arguments
         self.backend = backend
-        self.num_qubits = self.feature_map._num_qubits
-        self.depth = self.feature_map._depth
-        self.entangler_map = self.feature_map._entangler_map
         self.num_parameters = self.feature_map._num_parameters  # number of parameters (lambdas) in the feature map
 
         self.verbose = verbose

@@ -26,6 +26,8 @@ data_plus, data_minus = octave.generate_data(num_train+num_test, state, nout=2)
 x_train = np.concatenate((data_plus.T[:num_train], data_minus.T[:num_train]))
 y_train = np.concatenate((-1*np.ones(num_train), np.ones(num_train)))
 
+print(np.shape(x_train))
+
 x_test = np.concatenate((data_plus.T[num_train:], data_minus.T[num_train:]))
 y_test = np.concatenate((-1*np.ones(num_test), np.ones(num_test)))
 

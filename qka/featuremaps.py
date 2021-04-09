@@ -15,8 +15,6 @@ class FeatureMapACME:
         """
         self._feature_dimension = feature_dimension
         self._num_qubits = self._feature_dimension = feature_dimension
-        self._depth = 1
-        self._copies = 1
 
         if entangler_map is None:
             self._entangler_map = [[i, j] for i in range(self._feature_dimension) for j in range(i + 1, self._feature_dimension)]

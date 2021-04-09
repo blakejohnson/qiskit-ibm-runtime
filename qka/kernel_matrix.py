@@ -64,7 +64,7 @@ class KernelMatrix:
                 mat[index_1][index_2] = counts.get(measurement_basis, 0) / shots # kernel matrix element is the probability of measuring all 0s
                 mat[index_2][index_1] = mat[index_1][index_2] # kernel matrix is symmetric
 
-            return mat ** self._feature_map._copies
+            return mat
 
         else:
 
@@ -90,7 +90,7 @@ class KernelMatrix:
                     mat[index_1][index_2] = counts.get(measurement_basis, 0) / shots
                     i += 1
 
-            return mat ** self._feature_map._copies
+            return mat
 
     def _run_circuits(self, circuits):
         """Execute the input circuits."""
