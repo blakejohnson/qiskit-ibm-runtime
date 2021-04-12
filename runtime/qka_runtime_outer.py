@@ -8,9 +8,10 @@ from typing import Any
 
 import sys
 import json
-# from ntc_provider.programruntime import QuantumProgramProvider
+from qiskit.providers.ibmq.runtime.utils import RuntimeEncoder, RuntimeDecoder
 
 from qiskit import Aer
+
 
 class FeatureMapACME:
     """Mapping data with the feature map.
@@ -81,9 +82,14 @@ class FeatureMapACME:
         else:
             return circuit
 
-    def to_dict(self):
+    def to_json(self):
         return {'feature_dimension': self._feature_dimension,
                 'entangler_map': self._entangler_map}
+
+    @classmethod
+    def from_json(cls, feature_dimension, entangler_map=None):
+        return cls(feature_dimension=feature_dimension,
+                   entangler_map=entangler_map)
 
 
 class KernelMatrix:
@@ -439,34 +445,7 @@ class QKA:
 
 
 def post_interim_result(text):
-    print(json.dumps({'post': text}, cls=NumpyEncoder))
-
-
-class NumpyEncoder(json.JSONEncoder):
-    """JSON Encoder for Numpy arrays and complex numbers."""
-
-    def default(self, obj: Any) -> Any:
-        if hasattr(obj, 'tolist'):
-            return {'type': 'array', 'value': obj.tolist()}
-        if isinstance(obj, complex):
-            return {'type': 'complex', 'value': [obj.real, obj.imag]}
-        return super().default(obj)
-
-
-class NumpyDecoder(json.JSONDecoder):
-    """JSON Decoder for Numpy arrays and complex numbers."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(object_hook=self.object_hook, *args, **kwargs)
-
-    def object_hook(self, obj):
-        if 'type' in obj:
-            if obj['type'] == 'complex':
-                val = obj['value']
-                return val[0] + 1j * val[1]
-            if obj['type'] == 'array':
-                return np.array(obj['value'])
-        return obj
+    print(json.dumps({'post': text}, cls=RuntimeEncoder))
 
 
 def main(backend, *args, **kwargs):
@@ -474,11 +453,11 @@ def main(backend, *args, **kwargs):
 
     # Reconstruct the feature map object.
     feature_map = kwargs.pop('feature_map')
-    fm = FeatureMapACME(**feature_map)
+    fm = FeatureMapACME.from_json(**feature_map)
     qka = QKA(feature_map=fm, backend=backend)
     qka_results = qka.align_kernel(**kwargs)
 
-    print(json.dumps({'results': qka_results}, cls=NumpyEncoder))
+    print(json.dumps({'results': qka_results}, cls=RuntimeEncoder))
 
 
 if __name__ == '__main__':
@@ -490,5 +469,5 @@ if __name__ == '__main__':
     user_params = {}
     if len(sys.argv) > 1:
         # If there are user parameters.
-        user_params = json.loads(sys.argv[1], cls=NumpyDecoder)
+        user_params = json.loads(sys.argv[1], cls=RuntimeDecoder)
     main(backend, **user_params)
