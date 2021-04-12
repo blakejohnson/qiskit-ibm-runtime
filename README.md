@@ -66,14 +66,25 @@ The only production device setup for runtime is `ibmq_montreal`.
 
 #### Syntax
 
+**Note:**
+
+1. When updating a program, it is important to specify a `max_execution_time`, which is the maximum 
+amount of time, in seconds, the program is allowed to run. If the execution time exceeds this 
+number, a second runtime program will be started.
+2. Job cancel doesn't work yet.
+
+
 ```python
 from qiskit import IBMQ
 
 IBMQ.load_account()
 provider = IBMQ.get_provider(project='qiskit-runtime')
 
-# Upload a new runtime program
-program_id = provider.runtime.upload_program(name='circuit-runner', data='runtime/circuit_runner.py')
+# Upload a new runtime program.
+program_id = provider.runtime.upload_program(
+    name='circuit-runner', 
+    data='runtime/circuit_runner.py', 
+    max_execution_time=86400)
 print(program_id)
 
 # Print all available programs
@@ -104,8 +115,6 @@ print(job.status())
 # Get results
 result = job.result()
 ```
-
-Note: Job cancel doesn't work yet.
 
 See the [design doc](https://github.ibm.com/IBM-Q-Software/design-docs/blob/master/docs/quantum_services/Quantum_Program_Runtime/qiskit_interface.md) 
 for more details.
