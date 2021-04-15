@@ -3,6 +3,7 @@ from numpy.random import RandomState
 import itertools
 from qiskit import QuantumCircuit, QuantumRegister
 from qiskit.compiler import transpile
+from qiskit.providers.ibmq.runtime.utils import RuntimeEncoder, RuntimeDecoder
 from cvxopt import matrix, solvers
 from typing import Any
 
@@ -126,6 +127,7 @@ class KernelMatrix:
         if is_identical:
 
             my_product_list = list(itertools.combinations(range(len(x1_vec)), 2)) # all pairwise combos of datapoint indices
+
             for index_1, index_2 in my_product_list:
 
                 circuit_1 = self._feature_map_circuit(x=x1_vec[index_1], parameters=parameters, name='{}_{}'.format(index_1, index_2))
@@ -385,34 +387,34 @@ class QKA:
 
 
 def post_interim_result(text):
-    print(json.dumps({'post': text}, cls=NumpyEncoder))
+    print(json.dumps({'post': text}, cls=RuntimeEncoder))
 
 
-class NumpyEncoder(json.JSONEncoder):
-    """JSON Encoder for Numpy arrays and complex numbers."""
-
-    def default(self, obj: Any) -> Any:
-        if hasattr(obj, 'tolist'):
-            return {'type': 'array', 'value': obj.tolist()}
-        if isinstance(obj, complex):
-            return {'type': 'complex', 'value': [obj.real, obj.imag]}
-        return super().default(obj)
-
-
-class NumpyDecoder(json.JSONDecoder):
-    """JSON Decoder for Numpy arrays and complex numbers."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(object_hook=self.object_hook, *args, **kwargs)
-
-    def object_hook(self, obj):
-        if 'type' in obj:
-            if obj['type'] == 'complex':
-                val = obj['value']
-                return val[0] + 1j * val[1]
-            if obj['type'] == 'array':
-                return np.array(obj['value'])
-        return obj
+# class NumpyEncoder(json.JSONEncoder):
+#     """JSON Encoder for Numpy arrays and complex numbers."""
+#
+#     def default(self, obj: Any) -> Any:
+#         if hasattr(obj, 'tolist'):
+#             return {'type': 'array', 'value': obj.tolist()}
+#         if isinstance(obj, complex):
+#             return {'type': 'complex', 'value': [obj.real, obj.imag]}
+#         return super().default(obj)
+#
+#
+# class NumpyDecoder(json.JSONDecoder):
+#     """JSON Decoder for Numpy arrays and complex numbers."""
+#
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(object_hook=self.object_hook, *args, **kwargs)
+#
+#     def object_hook(self, obj):
+#         if 'type' in obj:
+#             if obj['type'] == 'complex':
+#                 val = obj['value']
+#                 return val[0] + 1j * val[1]
+#             if obj['type'] == 'array':
+#                 return np.array(obj['value'])
+#         return obj
 
 
 def main(backend, *args, **kwargs):
@@ -424,7 +426,7 @@ def main(backend, *args, **kwargs):
     qka = QKA(feature_map=fm, backend=backend)
     qka_results = qka.align_kernel(**kwargs)
 
-    print(json.dumps({'results': qka_results}, cls=NumpyEncoder))
+    print(json.dumps({'results': qka_results}, cls=RuntimeEncoder))
 
 
 if __name__ == '__main__':
@@ -436,5 +438,5 @@ if __name__ == '__main__':
     user_params = {}
     if len(sys.argv) > 1:
         # If there are user parameters.
-        user_params = json.loads(sys.argv[1], cls=NumpyDecoder)
+        user_params = json.loads(sys.argv[1], cls=RuntimeDecoder)
     main(backend, **user_params)
