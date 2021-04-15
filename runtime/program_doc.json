@@ -33,5 +33,20 @@
     "return_values": [
       {"name": "results", "description": "Circuit execution results.", "type": "qiskit.result.Result object"}
     ]
+  },
+  { "name": "VQE",
+    "description": "A runtime program that takes a Hamiltonian as an input and return the optimization.",
+    "id": "VQE",
+    "parameters": [
+      {"name": "observable", "description": "N-qubit operator in a Pauli basis representation.", "type": "PauliSumOp.", "required": true},
+      {"name": "circuit", "description": "The variational circuit whose parameters to optimize.", "type": "QuantumCircuit", "required": true},
+      {"name": "optimizer", "description": "Classical optimizer to be used (\"SPSA\", or \"QN-SPSA\").", "type": "string", "required": true},
+      {"name": "optimizer_params", "description": "Parameters required by the optimizer (e.g. learning rates, initial points, number of iterations, etc.).", "type": "dict", "required": false},
+      {"name": "initial_point", "description": "Initial point. A numpy array or \"random\".", "type": "numpy.ndarray", "required": false},
+      {"name": "readout_error_mitigation", "description": "Whether readout error mitigation is to be applied. Default is False.", "type": "boolean", "required": false}
+    ],
+    "return_values": [
+      {"name": "n/a", "description": "Minimum eigensolver result.", "type": "MinimumEigensolverResult"}
+    ]
   }
 ]
