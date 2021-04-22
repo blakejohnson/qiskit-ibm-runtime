@@ -4,13 +4,12 @@ import itertools
 from qiskit import QuantumCircuit, QuantumRegister
 from qiskit.compiler import transpile, assemble
 from cvxopt import matrix, solvers
-from typing import Any
 
-import sys
 import json
-from qiskit.providers.ibmq.runtime.utils import RuntimeEncoder, RuntimeDecoder
+from qiskit.providers.ibmq.runtime.utils import RuntimeEncoder
 
-from qiskit import Aer
+import warnings
+warnings.simplefilter("ignore")
 
 
 class FeatureMapACME:
@@ -35,7 +34,6 @@ class FeatureMapACME:
             self._entangler_map = entangler_map
 
         self._num_parameters = self._num_qubits
-
 
     def construct_circuit(self, x=None, parameters=None, q=None, inverse=False, name=None):
         """Construct the feature map circuit.
@@ -106,7 +104,6 @@ class KernelMatrix:
         self._feature_map_circuit = self._feature_map.construct_circuit  # the feature map circuit
         self._backend = backend
         self.results = {}  # store the results object (program_data)
-
 
     def construct_kernel_matrix(self, x1_vec, x2_vec, parameters=None):
         """Create the kernel matrix for a given feature map and input data.
@@ -191,13 +188,14 @@ class KernelMatrix:
 class QKA:
     """The quantum kernel alignment algorithm."""
 
-    def __init__(self, feature_map, backend, verbose=True):
+    def __init__(self, feature_map, backend, verbose=True, user_messenger=None):
         """Constructor.
 
         Args:
             feature_map (partial obj): the quantum feature map object
             backend (Backend): the backend instance
             verbose (bool): print output during course of algorithm
+            user_messenger (UserMessenger): used to publish interim results.
         """
 
         self.feature_map = feature_map
@@ -209,6 +207,7 @@ class QKA:
         self.num_parameters = self.feature_map._num_parameters  # number of parameters (lambdas) in the feature map
 
         self.verbose = verbose
+        self._user_messenger = user_messenger
         self.result = {}
 
         self.kernel_matrix = KernelMatrix(feature_map=self.feature_map, backend=self.backend)
@@ -365,7 +364,6 @@ class QKA:
         cost_minus_save = []   # (-) cost at each spsa step
         program_data = []
 
-
         # #####################
         # Start the alignment:
 
@@ -411,7 +409,7 @@ class QKA:
             # intrim_result = {'cost': cost_final,
             #                  'lambda': lambdas, 'cost_plus': cost_plus,
             #                  'cost_minus': cost_minus, 'cost_final': cost_final}
-            post_interim_result(intrim_result)
+            self._user_messenger.publish(intrim_result)
 
             lambda_save.append(lambdas)
             cost_plus_save.append(cost_plus)
@@ -444,30 +442,13 @@ class QKA:
         return self.result
 
 
-def post_interim_result(text):
-    print(json.dumps({'post': text}, cls=RuntimeEncoder))
-
-
-def main(backend, *args, **kwargs):
+def main(backend, user_messenger, **kwargs):
     """Entry function."""
 
     # Reconstruct the feature map object.
     feature_map = kwargs.pop('feature_map')
     fm = FeatureMapACME.from_json(**feature_map)
-    qka = QKA(feature_map=fm, backend=backend)
+    qka = QKA(feature_map=fm, backend=backend, user_messenger=user_messenger)
     qka_results = qka.align_kernel(**kwargs)
 
-    print(json.dumps({'results': qka_results}, cls=RuntimeEncoder))
-
-
-if __name__ == '__main__':
-    # provider = QuantumProgramProvider()
-    # backend = provider.backends()[0]
-
-    # the code currently uses Aer instead of runtime provider
-    backend = Aer.get_backend('qasm_simulator')
-    user_params = {}
-    if len(sys.argv) > 1:
-        # If there are user parameters.
-        user_params = json.loads(sys.argv[1], cls=RuntimeDecoder)
-    main(backend, **user_params)
+    print(json.dumps(qka_results, cls=RuntimeEncoder))

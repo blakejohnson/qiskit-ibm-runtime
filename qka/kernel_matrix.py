@@ -1,7 +1,7 @@
 import numpy as np
 import itertools
 
-from qiskit.compiler import transpile, assemble
+from qiskit.compiler import transpile
 
 
 class KernelMatrix:
@@ -96,14 +96,13 @@ class KernelMatrix:
         """Execute the input circuits."""
         try:
             provider = self._backend.provider()
-            runtime_params = {'circuits': circuits}
+            runtime_params = {'circuits': circuits, 'shots': 8192}
             options = {'backend_name': self._backend.name()}
-            return provider.runtime.run(program_name="Circuit-Runner",
+            return provider.runtime.run(program_id="circuit-runner",
                                         options=options,
-                                        params=runtime_params,
+                                        inputs=runtime_params,
                                         ).result()
         except Exception:
             # Fall back to run without runtime.
             transpiled = transpile(circuits, backend=self._backend)
-            qobj = assemble(transpiled, backend=self._backend, shots=8192)
-            return self._backend.run(qobj).result()
+            return self._backend.run(transpiled, shots=8192).result()
