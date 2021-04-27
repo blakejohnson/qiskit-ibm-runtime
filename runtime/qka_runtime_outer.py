@@ -5,13 +5,13 @@ from qiskit import QuantumCircuit, QuantumRegister
 from qiskit.compiler import transpile
 from qiskit.providers.ibmq.runtime.utils import RuntimeEncoder, RuntimeDecoder
 from cvxopt import matrix, solvers
-from typing import Any
 
-import sys
 import json
-# from ntc_provider.programruntime import QuantumProgramProvider
+from qiskit.providers.ibmq.runtime.utils import RuntimeEncoder
 
-from qiskit import Aer
+import warnings
+warnings.simplefilter("ignore")
+
 
 class FeatureMapACME:
     """Mapping data with the feature map.
@@ -33,7 +33,6 @@ class FeatureMapACME:
             self._entangler_map = entangler_map
 
         self._num_parameters = self._num_qubits
-
 
     def construct_circuit(self, x=None, parameters=None, q=None, inverse=False, name=None):
         """Construct the feature map circuit.
@@ -80,9 +79,14 @@ class FeatureMapACME:
         else:
             return circuit
 
-    def to_dict(self):
+    def to_json(self):
         return {'feature_dimension': self._feature_dimension,
                 'entangler_map': self._entangler_map}
+
+    @classmethod
+    def from_json(cls, feature_dimension, entangler_map=None):
+        return cls(feature_dimension=feature_dimension,
+                   entangler_map=entangler_map)
 
 
 class KernelMatrix:
@@ -99,7 +103,6 @@ class KernelMatrix:
         self._feature_map_circuit = self._feature_map.construct_circuit
         self._backend = backend
         self.results = {}
-
 
     def construct_kernel_matrix(self, x1_vec, x2_vec, parameters=None):
         """Create the kernel matrix for a given feature map and input data.
@@ -185,12 +188,14 @@ class KernelMatrix:
 class QKA:
     """The quantum kernel alignment algorithm."""
 
-    def __init__(self, feature_map, backend):
+    def __init__(self, feature_map, backend, verbose=True, user_messenger=None):
         """Constructor.
 
         Args:
             feature_map (partial obj): the quantum feature map object
             backend (Backend): the backend instance
+            verbose (bool): print output during course of algorithm
+            user_messenger (UserMessenger): used to publish interim results.
         """
 
         self.feature_map = feature_map
@@ -198,6 +203,8 @@ class QKA:
         self.backend = backend
         self.num_parameters = self.feature_map._num_parameters
 
+        self.verbose = verbose
+        self._user_messenger = user_messenger
         self.result = {}
         self.kernel_matrix = KernelMatrix(feature_map=self.feature_map, backend=self.backend)
 
@@ -364,8 +371,10 @@ class QKA:
 
             intrim_result = {'cost': cost_final,
                              'kernel_parameters': lambdas}
-
-            post_interim_result(intrim_result)
+            # intrim_result = {'cost': cost_final,
+            #                  'lambda': lambdas, 'cost_plus': cost_plus,
+            #                  'cost_minus': cost_minus, 'cost_final': cost_final}
+            self._user_messenger.publish(intrim_result)
 
             lambda_save.append(lambdas)
             cost_final_save.append(cost_final)
@@ -386,57 +395,13 @@ class QKA:
         return self.result
 
 
-def post_interim_result(text):
-    print(json.dumps({'post': text}, cls=RuntimeEncoder))
-
-
-# class NumpyEncoder(json.JSONEncoder):
-#     """JSON Encoder for Numpy arrays and complex numbers."""
-#
-#     def default(self, obj: Any) -> Any:
-#         if hasattr(obj, 'tolist'):
-#             return {'type': 'array', 'value': obj.tolist()}
-#         if isinstance(obj, complex):
-#             return {'type': 'complex', 'value': [obj.real, obj.imag]}
-#         return super().default(obj)
-#
-#
-# class NumpyDecoder(json.JSONDecoder):
-#     """JSON Decoder for Numpy arrays and complex numbers."""
-#
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(object_hook=self.object_hook, *args, **kwargs)
-#
-#     def object_hook(self, obj):
-#         if 'type' in obj:
-#             if obj['type'] == 'complex':
-#                 val = obj['value']
-#                 return val[0] + 1j * val[1]
-#             if obj['type'] == 'array':
-#                 return np.array(obj['value'])
-#         return obj
-
-
-def main(backend, *args, **kwargs):
+def main(backend, user_messenger, **kwargs):
     """Entry function."""
 
     # Reconstruct the feature map object.
     feature_map = kwargs.pop('feature_map')
-    fm = FeatureMapACME(**feature_map)
-    qka = QKA(feature_map=fm, backend=backend)
+    fm = FeatureMapACME.from_json(**feature_map)
+    qka = QKA(feature_map=fm, backend=backend, user_messenger=user_messenger)
     qka_results = qka.align_kernel(**kwargs)
 
-    print(json.dumps({'results': qka_results}, cls=RuntimeEncoder))
-
-
-if __name__ == '__main__':
-    # provider = QuantumProgramProvider()
-    # backend = provider.backends()[0]
-
-    # the code currently uses Aer instead of runtime provider
-    backend = Aer.get_backend('qasm_simulator')
-    user_params = {}
-    if len(sys.argv) > 1:
-        # If there are user parameters.
-        user_params = json.loads(sys.argv[1], cls=RuntimeDecoder)
-    main(backend, **user_params)
+    print(json.dumps(qka_results, cls=RuntimeEncoder))

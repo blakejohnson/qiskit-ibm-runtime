@@ -1,82 +1,44 @@
-# Circuit execution runtime program
+# Circuit runner runtime program
 
 import json
 import sys
-from typing import Any
-
-import numpy as np
 
 from qiskit import Aer
-from qiskit import transpile
-from qiskit.compiler import assemble
-from qiskit.assembler.disassemble import disassemble
-from qiskit.circuit.quantumcircuit import QuantumCircuit
-from qiskit.qobj import QasmQobj
-from qiskit.result import Result
+from qiskit.compiler import transpile, schedule
+from qiskit.providers.ibmq.runtime.utils import RuntimeEncoder, RuntimeDecoder
+from qiskit.providers.ibmq.runtime import UserMessenger
 
 
-# Encoder and decoder will be available for import in qiskit-ibmq-provider
+def main(backend, user_messenger, circuits,
+         initial_layout=None, seed_transpiler=None, optimization_level=None,
+         transpiler_options=None, scheduling_method=None,
+         schedule_circuit=False, inst_map=None, meas_map=None,
+         **kwargs):
 
-class RuntimeEncoder(json.JSONEncoder):
-    """JSON Encoder for Numpy arrays, complex numbers, and circuits."""
+    # transpiling the circuits using given transpile options
+    transpiler_options = transpiler_options or {}
+    circuits = transpile(circuits,
+                         initial_layout=initial_layout,
+                         seed_transpiler=seed_transpiler,
+                         optimization_level=optimization_level,
+                         backend=backend, **transpiler_options)
 
-    def default(self, obj: Any) -> Any:
-        if hasattr(obj, 'tolist'):
-            return {'type': 'array', 'value': obj.tolist()}
-        if isinstance(obj, complex):
-            return {'type': 'complex', 'value': [obj.real, obj.imag]}
-        if isinstance(obj, QuantumCircuit):
-            return {'type': 'circuits', 'value': assemble(obj).to_dict()}
-        if isinstance(obj, Result):
-            return {'type': 'result', 'value': obj.to_dict()}
-        return super().default(obj)
+    if schedule_circuit:
+        circuits = schedule(circuits=circuits,
+                            backend=backend,
+                            inst_map=inst_map,
+                            meas_map=meas_map,
+                            method=scheduling_method)
 
-
-class RuntimeDecoder(json.JSONDecoder):
-    """JSON Decoder for Numpy arrays, complex numbers, and circuits."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(object_hook=self.object_hook, *args, **kwargs)
-
-    def object_hook(self, obj):
-        if 'type' in obj:
-            if obj['type'] == 'complex':
-                val = obj['value']
-                return val[0] + 1j * val[1]
-            if obj['type'] == 'array':
-                return np.array(obj['value'])
-            if obj['type'] == 'circuits':
-                circuits, _, _ = disassemble(QasmQobj.from_dict(obj['value']))
-                if len(circuits) == 1:
-                    return circuits[0]
-                return circuits
-            if obj['type'] == 'result':
-                return Result.from_dict(obj['value'])
-        return obj
-
-
-def post_interim_result(text):
-    print(json.dumps({'post': text}, cls=RuntimeEncoder))
-
-
-def main(backend, **kwargs):
-    circs = kwargs.pop('circuits', None)
-    if not circs:
-        raise ValueError("Circuits are required.")
-    transpiled = transpile(circuits=circs, backend=backend, **kwargs)
-    result = backend.run(transpiled, shots=8192).result()
-
-    print(json.dumps({'results': result}, cls=RuntimeEncoder))
+    result = backend.run(circuits, **kwargs).result()
+    print(json.dumps(result, cls=RuntimeEncoder))
 
 
 if __name__ == '__main__':
-    # provider = QuantumProgramProvider()
-    # backend = provider.backends()[0]
-
-    # the code currently uses Aer instead of runtime provider
+    # Test using Aer
     backend = Aer.get_backend('qasm_simulator')
     user_params = {}
     if len(sys.argv) > 1:
         # If there are user parameters.
         user_params = json.loads(sys.argv[1], cls=RuntimeDecoder)
-    main(backend, **user_params)
+    main(backend, UserMessenger(), **user_params)

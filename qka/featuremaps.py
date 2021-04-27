@@ -69,6 +69,11 @@ class FeatureMapACME:
         else:
             return circuit
 
-    def to_dict(self):
+    def to_json(self):
         return {'feature_dimension': self._feature_dimension,
                 'entangler_map': self._entangler_map}
+
+    @classmethod
+    def from_json(cls, feature_dimension, entangler_map=None):
+        return cls(feature_dimension=feature_dimension,
+                   entangler_map=entangler_map)

@@ -100,11 +100,11 @@ class KernelMatrix:
         """Execute the input circuits."""
         try:
             provider = self._backend.provider()
-            runtime_params = {'circuits': circuits}
+            runtime_params = {'circuits': circuits, 'shots': 8192}
             options = {'backend_name': self._backend.name()}
-            return provider.runtime.run(program_name="Circuit-Runner",
+            return provider.runtime.run(program_id="circuit-runner",
                                         options=options,
-                                        params=runtime_params,
+                                        inputs=runtime_params,
                                         ).result()
         except Exception:
             # Fall back to run without runtime.
