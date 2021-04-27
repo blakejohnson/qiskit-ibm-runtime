@@ -367,10 +367,10 @@ class QKA:
 
             lambdas = lambda_best
 
-            intrim_result = {'cost': cost_final,
+            interim_result = {'cost': cost_final,
                              'kernel_parameters': lambdas}
 
-            self._user_messenger.publish(intrim_result)
+            self._user_messenger.publish(interim_result)
 
             lambda_save.append(lambdas)
             cost_final_save.append(cost_final)
