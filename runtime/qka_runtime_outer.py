@@ -188,13 +188,12 @@ class KernelMatrix:
 class QKA:
     """The quantum kernel alignment algorithm."""
 
-    def __init__(self, feature_map, backend, verbose=True, user_messenger=None):
+    def __init__(self, feature_map, backend, user_messenger=None):
         """Constructor.
 
         Args:
             feature_map (partial obj): the quantum feature map object
             backend (Backend): the backend instance
-            verbose (bool): print output during course of algorithm
             user_messenger (UserMessenger): used to publish interim results.
         """
 
@@ -203,7 +202,6 @@ class QKA:
         self.backend = backend
         self.num_parameters = self.feature_map._num_parameters
 
-        self.verbose = verbose
         self._user_messenger = user_messenger
         self.result = {}
         self.kernel_matrix = KernelMatrix(feature_map=self.feature_map, backend=self.backend)
@@ -371,9 +369,7 @@ class QKA:
 
             intrim_result = {'cost': cost_final,
                              'kernel_parameters': lambdas}
-            # intrim_result = {'cost': cost_final,
-            #                  'lambda': lambdas, 'cost_plus': cost_plus,
-            #                  'cost_minus': cost_minus, 'cost_final': cost_final}
+
             self._user_messenger.publish(intrim_result)
 
             lambda_save.append(lambdas)
