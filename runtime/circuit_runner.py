@@ -5,6 +5,7 @@ import sys
 
 from qiskit import Aer
 from qiskit.compiler import transpile, schedule
+from qiskit.result import marginal_counts
 from qiskit.providers.ibmq.runtime.utils import RuntimeEncoder, RuntimeDecoder
 from qiskit.providers.ibmq.runtime import UserMessenger
 import mthree
@@ -49,9 +50,24 @@ def main(backend, user_messenger, circuits,
         mit = mthree.M3Mitigation(backend)
         mit.tensored_cals_from_system(all_meas_qubits)
 
-    
-    
+    # Compute raw results
     result = backend.run(circuits, **kwargs).result()
+
+    # Do the actual mitigation here
+    quasi_probs = []
+    if measurement_error_mitigation:
+        for idx, circ in enumerate(circuits):
+            num_cbits = circ.num_clbits
+            num_measured_bits = len(mappings[idx])
+            # check if more bits than measured so need to marginalize
+            raw_counts = result.get_counts[idx]
+            if num_cbits > num_measured_bits:
+                raw_counts = marginal_counts(result.get_counts[idx],
+                                             list(mappings[idx].values()))
+            _qubits = list(mappings[idx].keys())
+            quasi = mit.apply_correction(raw_counts, _qubits)
+            quasi_probs.append(quasi)
+
     print(json.dumps(result, cls=RuntimeEncoder))
 
 
