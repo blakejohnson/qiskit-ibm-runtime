@@ -7,24 +7,26 @@ from cvxopt import matrix, solvers
 class QKA:
     """The quantum kernel alignment algorithm."""
 
-    def __init__(self, feature_map, backend, verbose=True):
+    def __init__(self, feature_map, backend, initial_layout, verbose=True):
         """Constructor.
 
         Args:
             feature_map (partial obj): the quantum feature map object
             backend (Backend): the backend instance
+            initial_layout: FINISH ME
             verbose (bool): print output during course of algorithm
         """
 
         self.feature_map = feature_map
         self.feature_map_circuit = self.feature_map.construct_circuit # the feature map circuit not yet evaluated with input arguments
         self.backend = backend
+        self.initial_layout = initial_layout
         self.num_parameters = self.feature_map._num_parameters  # number of parameters (lambdas) in the feature map
 
         self.verbose = verbose
         self.result = {}
 
-        self.kernel_matrix = KernelMatrix(feature_map=self.feature_map, backend=self.backend)
+        self.kernel_matrix = KernelMatrix(feature_map=self.feature_map, backend=self.backend, initial_layout=self.initial_layout)
 
 
 

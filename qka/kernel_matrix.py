@@ -7,16 +7,23 @@ from qiskit.compiler import transpile
 class KernelMatrix:
     """Build the kernel matrix from a quantum feature map."""
 
-    def __init__(self, feature_map, backend):
+    def __init__(self, feature_map, backend, initial_layout):
         """
         Args:
             feature_map (int): the feature map object
             backend (Backend): the backend instance
+            initial layout: FINISH ME
         """
 
         self._feature_map = feature_map
         self._feature_map_circuit = self._feature_map.construct_circuit # the feature map circuit
         self._backend = backend
+
+        if initial_layout is None:
+            self._initial_layout = [9, 8, 11, 14, 16, 19, 22, 25, 24, 23]
+        else:
+            self._initial_layout = initial_layout
+
         self.results = {}  # store the results object (program_data)
 
     def construct_kernel_matrix(self, x1_vec, x2_vec, parameters=None):
@@ -100,13 +107,15 @@ class KernelMatrix:
         """Execute the input circuits."""
         try:
             provider = self._backend.provider()
-            runtime_params = {'circuits': circuits, 'shots': 8192}
+            runtime_params = {'circuits': circuits, 'shots': 8192, 'initial_layout': self._initial_layout}
             options = {'backend_name': self._backend.name()}
-            return provider.runtime.run(program_id="circuit-runner",
+            job = provider.runtime.run(program_id="circuit-runner",
                                         options=options,
                                         inputs=runtime_params,
-                                        ).result()
+                                        )
+            return job.result()
+
         except Exception:
             # Fall back to run without runtime.
-            transpiled = transpile(circuits, backend=self._backend)
+            transpiled = transpile(circuits, backend=self._backend, initial_layout=self._initial_layout)
             return self._backend.run(transpiled, shots=8192).result()

@@ -92,16 +92,23 @@ class FeatureMapACME:
 class KernelMatrix:
     """Build the kernel matrix from a quantum feature map."""
 
-    def __init__(self, feature_map, backend):
+    def __init__(self, feature_map, backend, initial_layout):
         """
         Args:
             feature_map: the feature map object
             backend (Backend): the backend instance
+            initial_layout: FINISH ME
         """
 
         self._feature_map = feature_map
         self._feature_map_circuit = self._feature_map.construct_circuit
         self._backend = backend
+
+        if initial_layout is None:
+            self._initial_layout = [9, 8, 11, 14, 16, 19, 22, 25, 24, 23]
+        else:
+            self._initial_layout = initial_layout
+
         self.results = {}
 
     def construct_kernel_matrix(self, x1_vec, x2_vec, parameters=None):
@@ -139,7 +146,7 @@ class KernelMatrix:
                 circuit.measure_all()
                 experiments.append(circuit)
 
-            experiments = transpile(experiments, backend=self._backend)
+            experiments = transpile(experiments, backend=self._backend, initial_layout=self._initial_layout)
             program_data = self._backend.run(experiments, shots=8192).result()
 
             self.results['program_data'] = program_data
@@ -166,7 +173,7 @@ class KernelMatrix:
                     circuit.measure_all()
                     experiments.append(circuit)
 
-            experiments = transpile(experiments, backend=self._backend)
+            experiments = transpile(experiments, backend=self._backend, initial_layout=self._initial_layout)
             program_data = self._backend.run(experiments, shots=8192).result()
 
             self.results['program_data'] = program_data
@@ -188,23 +195,25 @@ class KernelMatrix:
 class QKA:
     """The quantum kernel alignment algorithm."""
 
-    def __init__(self, feature_map, backend, user_messenger=None):
+    def __init__(self, feature_map, backend, initial_layout, user_messenger=None):
         """Constructor.
 
         Args:
             feature_map (partial obj): the quantum feature map object
             backend (Backend): the backend instance
+            initial_layout: FINISH ME
             user_messenger (UserMessenger): used to publish interim results.
         """
 
         self.feature_map = feature_map
         self.feature_map_circuit = self.feature_map.construct_circuit
         self.backend = backend
+        self.initial_layout = initial_layout
         self.num_parameters = self.feature_map._num_parameters
 
         self._user_messenger = user_messenger
         self.result = {}
-        self.kernel_matrix = KernelMatrix(feature_map=self.feature_map, backend=self.backend)
+        self.kernel_matrix = KernelMatrix(feature_map=self.feature_map, backend=self.backend, initial_layout=self.initial_layout)
 
     def SPSA_parameters(self):
         """Return array of precomputed SPSA parameters.
@@ -397,7 +406,8 @@ def main(backend, user_messenger, **kwargs):
     # Reconstruct the feature map object.
     feature_map = kwargs.pop('feature_map')
     fm = FeatureMapACME.from_json(**feature_map)
-    qka = QKA(feature_map=fm, backend=backend, user_messenger=user_messenger)
+    initial_layout = kwargs.pop('initial_layout')
+    qka = QKA(feature_map=fm, backend=backend, initial_layout=initial_layout, user_messenger=user_messenger)
     qka_results = qka.align_kernel(**kwargs)
 
     print(json.dumps(qka_results, cls=RuntimeEncoder))
