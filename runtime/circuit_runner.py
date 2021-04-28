@@ -59,10 +59,10 @@ def main(backend, user_messenger, circuits,
         for idx, circ in enumerate(circuits):
             num_cbits = circ.num_clbits
             num_measured_bits = len(mappings[idx])
-            # check if more bits than measured so need to marginalize
             raw_counts = result.get_counts[idx]
+            # check if more bits than measured so need to marginalize
             if num_cbits > num_measured_bits:
-                raw_counts = marginal_counts(result.get_counts[idx],
+                raw_counts = marginal_counts(raw_counts,
                                              list(mappings[idx].values()))
             _qubits = list(mappings[idx].keys())
             quasi = mit.apply_correction(raw_counts, _qubits)
