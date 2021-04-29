@@ -113,7 +113,7 @@ class KernelMatrix:
         self._backend = backend
 
         if initial_layout is None:
-            self._initial_layout = [9, 8, 11, 14, 16, 19, 22, 25, 24, 23]
+            raise ValueError('Provide an initial layout matching the problem graph.')
         else:
             self._initial_layout = initial_layout
 
@@ -418,4 +418,4 @@ def main(backend, user_messenger, **kwargs):
     qka = QKA(feature_map=fm, backend=backend, initial_layout=initial_layout, user_messenger=user_messenger)
     qka_results = qka.align_kernel(**kwargs)
 
-    print(json.dumps(qka_results, cls=RuntimeEncoder))
+    user_messenger.publish(qka_result, final=True)
