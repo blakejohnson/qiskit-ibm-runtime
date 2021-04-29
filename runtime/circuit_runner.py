@@ -31,7 +31,7 @@ def main(backend, user_messenger, circuits,
                             method=scheduling_method)
 
     result = backend.run(circuits, **kwargs).result()
-    print(json.dumps(result, cls=RuntimeEncoder))
+    user_messenger.publish(result, final=True)
 
 
 if __name__ == '__main__':
