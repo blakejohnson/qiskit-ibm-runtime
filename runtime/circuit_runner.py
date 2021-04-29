@@ -76,7 +76,7 @@ def main(backend, user_messenger, circuits,
         for idx, res in enumerate(result.results):
             res.data.quasiprobabilities = quasi_probs[idx]
 
-    print(json.dumps(result, cls=RuntimeEncoder))
+    user_messenger.publish(result, final=True)
 
 
 def final_measurement_mapping(qc):
