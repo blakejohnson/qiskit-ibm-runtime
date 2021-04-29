@@ -33,7 +33,8 @@ def main(backend, user_messenger, circuits,
                             meas_map=meas_map,
                             method=scheduling_method)
 
-    
+    if not isinstance(circuits, list):
+        circuits = [circuits]
     if measurement_error_mitigation:
         # get final meas mappings
         mappings = []
@@ -52,14 +53,13 @@ def main(backend, user_messenger, circuits,
 
     # Compute raw results
     result = backend.run(circuits, **kwargs).result()
-
     # Do the actual mitigation here
     quasi_probs = []
     if measurement_error_mitigation:
         for idx, circ in enumerate(circuits):
             num_cbits = circ.num_clbits
             num_measured_bits = len(mappings[idx])
-            raw_counts = result.get_counts[idx]
+            raw_counts = result.get_counts(idx)
             # check if more bits than measured so need to marginalize
             if num_cbits > num_measured_bits:
                 raw_counts = marginal_counts(raw_counts,
