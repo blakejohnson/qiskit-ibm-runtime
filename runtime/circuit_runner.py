@@ -68,6 +68,14 @@ def main(backend, user_messenger, circuits,
             quasi = mit.apply_correction(raw_counts, _qubits)
             quasi_probs.append(quasi)
 
+        # Convert quasi dists with bitstrings to hex version.
+        for idx, qp in enumerate(quasi_probs):    
+            quasi_probs[idx] = quasi_to_hex(qp)
+        
+        # Attach to results.
+        for idx, res in enumerate(result.results):
+            res.data.quasiprobabilities = quasi_probs[idx]
+
     print(json.dumps(result, cls=RuntimeEncoder))
 
 
@@ -116,6 +124,21 @@ def final_measurement_mapping(qc):
     # Sort so that classical bits are in numeric order low->high.
     mapping = dict(sorted(mapping.items(), key=lambda item: item[1])) 
     return mapping
+
+
+def quasi_to_hex(qp):
+    """Converts a quasi-prob dict with bitstrings to hex
+
+    Parameters:
+        qp (QuasiDistribution): Input quasi dict
+
+    Returns:
+        dict: hex dict.
+    """
+    hex_quasi = {}
+    for key, val in qp.items():
+        hex_quasi[hex(int(key, 2))] = val     
+    return hex_quasi  
 
 
 if __name__ == '__main__':
