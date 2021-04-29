@@ -75,6 +75,7 @@ def main(backend, user_messenger, circuits,
         # Attach to results.
         for idx, res in enumerate(result.results):
             res.data.quasiprobabilities = quasi_probs[idx]
+            res.data._data_attributes.append('quasiprobabilities')
 
     user_messenger.publish(result, final=True)
 
