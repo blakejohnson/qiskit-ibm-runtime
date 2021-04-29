@@ -9,15 +9,23 @@ class FeatureMapACME:
     def __init__(self, feature_dimension, entangler_map=None):
         """
         Args:
-            feature_dimension (int): number of features
+            feature_dimension (int): number of features (twice the number of qubits for this encoding)
             entangler_map (list[list]): connectivity of qubits with a list of [source, target], or None for full entanglement.
                                         Note that the order in the list is the order of applying the two-qubit gate.
         """
-        self._feature_dimension = feature_dimension
-        self._num_qubits = self._feature_dimension = feature_dimension
+
+        if isinstance(feature_dimension, int):
+            if feature_dimension % 2 == 0:
+                self._feature_dimension = feature_dimension
+            else:
+                raise ValueError('Feature dimension must be an even integer.')
+        else:
+            raise ValueError('Feature dimension must be an even integer.')
+
+        self._num_qubits = int(feature_dimension/2)
 
         if entangler_map is None:
-            self._entangler_map = [[i, j] for i in range(self._feature_dimension) for j in range(i + 1, self._feature_dimension)]
+            self._entangler_map = [[i, j] for i in range(self._num_qubits) for j in range(i + 1, self._num_qubits)]
         else:
             self._entangler_map = entangler_map
 
@@ -46,8 +54,8 @@ class FeatureMapACME:
                 if len(parameters) != self._num_parameters:
                     raise ValueError('The number of feature map parameters must be {}.'.format(self._num_parameters))
 
-        if len(x) != 2*self._num_qubits:
-            raise ValueError('The input vector must be of length {}.'.format(2*self._num_qubits))
+        if len(x) != self._feature_dimension:
+            raise ValueError('The input vector must be of length {}.'.format(self._feature_dimension))
 
         if q is None:
             q = QuantumRegister(self._num_qubits, name='q')

@@ -31,9 +31,9 @@ import pandas as pd
 df = pd.read_csv('/Users/jen/Q/code/quantum_kernel_data/dataset.csv',sep = ',', header = None)
 dat = df.values
 
-num_features = int((np.shape(dat)[1]-1)/2) # determined from the dataset
-num_train = 3
-num_test = 4
+num_features = np.shape(dat)[1]-1 # feature dimension determined by dataset
+num_train = 10
+num_test = 10
 C = 1
 maxiters = 11
 entangler_map=[[0,1],[2,3],[4,5],[6,7],[8,9],[1,2],[3,4],[5,6],[7,8]]
@@ -64,8 +64,9 @@ y_test = dat[2*num_train:2*(num_train+num_test), -1]
 # x_test = np.concatenate((data_plus.T[num_train:], data_minus.T[num_train:]))
 # y_test = np.concatenate((-1*np.ones(num_test), np.ones(num_test)))
 
-initial_layout = [9, 8, 11, 14, 16, 19, 22, 25, 24, 23]
+# Specify the backend and the mapping from virtual to physical qubits
 bk = Aer.get_backend('qasm_simulator')
+initial_layout = [9, 8, 11, 14, 16, 19, 22, 25, 24, 23]
 
 # Define the feature map and its initial parameters:
 initial_kernel_parameters = [0.1] # np.pi/2 should yield 100% test accuracy
