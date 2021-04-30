@@ -36,6 +36,7 @@ def main(backend, user_messenger, circuits,
 
     if not isinstance(circuits, list):
         circuits = [circuits]
+
     if measurement_error_mitigation:
         # get final meas mappings
         mappings = []
@@ -76,19 +77,16 @@ def main(backend, user_messenger, circuits,
             quasi = mit.apply_correction(raw_counts, _qubits)
             stop_time = perf_counter()
             mit_times.append(stop_time-start_time)
-            quasi_probs.append(quasi)
+            # Convert quasi dist with bitstrings to hex version and append
+            quasi_probs.append(quasi_to_hex(quasi))
 
-        # Convert quasi dists with bitstrings to hex version.
-        for idx, qp in enumerate(quasi_probs):    
-            quasi_probs[idx] = quasi_to_hex(qp)
-        
         # Attach to results.
         for idx, res in enumerate(result.results):
             res.data.quasiprobabilities = quasi_probs[idx]
             res.data._data_attributes.append('quasiprobabilities')
             res.header.marginal_bitstring_length = marginal_bitstring_lengths[idx]
-            res.header.mitigated_qubits = mit_qubits[idx]
-            res.header.mitigation_time = mit_times[idx]
+            res.header.measurement_mitigated_qubits = mit_qubits[idx]
+            res.header.measurement_mitigation_time = mit_times[idx]
 
     user_messenger.publish(result, final=True)
 
