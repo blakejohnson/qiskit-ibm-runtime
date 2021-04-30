@@ -59,8 +59,6 @@ def main(backend, user_messenger, circuits,
     # Do the actual mitigation here
     if measurement_error_mitigation:
         quasi_probs = []
-        marginal_bitstring_lengths = []
-        mit_qubits = []
         mit_times = []
         for idx, circ in enumerate(circuits):
             num_cbits = circ.num_clbits
@@ -71,8 +69,6 @@ def main(backend, user_messenger, circuits,
                 raw_counts = marginal_counts(raw_counts,
                                              list(mappings[idx].values()))
             _qubits = list(mappings[idx].keys())
-            mit_qubits.append(_qubits)
-            marginal_bitstring_lengths.append(len(_qubits))
             start_time = perf_counter()
             quasi = mit.apply_correction(raw_counts, _qubits)
             stop_time = perf_counter()
@@ -84,8 +80,7 @@ def main(backend, user_messenger, circuits,
         for idx, res in enumerate(result.results):
             res.data.quasiprobabilities = quasi_probs[idx]
             res.data._data_attributes.append('quasiprobabilities')
-            res.header.marginal_bitstring_length = marginal_bitstring_lengths[idx]
-            res.header.measurement_mitigated_qubits = mit_qubits[idx]
+            res.header.final_measurement_mapping = mappings[idx]
             res.header.measurement_mitigation_time = mit_times[idx]
 
     user_messenger.publish(result, final=True)
