@@ -83,7 +83,7 @@ def main(backend, user_messenger, circuits,
             res.header.final_measurement_mapping = mappings[idx]
             res.header.measurement_mitigation_time = mit_times[idx]
 
-    user_messenger.publish(result, final=True)
+    user_messenger.publish(result.to_dict(), final=True)
 
 
 def final_measurement_mapping(qc):
