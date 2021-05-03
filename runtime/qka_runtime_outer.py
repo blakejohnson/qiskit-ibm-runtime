@@ -12,6 +12,8 @@ from qiskit.providers.ibmq.runtime.utils import RuntimeEncoder
 import warnings
 warnings.simplefilter("ignore")
 
+import sys
+
 
 class FeatureMapACME:
     """Mapping data with the feature map.
@@ -337,7 +339,7 @@ class QKA:
 
         return cost_final, lambdas_new
 
-    def align_kernel(self, data, labels, initial_kernel_parameters=None, maxiters=10, C=1):
+    def align_kernel(self, data, labels, initial_kernel_parameters=None, maxiters=1, C=1):
         """Align the quantum kernel.
 
         Uses SPSA for minimization over kernel parameters (lambdas) and
@@ -412,10 +414,17 @@ def main(backend, user_messenger, **kwargs):
     """Entry function."""
 
     # Reconstruct the feature map object.
-    feature_map = kwargs.pop('feature_map')
+    feature_map = kwargs.get('feature_map')
     fm = FeatureMapACME.from_json(**feature_map)
-    initial_layout = kwargs.pop('initial_layout')
-    qka = QKA(feature_map=fm, backend=backend, initial_layout=initial_layout, user_messenger=user_messenger)
-    qka_results = qka.align_kernel(**kwargs)
 
-    user_messenger.publish(qka_result, final=True)
+    data = kwargs.get('data')
+    labels = kwargs.get('labels')
+    initial_kernel_parameters = kwargs.get('initial_kernel_parameters', None)
+    maxiters = kwargs.get('maxiters', 1)
+    C = kwargs.get('C', 1)
+    initial_layout = kwargs.get('initial_layout', None)
+
+    qka = QKA(feature_map=fm, backend=backend, initial_layout=initial_layout, user_messenger=user_messenger)
+    qka_results = qka.align_kernel(data=data, labels=labels, initial_kernel_parameters=initial_kernel_parameters, maxiters=maxiters, C=C)
+
+    user_messenger.publish(qka_results, final=True)
