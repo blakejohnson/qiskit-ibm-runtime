@@ -105,17 +105,21 @@ class KernelMatrix:
 
     def _run_circuits(self, circuits):
         """Execute the input circuits."""
-        try:
-            provider = self._backend.provider()
-            runtime_params = {'circuits': circuits, 'shots': 8192, 'initial_layout': self._initial_layout}
-            options = {'backend_name': self._backend.name()}
-            job = provider.runtime.run(program_id="circuit-runner",
-                                        options=options,
-                                        inputs=runtime_params,
-                                        )
-            return job.result()
 
-        except Exception:
-            # Fall back to run without runtime.
-            transpiled = transpile(circuits, backend=self._backend, initial_layout=self._initial_layout)
-            return self._backend.run(transpiled, shots=8192).result()
+        transpiled = transpile(circuits, backend=self._backend, initial_layout=self._initial_layout)
+        return self._backend.run(transpiled, shots=8192).result()
+
+        # try:
+        #     provider = self._backend.provider()
+        #     runtime_params = {'circuits': circuits, 'shots': 8192, 'initial_layout': self._initial_layout}
+        #     options = {'backend_name': self._backend.name()}
+        #     job = provider.runtime.run(program_id="circuit-runner",
+        #                                 options=options,
+        #                                 inputs=runtime_params
+        #                                 )
+        #     return job.result()
+        #
+        # except Exception:
+        #     # Fall back to run without runtime.
+        #     transpiled = transpile(circuits, backend=self._backend, initial_layout=self._initial_layout)
+        #     return self._backend.run(transpiled, shots=8192).result()
