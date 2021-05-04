@@ -2,7 +2,8 @@ import numpy as np
 from numpy.random import RandomState
 import itertools
 from qiskit import QuantumCircuit, QuantumRegister
-from qiskit.compiler import transpile, assemble
+from qiskit.compiler import transpile
+from qiskit.providers.ibmq.runtime.utils import RuntimeEncoder, RuntimeDecoder
 from cvxopt import matrix, solvers
 
 import json
@@ -10,6 +11,8 @@ from qiskit.providers.ibmq.runtime.utils import RuntimeEncoder
 
 import warnings
 warnings.simplefilter("ignore")
+
+import sys
 
 
 class FeatureMapACME:
@@ -19,14 +22,20 @@ class FeatureMapACME:
     def __init__(self, feature_dimension, entangler_map=None):
         """
         Args:
-            feature_dimension (int): number of features
+            feature_dimension (int): number of features (twice the number of qubits for this encoding)
             entangler_map (list[list]): connectivity of qubits with a list of [source, target], or None for full entanglement.
                                         Note that the order in the list is the order of applying the two-qubit gate.
         """
-        self._feature_dimension = feature_dimension
-        self._num_qubits = self._feature_dimension = feature_dimension
-        self._depth = 1
-        self._copies = 1
+
+        if isinstance(feature_dimension, int):
+            if feature_dimension % 2 == 0:
+                self._feature_dimension = feature_dimension
+            else:
+                raise ValueError('Feature dimension must be an even integer.')
+        else:
+            raise ValueError('Feature dimension must be an even integer.')
+
+        self._num_qubits = int(feature_dimension/2)
 
         if entangler_map is None:
             self._entangler_map = [[i, j] for i in range(self._feature_dimension) for j in range(i + 1, self._feature_dimension)]
@@ -57,8 +66,8 @@ class FeatureMapACME:
                 if len(parameters) != self._num_parameters:
                     raise ValueError('The number of feature map parameters must be {}.'.format(self._num_parameters))
 
-        if len(x) != 2*self._num_qubits:
-            raise ValueError('The input vector must be of length {}.'.format(2*self._num_qubits))
+        if len(x) != self._feature_dimension:
+            raise ValueError('The input vector must be of length {}.'.format(self._feature_dimension))
 
         if q is None:
             q = QuantumRegister(self._num_qubits, name='q')
@@ -93,17 +102,24 @@ class FeatureMapACME:
 class KernelMatrix:
     """Build the kernel matrix from a quantum feature map."""
 
-    def __init__(self, feature_map, backend):
+    def __init__(self, feature_map, backend, initial_layout):
         """
         Args:
             feature_map: the feature map object
             backend (Backend): the backend instance
+            initial_layout: FINISH ME
         """
 
         self._feature_map = feature_map
-        self._feature_map_circuit = self._feature_map.construct_circuit  # the feature map circuit
+        self._feature_map_circuit = self._feature_map.construct_circuit
         self._backend = backend
-        self.results = {}  # store the results object (program_data)
+
+        if initial_layout is None:
+            raise ValueError('Provide an initial layout matching the problem graph.')
+        else:
+            self._initial_layout = initial_layout
+
+        self.results = {}
 
     def construct_kernel_matrix(self, x1_vec, x2_vec, parameters=None):
         """Create the kernel matrix for a given feature map and input data.
@@ -131,16 +147,17 @@ class KernelMatrix:
         if is_identical:
 
             my_product_list = list(itertools.combinations(range(len(x1_vec)), 2)) # all pairwise combos of datapoint indices
+
             for index_1, index_2 in my_product_list:
 
-                circuit = self._feature_map_circuit(x=x1_vec[index_1], parameters=parameters, name='{}_{}'.format(index_1, index_2))
-                circuit += self._feature_map_circuit(x=x1_vec[index_2], parameters=parameters, inverse=True)
+                circuit_1 = self._feature_map_circuit(x=x1_vec[index_1], parameters=parameters, name='{}_{}'.format(index_1, index_2))
+                circuit_2 = self._feature_map_circuit(x=x1_vec[index_2], parameters=parameters, inverse=True)
+                circuit = circuit_1.compose(circuit_2)
                 circuit.measure_all()
                 experiments.append(circuit)
 
-            experiments = transpile(experiments, backend=self._backend)
-            qobj = assemble(experiments, backend=self._backend, shots=8192)
-            program_data = self._backend.run(qobj).result()
+            experiments = transpile(experiments, backend=self._backend, initial_layout=self._initial_layout)
+            program_data = self._backend.run(experiments, shots=8192).result()
 
             self.results['program_data'] = program_data
 
@@ -153,21 +170,21 @@ class KernelMatrix:
                 mat[index_1][index_2] = counts.get(measurement_basis, 0) / shots # kernel matrix element is the probability of measuring all 0s
                 mat[index_2][index_1] = mat[index_1][index_2] # kernel matrix is symmetric
 
-            return mat ** self._feature_map._copies
+            return mat
 
         else:
 
             for index_1, point_1 in enumerate(x1_vec):
                 for index_2, point_2 in enumerate(x2_vec):
 
-                    circuit = self._feature_map_circuit(x=point_1, parameters=parameters, name='{}_{}'.format(index_1, index_2))
-                    circuit += self._feature_map_circuit(x=point_2, parameters=parameters, inverse=True)
+                    circuit_1 = self._feature_map_circuit(x=point_1, parameters=parameters, name='{}_{}'.format(index_1, index_2))
+                    circuit_2 = self._feature_map_circuit(x=point_2, parameters=parameters, inverse=True)
+                    circuit = circuit_1.compose(circuit_2)
                     circuit.measure_all()
                     experiments.append(circuit)
 
-            experiments = transpile(experiments, backend=self._backend)
-            qobj = assemble(experiments, backend=self._backend, shots=8192)
-            program_data = self._backend.run(qobj).result()
+            experiments = transpile(experiments, backend=self._backend, initial_layout=self._initial_layout)
+            program_data = self._backend.run(experiments, shots=8192).result()
 
             self.results['program_data'] = program_data
 
@@ -182,35 +199,31 @@ class KernelMatrix:
                     mat[index_1][index_2] = counts.get(measurement_basis, 0) / shots
                     i += 1
 
-            return mat ** self._feature_map._copies
+            return mat
 
 
 class QKA:
     """The quantum kernel alignment algorithm."""
 
-    def __init__(self, feature_map, backend, verbose=True, user_messenger=None):
+    def __init__(self, feature_map, backend, initial_layout, user_messenger=None):
         """Constructor.
 
         Args:
             feature_map (partial obj): the quantum feature map object
             backend (Backend): the backend instance
-            verbose (bool): print output during course of algorithm
+            initial_layout: FINISH ME
             user_messenger (UserMessenger): used to publish interim results.
         """
 
         self.feature_map = feature_map
-        self.feature_map_circuit = self.feature_map.construct_circuit # the feature map circuit not yet evaluated with input arguments
+        self.feature_map_circuit = self.feature_map.construct_circuit
         self.backend = backend
-        self.num_qubits = self.feature_map._num_qubits
-        self.depth = self.feature_map._depth
-        self.entangler_map = self.feature_map._entangler_map
-        self.num_parameters = self.feature_map._num_parameters  # number of parameters (lambdas) in the feature map
+        self.initial_layout = initial_layout
+        self.num_parameters = self.feature_map._num_parameters
 
-        self.verbose = verbose
         self._user_messenger = user_messenger
         self.result = {}
-
-        self.kernel_matrix = KernelMatrix(feature_map=self.feature_map, backend=self.backend)
+        self.kernel_matrix = KernelMatrix(feature_map=self.feature_map, backend=self.backend, initial_layout=self.initial_layout)
 
     def SPSA_parameters(self):
         """Return array of precomputed SPSA parameters.
@@ -224,16 +237,13 @@ class QKA:
             c_i = c / (i + 1) ** gamma,
 
         for fixed coefficents a, c, alpha, gamma, A.
-
-        Default Qiskit values are:
-        SPSA_params = [2*np.pi*0.1, 0.1, 0.602, 0.101, 0]
         """
 
         SPSA_params = np.zeros((5))
         SPSA_params[0] = 0.05              # a
         SPSA_params[1] = 0.1               # c
-        SPSA_params[2] = 0.602             # alpha  (alpha range [0.5 - 1.0])
-        SPSA_params[3] = 0.101             # gamma  (gamma range [0.0 - 0.5])
+        SPSA_params[2] = 0.602             # alpha
+        SPSA_params[3] = 0.101             # gamma
         SPSA_params[4] = 0                 # A
 
         return SPSA_params
@@ -261,13 +271,12 @@ class QKA:
 
         y = y.astype('float')
 
-        P = matrix(H)                                                 # (nxn) yy^T * K, element-wise multiplication
-        q = matrix(f)                                                 # (nx1) -ones
-        G = matrix(np.vstack((-np.eye((n)), np.eye((n)))))            # for soft-margin, (2nxn) matrix with -identity (+identity) in top (bottom) half
-        h = matrix(np.vstack((np.zeros((n,1)), np.ones((n,1)) * C)))  # for soft-margin, (2nx1) vector with 0's (C's) in top (bottom) half
-        A = matrix(y, y.T.shape)                                      # (1xn) y
-        b = matrix(np.zeros(1), (1, 1))                               # (1x1) zero
-
+        P = matrix(H)
+        q = matrix(f)
+        G = matrix(np.vstack((-np.eye((n)), np.eye((n)))))
+        h = matrix(np.vstack((np.zeros((n,1)), np.ones((n,1)) * C)))
+        A = matrix(y, y.T.shape)
+        b = matrix(np.zeros(1), (1, 1))
 
         solvers.options['maxiters'] = max_iters
         solvers.options['show_progress'] = show_progress
@@ -330,7 +339,7 @@ class QKA:
 
         return cost_final, lambdas_new
 
-    def align_kernel(self, data, labels, initial_kernel_parameters=None, maxiters=10, C=1):
+    def align_kernel(self, data, labels, initial_kernel_parameters=None, maxiters=1, C=1):
         """Align the quantum kernel.
 
         Uses SPSA for minimization over kernel parameters (lambdas) and
@@ -354,37 +363,17 @@ class QKA:
         else:
             lambdas = np.random.uniform(-1.0, 1.0, size=(self.num_parameters))
 
-        # Pre-computed spsa parameters:
         spsa_params = self.SPSA_parameters()
 
-        # Save data at each SPSA run in the following lists:
-        lambda_save = []       # updated kernel parameters after each spsa step
-        cost_final_save = []   # avgerage cost at each spsa step
-        cost_plus_save = []    # (+) cost at each spsa step
-        cost_minus_save = []   # (-) cost at each spsa step
-        program_data = []
-
-        # #####################
-        # Start the alignment:
+        lambda_save = []
+        cost_final_save = []
 
         for count in range(maxiters):
 
-            # if self.verbose: print('\n\n  SPSA step {} of {}:\n'.format(count+1, maxiters))
-
-            # (STEP 1 OF PSEUDOCODE)
-            # First stage of SPSA optimization.
-
             lambda_plus, lambda_minus, delta = self.spsa_step_one(lambdas=lambdas, spsa_params=spsa_params, count=count)
-
-            # (STEP 2 OF PSEUDOCODE)
-            # Evaluate kernel matrix for the (+) and (-) kernel parameters.
 
             kernel_plus = self.kernel_matrix.construct_kernel_matrix(x1_vec=data, x2_vec=data, parameters=lambda_plus)
             kernel_minus = self.kernel_matrix.construct_kernel_matrix(x1_vec=data, x2_vec=data, parameters=lambda_minus)
-
-            # (STEP 3 OF PSEUDOCODE)
-            # Maximize SVM objective function over
-            # support vectors in the (+) and (-) directions.
 
             ret_plus = self.cvxopt_solver(K=kernel_plus, y=labels, C=C)
             cost_plus = -1 * ret_plus['primal objective']
@@ -392,38 +381,24 @@ class QKA:
             ret_minus = self.cvxopt_solver(K=kernel_minus, y=labels, C=C)
             cost_minus = -1 * ret_minus['primal objective']
 
-            # (STEP 4 OF PSEUDOCODE)
-            # Second stage of SPSA optimization:
-            # (one iteration of SPSA on SVM objective function F
-            #  and return updated kernel parameters).
-
             cost_final, lambda_best = self.spsa_step_two(cost_plus=cost_plus, cost_minus=cost_minus,
                                                          lambdas=lambdas, spsa_params=spsa_params, delta=delta, count=count)
 
-            # if self.verbose: print('\n\n\033[92m Cost: {}\033[00m'.format(cost_final))
+            lambdas = lambda_best
 
-            lambdas = lambda_best # updated kernel parameters
-
-            intrim_result = {'cost': cost_final,
+            interim_result = {'cost': cost_final,
                              'kernel_parameters': lambdas}
-            # intrim_result = {'cost': cost_final,
-            #                  'lambda': lambdas, 'cost_plus': cost_plus,
-            #                  'cost_minus': cost_minus, 'cost_final': cost_final}
-            self._user_messenger.publish(intrim_result)
+
+            self._user_messenger.publish(interim_result)
 
             lambda_save.append(lambdas)
-            cost_plus_save.append(cost_plus)
-            cost_minus_save.append(cost_minus)
             cost_final_save.append(cost_final)
-
-            program_data.append(self.kernel_matrix.results)
-
 
         # Evaluate aligned kernel matrix with optimized set of parameters averaged over last 10% of SPSA steps:
         num_last_lambdas = int(len(lambda_save) * 0.10)
         if num_last_lambdas > 0:
-            last_lambdas = np.array(lambda_save)[-num_last_lambdas:, :] # the last 10% of lambdas
-            lambdas = np.sum(last_lambdas, axis=0) / num_last_lambdas   # average over last 10% lambdas
+            last_lambdas = np.array(lambda_save)[-num_last_lambdas:, :]
+            lambdas = np.sum(last_lambdas, axis=0) / num_last_lambdas
         else:
             lambdas = np.array(lambda_save)[-1,:]
 
@@ -432,13 +407,6 @@ class QKA:
         self.result['aligned_kernel_parameters'] = lambdas
         self.result['aligned_kernel_matrix'] = kernel_best
 
-        # self.result['all_kernel_parameters'] = lambda_save
-        # self.result['all_final_cost_evaluations'] = cost_final_save
-        # self.result['all_positive_cost_evaluations'] = cost_plus_save
-        # self.result['all_negative_cost_evaluations'] = cost_minus_save
-
-        # self.result['program_data'] = program_data
-
         return self.result
 
 
@@ -446,9 +414,17 @@ def main(backend, user_messenger, **kwargs):
     """Entry function."""
 
     # Reconstruct the feature map object.
-    feature_map = kwargs.pop('feature_map')
+    feature_map = kwargs.get('feature_map')
     fm = FeatureMapACME.from_json(**feature_map)
-    qka = QKA(feature_map=fm, backend=backend, user_messenger=user_messenger)
-    qka_results = qka.align_kernel(**kwargs)
 
-    print(json.dumps(qka_results, cls=RuntimeEncoder))
+    data = kwargs.get('data')
+    labels = kwargs.get('labels')
+    initial_kernel_parameters = kwargs.get('initial_kernel_parameters', None)
+    maxiters = kwargs.get('maxiters', 1)
+    C = kwargs.get('C', 1)
+    initial_layout = kwargs.get('initial_layout', None)
+
+    qka = QKA(feature_map=fm, backend=backend, initial_layout=initial_layout, user_messenger=user_messenger)
+    qka_results = qka.align_kernel(data=data, labels=labels, initial_kernel_parameters=initial_kernel_parameters, maxiters=maxiters, C=C)
+
+    user_messenger.publish(qka_results, final=True)

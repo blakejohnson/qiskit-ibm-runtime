@@ -7,16 +7,23 @@ from qiskit.compiler import transpile
 class KernelMatrix:
     """Build the kernel matrix from a quantum feature map."""
 
-    def __init__(self, feature_map, backend):
+    def __init__(self, feature_map, backend, initial_layout):
         """
         Args:
             feature_map (int): the feature map object
             backend (Backend): the backend instance
+            initial layout: FINISH ME
         """
 
         self._feature_map = feature_map
         self._feature_map_circuit = self._feature_map.construct_circuit # the feature map circuit
         self._backend = backend
+
+        if initial_layout is None:
+            raise ValueError('Provide an initial layout matching the problem graph.')
+        else:
+            self._initial_layout = initial_layout
+
         self.results = {}  # store the results object (program_data)
 
     def construct_kernel_matrix(self, x1_vec, x2_vec, parameters=None):
@@ -47,9 +54,11 @@ class KernelMatrix:
             my_product_list = list(itertools.combinations(range(len(x1_vec)), 2)) # all pairwise combos of datapoint indices
             for index_1, index_2 in my_product_list:
 
-                circuit = self._feature_map_circuit(x=x1_vec[index_1], parameters=parameters, name='{}_{}'.format(index_1, index_2))
-                circuit += self._feature_map_circuit(x=x1_vec[index_2], parameters=parameters, inverse=True)
+                circuit_1 = self._feature_map_circuit(x=x1_vec[index_1], parameters=parameters, name='{}_{}'.format(index_1, index_2))
+                circuit_2 = self._feature_map_circuit(x=x1_vec[index_2], parameters=parameters, inverse=True)
+                circuit = circuit_1.compose(circuit_2)
                 circuit.measure_all()
+
                 experiments.append(circuit)
 
             program_data = self._run_circuits(experiments)
@@ -64,16 +73,18 @@ class KernelMatrix:
                 mat[index_1][index_2] = counts.get(measurement_basis, 0) / shots # kernel matrix element is the probability of measuring all 0s
                 mat[index_2][index_1] = mat[index_1][index_2] # kernel matrix is symmetric
 
-            return mat ** self._feature_map._copies
+            return mat
 
         else:
 
             for index_1, point_1 in enumerate(x1_vec):
                 for index_2, point_2 in enumerate(x2_vec):
 
-                    circuit = self._feature_map_circuit(x=point_1, parameters=parameters, name='{}_{}'.format(index_1, index_2))
-                    circuit += self._feature_map_circuit(x=point_2, parameters=parameters, inverse=True)
+                    circuit_1 = self._feature_map_circuit(x=point_1, parameters=parameters, name='{}_{}'.format(index_1, index_2))
+                    circuit_2 = self._feature_map_circuit(x=point_2, parameters=parameters, inverse=True)
+                    circuit = circuit_1.compose(circuit_2)
                     circuit.measure_all()
+
                     experiments.append(circuit)
 
             program_data = self._run_circuits(experiments)
@@ -90,19 +101,25 @@ class KernelMatrix:
                     mat[index_1][index_2] = counts.get(measurement_basis, 0) / shots
                     i += 1
 
-            return mat ** self._feature_map._copies
+            return mat
 
     def _run_circuits(self, circuits):
         """Execute the input circuits."""
-        try:
-            provider = self._backend.provider()
-            runtime_params = {'circuits': circuits, 'shots': 8192}
-            options = {'backend_name': self._backend.name()}
-            return provider.runtime.run(program_id="circuit-runner",
-                                        options=options,
-                                        inputs=runtime_params,
-                                        ).result()
-        except Exception:
-            # Fall back to run without runtime.
-            transpiled = transpile(circuits, backend=self._backend)
-            return self._backend.run(transpiled, shots=8192).result()
+
+        transpiled = transpile(circuits, backend=self._backend, initial_layout=self._initial_layout)
+        return self._backend.run(transpiled, shots=8192).result()
+
+        # try:
+        #     provider = self._backend.provider()
+        #     runtime_params = {'circuits': circuits, 'shots': 8192, 'initial_layout': self._initial_layout}
+        #     options = {'backend_name': self._backend.name()}
+        #     job = provider.runtime.run(program_id="circuit-runner",
+        #                                 options=options,
+        #                                 inputs=runtime_params
+        #                                 )
+        #     return job.result()
+        #
+        # except Exception:
+        #     # Fall back to run without runtime.
+        #     transpiled = transpile(circuits, backend=self._backend, initial_layout=self._initial_layout)
+        #     return self._backend.run(transpiled, shots=8192).result()

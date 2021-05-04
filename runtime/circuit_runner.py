@@ -55,7 +55,7 @@ def main(backend, user_messenger, circuits,
 
     # Compute raw results
     result = backend.run(circuits, **kwargs).result()
-    
+
     # Do the actual mitigation here
     if measurement_error_mitigation:
         quasi_probs = []
