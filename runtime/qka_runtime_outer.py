@@ -90,13 +90,26 @@ class FeatureMap:
             return circuit
 
     def to_json(self):
-        return {'feature_dimension': self._feature_dimension,
-                'entangler_map': self._entangler_map}
+        """Return JSON representation of this object.
+
+        Returns:
+            str: JSON string representing this object.
+        """
+        return json.dumps(
+            {'feature_dimension': self._feature_dimension,
+             'entangler_map': self._entangler_map})
 
     @classmethod
-    def from_json(cls, feature_dimension, entangler_map=None):
-        return cls(feature_dimension=feature_dimension,
-                   entangler_map=entangler_map)
+    def from_json(cls, data):
+        """Return an instance of this class from the JSON representation.
+
+        Args:
+            data (str): JSON string representing an object.
+
+        Returns:
+            An instance of this class.
+        """
+        return cls(**json.loads(data))
 
 
 class KernelMatrix:
@@ -411,7 +424,7 @@ def main(backend, user_messenger, **kwargs):
 
     # Reconstruct the feature map object.
     feature_map = kwargs.get('feature_map')
-    fm = FeatureMap.from_json(**feature_map)
+    fm = FeatureMap.from_json(feature_map)
 
     data = kwargs.get('data')
     labels = kwargs.get('labels')
