@@ -15,7 +15,7 @@ warnings.simplefilter("ignore")
 import sys
 
 
-class FeatureMapACME:
+class FeatureMap:
     """Mapping data with the feature map.
     """
 
@@ -102,22 +102,18 @@ class FeatureMapACME:
 class KernelMatrix:
     """Build the kernel matrix from a quantum feature map."""
 
-    def __init__(self, feature_map, backend, initial_layout):
+    def __init__(self, feature_map, backend, initial_layout=None):
         """
         Args:
             feature_map: the feature map object
             backend (Backend): the backend instance
-            initial_layout: FINISH ME
+            initial_layout (list or dict): initial position of virtual qubits on the physical qubits of the quantum device
         """
 
         self._feature_map = feature_map
         self._feature_map_circuit = self._feature_map.construct_circuit
         self._backend = backend
-
-        if initial_layout is None:
-            raise ValueError('Provide an initial layout matching the problem graph.')
-        else:
-            self._initial_layout = initial_layout
+        self._initial_layout = initial_layout
 
         self.results = {}
 
@@ -205,13 +201,13 @@ class KernelMatrix:
 class QKA:
     """The quantum kernel alignment algorithm."""
 
-    def __init__(self, feature_map, backend, initial_layout, user_messenger=None):
+    def __init__(self, feature_map, backend, initial_layout=None, user_messenger=None):
         """Constructor.
 
         Args:
             feature_map (partial obj): the quantum feature map object
             backend (Backend): the backend instance
-            initial_layout: FINISH ME
+            initial_layout (list or dict): initial position of virtual qubits on the physical qubits of the quantum device
             user_messenger (UserMessenger): used to publish interim results.
         """
 
@@ -415,7 +411,7 @@ def main(backend, user_messenger, **kwargs):
 
     # Reconstruct the feature map object.
     feature_map = kwargs.get('feature_map')
-    fm = FeatureMapACME.from_json(**feature_map)
+    fm = FeatureMap.from_json(**feature_map)
 
     data = kwargs.get('data')
     labels = kwargs.get('labels')

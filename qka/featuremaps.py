@@ -2,7 +2,7 @@ import numpy as np
 from qiskit import QuantumCircuit, QuantumRegister
 
 
-class FeatureMapACME:
+class FeatureMap:
     """Mapping data with the feature map.
     """
 

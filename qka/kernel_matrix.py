@@ -7,22 +7,18 @@ from qiskit.compiler import transpile
 class KernelMatrix:
     """Build the kernel matrix from a quantum feature map."""
 
-    def __init__(self, feature_map, backend, initial_layout):
+    def __init__(self, feature_map, backend, initial_layout=None):
         """
         Args:
             feature_map (int): the feature map object
             backend (Backend): the backend instance
-            initial layout: FINISH ME
+            initial layout (list or dict): initial position of virtual qubits on the physical qubits of the quantum device
         """
 
         self._feature_map = feature_map
         self._feature_map_circuit = self._feature_map.construct_circuit # the feature map circuit
         self._backend = backend
-
-        if initial_layout is None:
-            raise ValueError('Provide an initial layout matching the problem graph.')
-        else:
-            self._initial_layout = initial_layout
+        self._initial_layout = initial_layout
 
         self.results = {}  # store the results object (program_data)
 

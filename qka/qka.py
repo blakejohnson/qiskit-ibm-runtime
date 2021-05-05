@@ -7,13 +7,13 @@ from cvxopt import matrix, solvers
 class QKA:
     """The quantum kernel alignment algorithm."""
 
-    def __init__(self, feature_map, backend, initial_layout, verbose=True):
+    def __init__(self, feature_map, backend, initial_layout=None, verbose=True):
         """Constructor.
 
         Args:
             feature_map (partial obj): the quantum feature map object
             backend (Backend): the backend instance
-            initial_layout: FINISH ME
+            initial_layout (list or dict): initial position of virtual qubits on the physical qubits of the quantum device
             verbose (bool): print output during course of algorithm
         """
 

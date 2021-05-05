@@ -1,6 +1,6 @@
 import numpy as np
 from qiskit import Aer
-from featuremaps import FeatureMapACME
+from featuremaps import FeatureMap
 from kernel_matrix import KernelMatrix
 from qka import QKA
 from sklearn import metrics
@@ -40,7 +40,7 @@ C = 1
 maxiters = 11
 
 entangler_map=[[0,2],[3,4],[2,5],[1,4],[2,3],[4,6]]
-initial_layout=[10,11,12,13,14,15,16]
+initial_layout=None # [10,11,12,13,14,15,16]
 
 x_train = dat[:2*num_train, :-1]
 y_train = dat[:2*num_train, -1]
@@ -89,7 +89,7 @@ bk = Aer.get_backend('qasm_simulator')
 
 # Define the feature map and its initial parameters:
 initial_kernel_parameters = [0.1] # np.pi/2 should yield 100% test accuracy
-fm = FeatureMapACME(feature_dimension=num_features, entangler_map=entangler_map)
+fm = FeatureMap(feature_dimension=num_features, entangler_map=entangler_map)
 km = KernelMatrix(feature_map=fm, backend=bk, initial_layout=initial_layout)
 
 # Train and test the initial kernel:
