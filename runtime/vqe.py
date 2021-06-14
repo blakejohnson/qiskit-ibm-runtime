@@ -1,6 +1,7 @@
 """A generalized SPSA optimizer including support for Hessians."""
 
-from typing import Iterator, Optional, Union, Callable, Tuple, List
+from abc import ABC, abstractmethod
+from typing import Iterator, Optional, Union, Callable, Tuple, List, Dict, Any
 import logging
 from time import time
 import warnings
@@ -20,15 +21,14 @@ from qiskit.algorithms.optimizers import Optimizer, OptimizerSupportLevel
 from qiskit.circuit import ParameterVector, QuantumCircuit
 from qiskit.circuit.library import RealAmplitudes
 from qiskit.opflow import (
-    StateFn, CircuitSampler, PauliExpectation, PauliSumOp, ExpectationBase, OperatorBase,
+    StateFn, CircuitSampler, PauliExpectation, ExpectationBase, OperatorBase,
     ListOp, I
 )
 from qiskit.providers import BaseBackend, Backend
-from qiskit.quantum_info import SparsePauliOp, PauliTable
 from qiskit.utils import QuantumInstance
 
 from qiskit.ignis.mitigation.measurement import CompleteMeasFitter
-from qiskit.providers.ibmq.runtime.utils import RuntimeEncoder, RuntimeDecoder
+from qiskit.providers.ibmq.runtime.utils import RuntimeDecoder
 
 # the overlap function
 OVERLAP = Callable[[np.ndarray, np.ndarray], float]
@@ -42,9 +42,135 @@ logger = logging.getLogger(__name__)
 # Suppress all warnings
 warnings.simplefilter("ignore")
 
+# pylint: disable=invalid-name
+
 
 # disable check for ansatzs, optimizer setter because of pylint bug
 # pylint: disable=no-member
+class It(ABC):
+    """A base class for serializable iterators."""
+
+    @abstractmethod
+    def serialize(self) -> Tuple[str, Dict[str, Any]]:
+        """Serialize the iterator."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_iterator(self) -> Iterator[float]:
+        """Get the iterator."""
+        raise NotImplementedError
+
+    @staticmethod
+    def deserialize(serialized: Tuple[str, Dict[str, Any]]) -> 'It':
+        """Construct the iterator from the serialized data."""
+
+        name, inputs = serialized
+        classes = {'Constant': Constant,
+                   'Powerlaw': Powerlaw,
+                   'Concatenated': Concatenated}
+        return classes[name](**inputs)
+
+
+class Constant(It):
+    """An iterator yielding constant values."""
+
+    def __init__(self, value: float) -> None:
+        """
+        Args:
+            value: The constant value yielded from this iterator.
+        """
+        self.value = value
+
+    def get_iterator(self) -> Iterator[float]:
+        def constant_it():
+            while True:
+                yield self.value
+
+        return constant_it
+
+    def serialize(self) -> Tuple[str, Dict[str, Any]]:
+        return ('Constant', {'value': self.value})
+
+
+class Powerlaw(It):
+    r"""An iterator yielding values from a powerlaw.
+
+    The powerlaw is
+
+    .. math::
+
+        k(n) = c \left(\frac{1}{n + A}\right)^p,
+
+    where :math:`c` is the constant coeffient (``coeff``), :math:`p` is the exponent
+    (``power``), :math:`A` is a constant offset (``offset``) and :math:`n` is an integer.
+    """
+
+    def __init__(self, coeff, power, offset, skip=0):
+        """
+        Args:
+            coeff: The coefficient of the powerlaw.
+            power: The exponent in the powerlaw.
+            offset: The offset.
+            skip: How many initial values to skip in the iterator.
+        """
+        self.coeff = coeff
+        self.power = power
+        self.offset = offset
+        self.skip = skip
+
+    def serialize(self) -> Tuple[str, Dict[str, Any]]:
+        return ('Powerlaw', {'coeff': self.coeff,
+                             'power': self.power,
+                             'offset': self.offset,
+                             'skip': self.skip})
+
+    def get_iterator(self) -> Iterator[float]:
+        def powerlaw_it():
+            n = 1
+            while True:
+                if n > self.skip:
+                    yield self.coeff / ((n + self.offset) ** self.power)
+                n += 1
+        return powerlaw_it
+
+
+class Concatenated(It):
+    """An iterator consisting of concatenated other iterators."""
+
+    def __init__(self, iterators: List[It], breakpoints: List[int]) -> None:
+        """
+        Args:
+            iterators: A list of iterators this iterator is made up of.
+            breakpoints: A list of integers specifying when to use the next iterator.
+        """
+        self.iterators = []
+        # deserialize if necessary
+        for iterator in iterators:
+            if isinstance(iterator, (list, tuple)):
+                self.iterators.append(self.deserialize(iterator))
+            else:
+                self.iterators.append(iterator)
+
+        self.breakpoints = breakpoints
+
+    def serialize(self) -> Tuple[str, Dict[str, Any]]:
+        return ('Concatenated', {'iterators':  [it.serialize() for it in self.iterators],
+                                 'breakpoints': self.breakpoints})
+
+    def get_iterator(self) -> Iterator[float]:
+        iterators = [it.get_iterator()() for it in self.iterators]
+        breakpoints = self.breakpoints
+
+        def concat():
+            i, n = 0, 0  # n counts always up, i is at which iterator/breakpoint pair we are
+            while True:
+                if i < len(breakpoints) and n >= breakpoints[i]:
+                    i += 1
+                yield next(iterators[i])
+                n += 1
+
+        return concat
+
 
 class SPSA(Optimizer):
     """A generalized SPSA optimizer including support for Hessians."""
@@ -67,6 +193,7 @@ class SPSA(Optimizer):
                  regularization: Optional[float] = None,
                  perturbation_dims: Optional[int] = None,
                  initial_hessian: Optional[np.ndarray] = None,
+                 expectation: Optional[ExpectationBase] = None,
                  backend: Optional[Union[Backend, QuantumInstance]] = None,
                  ) -> None:
         r"""
@@ -104,6 +231,7 @@ class SPSA(Optimizer):
                 dimensions are perturbed simulatneously.
             initial_hessian: The initial guess for the Hessian. By default the identity matrix
                 is used.
+            expectation: An expectation converter.
             backend: A backend to evaluate the circuits, if the overlap function is provided as
                 a circuit and the objective function as operator expression.
         """
@@ -112,20 +240,14 @@ class SPSA(Optimizer):
         if regularization is None:
             regularization = 0.01
 
-        if isinstance(learning_rate, float):
-            self.learning_rate = lambda: constant(learning_rate)
-        else:
-            self.learning_rate = learning_rate
-
-        if isinstance(perturbation, float):
-            self.perturbation = lambda: constant(perturbation)
-        else:
-            self.perturbation = perturbation
-
         if lse_solver is None:
             lse_solver = np.linalg.solve
 
+        self.history = None
+
         self.maxiter = maxiter
+        self.learning_rate = learning_rate
+        self.perturbation = perturbation
         self.blocking = blocking
         self.allowed_increase = allowed_increase
         self.trust_region = trust_region
@@ -149,8 +271,10 @@ class SPSA(Optimizer):
 
         if backend is not None:
             self._sampler = CircuitSampler(backend, caching='all')
+            self._expectation = expectation
         else:
             self._sampler = None
+            self._expectation = None
 
         self._nfev = None
         self._moving_avg = None  # moving average of the preconditioner
@@ -158,7 +282,7 @@ class SPSA(Optimizer):
     @staticmethod
     def calibrate(loss: Callable[[np.ndarray], float],
                   initial_point: np.ndarray,
-                  c: float = 0.2,
+                  c: float = 0.1,
                   stability_constant: float = 0,
                   target_magnitude: Optional[float] = None,  # 2 pi / 10
                   alpha: float = 0.602,
@@ -215,7 +339,9 @@ class SPSA(Optimizer):
             warnings.warn(f'Calibration failed, using {target_magnitude} for `a`')
             a = target_magnitude
 
+        # print('Coeffs:', a, alpha, stability_constant, c, gamma)
         # set up the powerseries
+
         def learning_rate():
             return powerseries(a, alpha, stability_constant)
 
@@ -232,12 +358,41 @@ class SPSA(Optimizer):
         losses = [loss(initial_point) for _ in range(avg)]
         return np.std(losses)
 
+    @property
+    def name(self):
+        """The name of the optimizer."""
+        return 'SPSA'
+
+    def to_dict(self):
+        """Return a dictionary of the optimizer settings."""
+        for obj in [self.perturbation, self.learning_rate]:
+            if not (obj is None or isinstance(obj, float)):
+                raise AttributeError('Learning rate and perturbation must be None or float.')
+
+        if self.callback is not None:
+            raise AttributeError('Callback not serializable.')
+
+        return {'maxiter': self.maxiter,
+                'learning_rate': self.learning_rate,
+                'perturbation': self.perturbation,
+                'blocking': self.blocking,
+                'allowed_increase': self.allowed_increase,
+                'trust_region': self.trust_region,
+                'resamplings': self.resamplings,
+                'last_avg': self.last_avg,
+                'second_order': self.second_order,
+                'hessian_delay': self.hessian_delay,
+                'regularization': self.regularization,
+                'perturbation_dims': self.perturbation_dims,
+                'initial_hessian': self.initial_hessian}
+
     def _point_sample_blackbox(self, loss, x, eps, delta1, delta2):
         pert1, pert2 = eps * delta1, eps * delta2
 
         # compute the gradient approximation and additionally return the loss function evaluations
         plus, minus = loss(x + eps * delta1), loss(x - eps * delta1)
         gradient_sample = (plus - minus) / (2 * eps) * delta1
+        fval_sample = (plus + minus) / 2
         self._nfev += 2
 
         hessian_sample = None
@@ -252,7 +407,7 @@ class SPSA(Optimizer):
             rank_one = np.outer(delta1, delta2)
             hessian_sample = diff * (rank_one + rank_one.T) / 2
 
-        return gradient_sample, hessian_sample
+        return gradient_sample, hessian_sample, fval_sample
 
     def _point_samples_blackbox(self, loss, x, eps, deltas1, deltas2):
         # number of samples
@@ -263,14 +418,18 @@ class SPSA(Optimizer):
 
         # iterate over the directions
         for delta1, delta2 in zip(deltas1, deltas2):
-            gradient_sample, hessian_sample = self._point_sample_blackbox(loss, x, eps, delta1,
-                                                                          delta2)
+            gradient_sample, hessian_sample, fval_sample = self._point_sample_blackbox(
+                loss, x, eps, delta1, delta2
+            )
             gradient_estimate += gradient_sample
+            fval_estimate += fval_sample
 
             if self.second_order:
                 hessian_estimate += hessian_sample
 
-        return gradient_estimate / resamplings, hessian_estimate / resamplings
+        return (gradient_estimate / resamplings,
+                hessian_estimate / resamplings,
+                fval_estimate / resamplings)
 
     def _point_samples_circuits(self, loss, x, eps, deltas1, deltas2):
         # cache gradient epxressions
@@ -295,16 +454,19 @@ class SPSA(Optimizer):
             self.grad_params = [theta_p, theta_m]
 
             # catch QNSPSA case. Could be put in a method to make it a bit nicer
-            if self.hessian_expr is None:
-                self.hessian_expr = [
-                    loss.assign_parameters(dict(zip(sorted_params, x_pp))),
-                    loss.assign_parameters(dict(zip(sorted_params, x_pm))),
-                    loss.assign_parameters(dict(zip(sorted_params, x_mp))),
-                    loss.assign_parameters(dict(zip(sorted_params, x_mm))),
-                ]
-                self.hessian_params = [x_pp, x_pm, x_mp, x_mm]
+            if self.second_order:
+                if self.hessian_expr is None:
+                    self.hessian_expr = [
+                        loss.assign_parameters(dict(zip(sorted_params, x_pp))),
+                        loss.assign_parameters(dict(zip(sorted_params, x_pm))),
+                        loss.assign_parameters(dict(zip(sorted_params, x_mp))),
+                        loss.assign_parameters(dict(zip(sorted_params, x_mm))),
+                    ]
+                    self.hessian_params = [x_pp, x_pm, x_mp, x_mm]
 
-            self.gradient_expressions = ListOp(self.grad_expr + self.hessian_expr)
+                self.gradient_expressions = ListOp(self.grad_expr + self.hessian_expr)
+            else:
+                self.gradient_expressions = ListOp(self.grad_expr)
 
         num_parameters = x.size
         resamplings = len(deltas1)
@@ -323,33 +485,59 @@ class SPSA(Optimizer):
         # build dictionary
         values_dict = {}
 
-        for params, value_matrix in zip(
-            self.grad_params + self.hessian_params,
-            [theta_p_, theta_m_, x_pp_, x_pm_, x_mp_, x_mm_, y_],
-        ):
-            values_dict.update({
-                params[i]: value_matrix[:, i].tolist() for i in range(num_parameters)
-            })
+        if self.second_order:
+            for params, value_matrix in zip(
+                self.grad_params + self.hessian_params,
+                [theta_p_, theta_m_, x_pp_, x_pm_, x_mp_, x_mm_, y_],
+            ):
+                values_dict.update({
+                    params[i]: value_matrix[:, i].tolist() for i in range(num_parameters)
+                })
+        else:
+            for params, value_matrix in zip(self.grad_params, [theta_p_, theta_m_]):
+                values_dict.update({
+                    params[i]: value_matrix[:, i].tolist() for i in range(num_parameters)
+                })
 
         # execute at once
-        results = np.array(self._sampler.convert(self.gradient_expressions,
-                                                 params=values_dict).eval()).real
+        sampled = self._sampler.convert(self.gradient_expressions, params=values_dict)
+        results = np.real(sampled.eval())
 
         # put results together
         gradient_estimate = np.zeros(x.size)
+        fval_estimate = 0
         for i in range(resamplings):
+            self._nfev += 2
             gradient_estimate += (results[i, 0] - results[i, 1]) / (2 * eps) * deltas1[0]
+            fval_estimate += (results[i, 0] + results[i, 1]) / 2
+
+            if self.callback is not None:
+                if self._expectation:
+                    # get estimation error for the function evaluations
+                    variance = np.array([self._expectation.compute_variance(sampled_op)
+                                         for sampled_op in sampled[i][:2]])
+                    shots = self._sampler.quantum_instance.run_config.shots
+                    estimation_error = np.sqrt(variance / shots)
+                else:
+                    estimation_error = [0., 0.]
+
+                self.callback(self._nfev - 1, theta_p_[i, :], results[i, 0], estimation_error[0])
+                self.callback(self._nfev, theta_m_[i, :], results[i, 1], estimation_error[1])
 
         hessian_estimate = np.zeros((x.size, x.size))
-        for i in range(resamplings):
-            diff = results[i, 2] - results[i, 3]
-            diff -= results[i, 4] - results[i, 5]
-            diff /= 2 * eps ** 2
+        if self.second_order:
+            for i in range(resamplings):
+                self._nfev += 4
+                diff = results[i, 2] - results[i, 3]
+                diff -= results[i, 4] - results[i, 5]
+                diff /= 2 * eps ** 2
 
-            rank_one = np.outer(deltas1[i], deltas2[i])
-            hessian_estimate += diff * (rank_one + rank_one.T) / 2
+                rank_one = np.outer(deltas1[i], deltas2[i])
+                hessian_estimate += diff * (rank_one + rank_one.T) / 2
 
-        return gradient_estimate / resamplings, hessian_estimate / resamplings
+        return (gradient_estimate / resamplings,
+                hessian_estimate / resamplings,
+                fval_estimate / resamplings)
 
     def _compute_update(self, loss, x, k, eps):
         # compute the perturbations
@@ -366,9 +554,11 @@ class SPSA(Optimizer):
         deltas2 = [bernoulli_perturbation(x.size, self.perturbation_dims) for _ in range(avg)]
 
         if callable(loss):
-            gradient, preconditioner = self._point_samples_blackbox(loss, x, eps, deltas1, deltas2)
+            gradient, preconditioner, fval = self._point_samples_blackbox(loss, x, eps, deltas1,
+                                                                          deltas2)
         else:
-            gradient, preconditioner = self._point_samples_circuits(loss, x, eps, deltas1, deltas2)
+            gradient, preconditioner, fval = self._point_samples_circuits(loss, x, eps, deltas1,
+                                                                          deltas2)
 
         # update the exponentially smoothed average
         if self.second_order:
@@ -382,7 +572,7 @@ class SPSA(Optimizer):
                 # solve for the gradient update
                 gradient = np.real(self.lse_solver(spd_preconditioner, gradient))
 
-        return gradient
+        return gradient, fval
 
     def _minimize(self, loss, initial_point):
         # handle circuits case
@@ -397,19 +587,30 @@ class SPSA(Optimizer):
         else:
             loss_callable = loss
 
+        self.history = {
+            'loss': [],
+            'params': [],
+            'time': [],
+        }
+
         # ensure learning rate and perturbation are set
         # this happens only here because for the calibration the loss function is required
         if self.learning_rate is None and self.perturbation is None:
             get_learning_rate, get_perturbation = self.calibrate(loss_callable, initial_point)
-            self.learning_rate = get_learning_rate
-            self.perturbation = get_perturbation
-
-        if self.learning_rate is None or self.perturbation is None:
+            eta = get_learning_rate()
+            eps = get_perturbation()
+        elif self.learning_rate is None or self.perturbation is None:
             raise ValueError('If one of learning rate or perturbation is set, both must be set.')
+        else:
+            if isinstance(self.learning_rate, float):
+                eta = constant(self.learning_rate)
+            else:
+                eta = self.learning_rate()
 
-        # get iterator
-        eta = self.learning_rate()
-        eps = self.perturbation()
+            if isinstance(self.perturbation, float):
+                eps = constant(self.perturbation)
+            else:
+                eps = self.perturbation()
 
         # prepare some initials
         x = np.asarray(initial_point)
@@ -439,7 +640,7 @@ class SPSA(Optimizer):
         for k in range(1, self.maxiter + 1):
             iteration_start = time()
             # compute update
-            update = self._compute_update(loss, x, k, next(eps))
+            update, fx_next = self._compute_update(loss, x, k, next(eps))
 
             # trust region
             if self.trust_region:
@@ -448,7 +649,8 @@ class SPSA(Optimizer):
                     update = update / norm
 
             # compute next parameter value
-            update = update * next(eta)
+            lr = next(eta)
+            update = update * lr
             x_next = x - update
 
             # blocking
@@ -457,12 +659,17 @@ class SPSA(Optimizer):
 
                 self._nfev += 1
                 if fx + self.allowed_increase <= fx_next:  # accept only if loss improved
-                    if self.callback is not None:
-                        self.callback(self._nfev,  # number of function evals
-                                      x_next,  # next parameters
-                                      fx_next,  # loss at next parameters
-                                      np.linalg.norm(update),  # size of the update step
-                                      False)  # not accepted
+
+                    self.history['loss'].append(fx_next)
+                    self.history['params'].append(x_next)
+                    self.history['time'].append(time())
+
+                    # if self.callback is not None:
+                    #     self.callback(self._nfev,  # number of function evals
+                    #                   x_next,  # next parameters
+                    #                   fx_next,  # loss at next parameters
+                    #                   np.linalg.norm(update),  # size of the update step
+                    #                   False)  # not accepted
 
                     logger.info('Iteration %s/%s rejected in %s.',
                                 k, self.maxiter + 1, time() - iteration_start)
@@ -472,12 +679,16 @@ class SPSA(Optimizer):
             logger.info('Iteration %s/%s done in %s.',
                         k, self.maxiter + 1, time() - iteration_start)
 
-            if self.callback is not None:
-                self.callback(self._nfev,  # number of function evals
-                              x_next,  # next parameters
-                              fx_next,  # loss at next parameters
-                              np.linalg.norm(update),  # size of the update step
-                              True)  # accepted
+            # if self.callback is not None:
+            #     self.callback(self._nfev,  # number of function evals
+            #                   x_next,  # next parameters
+            #                   fx_next,  # loss at next parameters
+            #                   np.linalg.norm(update),  # size of the update step
+            #                   True)  # accepted
+
+            self.history['loss'].append(fx_next)
+            self.history['params'].append(x_next)
+            self.history['time'].append(time())
 
             # update parameters
             x = x_next
@@ -528,6 +739,7 @@ class QNSPSA(SPSA):
                  regularization: Optional[float] = None,
                  perturbation_dims: Optional[int] = None,
                  initial_hessian: Optional[np.ndarray] = None,
+                 expectation: Optional[ExpectationBase] = None,
                  backend: Optional[Union[Backend, QuantumInstance]] = None,
                  ) -> None:
         r"""
@@ -559,6 +771,8 @@ class QNSPSA(SPSA):
                 dimensions are perturbed simulatneously.
             initial_hessian: The initial guess for the Hessian. By default the identity matrix
                 is used.
+            expectation: The Expectation converter for taking the average value of the
+                Observable over the ansatz state function.
             backend: A backend to evaluate the circuits, if the overlap function is provided as
                 a circuit and the objective function as operator expression.
         """
@@ -576,6 +790,7 @@ class QNSPSA(SPSA):
                          regularization=regularization,
                          perturbation_dims=perturbation_dims,
                          initial_hessian=initial_hessian,
+                         expectation=expectation,
                          backend=backend)
 
         self.overlap_fn = overlap_fn
@@ -704,11 +919,12 @@ class QNSPSAVQE(VQE):
                  maxiter: int = 100,
                  blocking: bool = True,
                  allowed_increase: float = 0.1,
-                 learning_rate: float = 0.01,
-                 perturbation: float = 0.01,
+                 learning_rate: Optional[float] = None,
+                 perturbation: Optional[float] = None,
                  regularization: float = 0.01,
                  resamplings: int = 1,
                  hessian_delay: int = 0,
+                 initial_hessian: Optional[np.ndarray] = None,
                  ) -> None:
         """
 
@@ -759,6 +975,7 @@ class QNSPSAVQE(VQE):
         self.regularization = regularization
         self.resamplings = resamplings
         self.hessian_delay = hessian_delay
+        self.initial_hessian = initial_hessian
 
         self._ret = VQEResult()
         self._eval_time = None
@@ -820,6 +1037,8 @@ class QNSPSAVQE(VQE):
                               'regularization': self.regularization,
                               'resamplings': self.resamplings,
                               'hessian_delay': self.hessian_delay,
+                              'initial_hessian': self.initial_hessian,
+                              'expectation': self.expectation,
                               'callback': self._callback,
                               'backend': self._quantum_instance}
 
@@ -852,7 +1071,7 @@ class QNSPSAVQE(VQE):
 
         self._ret.cost_function_evals = self._eval_count
 
-        return self._ret
+        return self._ret, optimizer.history
 
 
 # Code from qn-spsa/utils.py
@@ -908,26 +1127,47 @@ class Publisher:
 
 def main(backend, user_messenger, **kwargs):
     """Entry function."""
-    readout_error_mitigation = kwargs.get('readout_error_mitigation', False)
-    if readout_error_mitigation:
+    # parse inputs
+    mandatory = {'ansatz', 'operator'}
+    missing = mandatory - set(kwargs.keys())
+    if len(missing) > 0:
+        raise ValueError(f'The following mandatory arguments are missing: {missing}.')
+
+    ansatz = kwargs['ansatz']
+    operator = kwargs['operator']
+    aux_operators = kwargs.get('aux_operators', None)
+    initial_point = kwargs.get('initial_point', None)
+    optimizer = kwargs.get('optimizer', dict())
+    shots = kwargs.get('shots', 1024)
+    measurement_error_mitigation = kwargs.get('measurement_error_mitigation', False)
+
+    # set up quantum instance
+    if measurement_error_mitigation:
         _quantum_instance = QuantumInstance(backend,
+                                            shots=shots,
+                                            measurement_error_mitigation_shots=shots,
                                             measurement_error_mitigation_cls=CompleteMeasFitter)
     else:
-        _quantum_instance = QuantumInstance(backend)
+        _quantum_instance = QuantumInstance(backend,
+                                            shots=shots)
 
     publisher = Publisher(user_messenger)
 
-    # verify the optimizer
-    optimizer_name = kwargs.get('optimizer', 'SPSA')
+    # verify the optimizer and split into name and parameters
+    optimizer_name = optimizer.pop('name', 'SPSA')
     if optimizer_name not in ['SPSA', 'QN-SPSA']:
         raise ValueError(f'Unsupported optimizer: {optimizer_name}. Available: SPSA, QN-SPSA')
 
-    # get the optimizer parameters
-    optimizer_params = kwargs.get('optimizer_params', dict())
+    optimizer_params = optimizer
+
+    # de-serialize learning rate and perturbation if necessary
+    for attr in ['learning_rate', 'perturbation']:
+        if attr in optimizer_params.keys():
+            if isinstance(optimizer_params[attr], (list, tuple)):  # need to de-serialize
+                iterator_factory = It.deserialize(optimizer_params[attr])
+                optimizer_params[attr] = iterator_factory.get_iterator()
 
     # verify the initial point
-    ansatz = kwargs['ansatz']
-    initial_point = kwargs['initial_point']
     if initial_point == 'random' or initial_point is None:
         initial_point = np.random.random(ansatz.num_parameters)
     elif len(initial_point) != ansatz.num_parameters:
@@ -942,10 +1182,22 @@ def main(backend, user_messenger, **kwargs):
                     natural_spsa=(optimizer_name == 'QN-SPSA'),
                     **optimizer_params
                     )
-    result = vqe.compute_minimum_eigenvalue(kwargs['operator'])
+    result, history = vqe.compute_minimum_eigenvalue(operator, aux_operators)
 
-    # print(result)
-    print(json.dumps(result, cls=RuntimeEncoder))
+    serialized_result = {
+        'optimizer_evals': result.optimizer_evals,
+        'optimizer_time': result.optimizer_time,
+        'optimal_value': result.optimal_value,
+        'optimal_point': result.optimal_point,
+        'optimal_parameters': None,  # ParameterVectorElement is not serializable
+        'cost_function_evals': result.cost_function_evals,
+        'eigenstate': result.eigenstate,
+        'eigenvalue': result.eigenvalue,
+        'aux_operator_eigenvalues': result.aux_operator_eigenvalues,
+        'optimizer_history': history
+    }
+
+    user_messenger.publish(serialized_result, final=True)
 
 
 if __name__ == '__main__':
