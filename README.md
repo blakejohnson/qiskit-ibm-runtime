@@ -1,94 +1,41 @@
-# Runtime THINK demos
+# This repo is now used to store runtime programs
 
-This repo is used to store artifacts for the near time compute THINK demos.
+The `runtime/` directory contains the source code and metadata files for all the Qiskit Runtime
+programs available today. They should match the files in https://github.com/Qiskit-Partners/qiskit-runtime, 
+with the exceptions of
 
-### Structure of this repo:
-
-- `qka/`
-    - contains QKA source code
-- `qn-spsa`
-    - contains VQE source code
-- `runtime/`
-    - contains runtime programs
-- demo notebooks are in the root directory
-
-### To run the demo notebooks locally using Aer
-
-1. Install all the requirements: `pip install -U -r requirements.txt`
-2. Install the special `qiskit-ibmq-provider` branch:
-  `pip install git+https://github.com/jyu00/qiskit-ibmq-provider@runtime-service` 
-3. Set the environment variables:
-
-   - `PYTHON_EXEC` needs to point to your python executable, which may live in your `virtualenv`
-   or `conda` directory (e.g. `/Users/jessieyu/.pyenv/versions/qka-demo/bin/python3`)
-
-   - `NTC_DOC_FILE` needs to point to the JSON file containing the program definition
-   (e.g. `runtime/qka_doc.json`).
-   
-   - `NTC_PROGRAM_FILE` needs to point to the runtime program file (e.g. `runtime/qka_runtime.py`)
+- `vqe`: Waiting for Qiskit Terra 0.18.0 release
+- `circuit-runner`: Uses internal M3 measurement error mitigation 
 
 
-### To run demo notebooks using real runtime environments
-
-
-#### Requirements
-
-To use runtime via Qiskit you'll need to
-
-- install the latest Qiskit release
-- install the special `qiskit-ibmq-provider` branch:
-  `pip install git+https://github.com/jyu00/qiskit-ibmq-provider@runtime-real` 
-- has the `near-time-systems` role if you want to upload new programs.
-
-#### Additional requirements for staging
-
-- be in the `rte-test/lp-all/renierm` provider
-- set the `NTC_URL` environment variable to 
-`https://api-ntc.processing-staging-5dd5718798d097eccc65fac4e78a33ce-0000.us-east.containers.appdomain.cloud` 
-
-For example:
-
-```
-import os
-from qiskit import IBMQ
-
-os.environ["NTC_URL"] = 'https://api-ntc.processing-staging-5dd5718798d097eccc65fac4e78a33ce-0000.us-east.containers.appdomain.cloud'
-IBMQ.enable_account(STAGING_TOKEN, url='https://auth-dev.quantum-computing.ibm.com/api')
-```
-
-#### Additional requirements for production
-
-- be in the `ibm-q-internal/near-time/qiskit-runtime` provider
-- Set the `NTC_URL` environment variable to 
-`https://api-ntc.processing-prod-5dd5718798d097eccc65fac4e78a33ce-0000.us-east.containers.appdomain.cloud` 
-
-The only production device setup for runtime is `ibmq_montreal`.
-
-#### Syntax
+### Using Qiskit Runtime
 
 **Note:**
 
+1. You need the `near-time-systems` role in order to upload a new program.
 1. When updating a program, it is important to specify a `max_execution_time`, which is the maximum 
 amount of time, in seconds, the program is allowed to run. If the execution time exceeds this 
 number, a second runtime program will be started.
-2. Job cancel doesn't work yet.
 
 
 ```python
 from qiskit import IBMQ
 
-IBMQ.load_account()
-provider = IBMQ.get_provider(project='qiskit-runtime')
+provider = IBMQ.load_account()
 
 # Upload a new runtime program.
 program_id = provider.runtime.upload_program(
-    name='circuit-runner', 
-    data='runtime/circuit_runner.py', 
-    max_execution_time=86400)
+    name='sample-program', 
+    data='runtime/sample_program.py', 
+    metadata='runtime/sample_program.json'
+)
 print(program_id)
 
 # Print all available programs
 provider.runtime.pprint_programs(refresh=True)
+
+# Print just one program
+print(provider.runtime.program(program_id='sample-program', refresh=True))
 
 # Delete a program
 provider.runtime.delete_program(program_id='id-to-delete')
@@ -98,12 +45,11 @@ provider.runtime.delete_program(program_id='id-to-delete')
 def interim_result_callback(job_id, interim_result):
     print(interim_result)
 
-backend = provider.get_backend('ibmq_montreal')
 runtime_inputs = {
-    'circuits': circuit
+    "iterations": 2
 }
-options = {'backend_name': backend.name()}
-job = provider.runtime.run(program_id="circuit-runner",
+options = {'backend_name': 'ibmq_montreal'}
+job = provider.runtime.run(program_id="sample-program",
                            options=options,
                            inputs=runtime_inputs,
                            callback=interim_result_callback
@@ -115,6 +61,3 @@ print(job.status())
 # Get results
 result = job.result()
 ```
-
-See the [design doc](https://github.ibm.com/IBM-Q-Software/design-docs/blob/master/docs/quantum_services/Quantum_Program_Runtime/qiskit_interface.md) 
-for more details.
