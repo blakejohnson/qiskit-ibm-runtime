@@ -13,13 +13,12 @@ from collections import deque
 import numpy as np
 import scipy
 
+from qiskit.algorithms.optimizers import Optimizer, OptimizerSupportLevel, SPSA, QNSPSA
 from qiskit import Aer
 from qiskit.algorithms import VQE, VQEResult
 from qiskit.algorithms.exceptions import AlgorithmError
 from qiskit.algorithms.minimum_eigen_solvers import MinimumEigensolverResult
-from qiskit.algorithms.optimizers import Optimizer, OptimizerSupportLevel
 from qiskit.circuit import ParameterVector, QuantumCircuit
-from qiskit.circuit.library import RealAmplitudes
 from qiskit.opflow import (
     StateFn, CircuitSampler, PauliExpectation, ExpectationBase, OperatorBase,
     ListOp, I
@@ -172,7 +171,7 @@ class Concatenated(It):
         return concat
 
 
-class SPSA(Optimizer):
+class _SPSA(Optimizer):
     """A generalized SPSA optimizer including support for Hessians."""
 
     def __init__(self,
@@ -339,9 +338,6 @@ class SPSA(Optimizer):
             warnings.warn(f'Calibration failed, using {target_magnitude} for `a`')
             a = target_magnitude
 
-        # print('Coeffs:', a, alpha, stability_constant, c, gamma)
-        # set up the powerseries
-
         def learning_rate():
             return powerseries(a, alpha, stability_constant)
 
@@ -351,87 +347,22 @@ class SPSA(Optimizer):
         return learning_rate, perturbation
 
     @staticmethod
-    def estimate_stddev(loss: Callable[[np.ndarray], float],
+    def estimate_stddev(loss: OperatorBase,
                         initial_point: np.ndarray,
                         avg: int = 25) -> float:
         """Estimate the standard deviation of the loss function."""
         losses = [loss(initial_point) for _ in range(avg)]
         return np.std(losses)
 
-    @property
-    def name(self):
-        """The name of the optimizer."""
-        return 'SPSA'
+        # values_dict = {}
+        # for params in self.grad_params:
+        #     values_dict.update({params[i]: [initial_point[i]] * avg})
 
-    def to_dict(self):
-        """Return a dictionary of the optimizer settings."""
-        for obj in [self.perturbation, self.learning_rate]:
-            if not (obj is None or isinstance(obj, float)):
-                raise AttributeError('Learning rate and perturbation must be None or float.')
+        # # execute at once
+        # sampled = self._sampler.convert(loss, params=values_dict)
+        # results = np.real(sampled.eval())
 
-        if self.callback is not None:
-            raise AttributeError('Callback not serializable.')
-
-        return {'maxiter': self.maxiter,
-                'learning_rate': self.learning_rate,
-                'perturbation': self.perturbation,
-                'blocking': self.blocking,
-                'allowed_increase': self.allowed_increase,
-                'trust_region': self.trust_region,
-                'resamplings': self.resamplings,
-                'last_avg': self.last_avg,
-                'second_order': self.second_order,
-                'hessian_delay': self.hessian_delay,
-                'regularization': self.regularization,
-                'perturbation_dims': self.perturbation_dims,
-                'initial_hessian': self.initial_hessian}
-
-    def _point_sample_blackbox(self, loss, x, eps, delta1, delta2):
-        pert1, pert2 = eps * delta1, eps * delta2
-
-        # compute the gradient approximation and additionally return the loss function evaluations
-        plus, minus = loss(x + eps * delta1), loss(x - eps * delta1)
-        gradient_sample = (plus - minus) / (2 * eps) * delta1
-        fval_sample = (plus + minus) / 2
-        self._nfev += 2
-
-        hessian_sample = None
-        if self.second_order:
-            # compute the preconditioner point estimate
-            diff = loss(x + pert1 + pert2) - plus
-            diff -= loss(x - pert1 + pert2) - minus
-            diff /= 2 * eps ** 2
-
-            self._nfev += 2
-
-            rank_one = np.outer(delta1, delta2)
-            hessian_sample = diff * (rank_one + rank_one.T) / 2
-
-        return gradient_sample, hessian_sample, fval_sample
-
-    def _point_samples_blackbox(self, loss, x, eps, deltas1, deltas2):
-        # number of samples
-        resamplings = len(deltas1)
-
-        # set up variables to store averages
-        gradient_estimate, hessian_estimate = np.zeros(x.size), np.zeros((x.size, x.size))
-
-        # iterate over the directions
-        for delta1, delta2 in zip(deltas1, deltas2):
-            gradient_sample, hessian_sample, fval_sample = self._point_sample_blackbox(
-                loss, x, eps, delta1, delta2
-            )
-            gradient_estimate += gradient_sample
-            fval_estimate += fval_sample
-
-            if self.second_order:
-                hessian_estimate += hessian_sample
-
-        return (gradient_estimate / resamplings,
-                hessian_estimate / resamplings,
-                fval_estimate / resamplings)
-
-    def _point_samples_circuits(self, loss, x, eps, deltas1, deltas2):
+    def _point_samples(self, loss, x, eps, deltas1, deltas2):
         # cache gradient epxressions
         if self.gradient_expressions is None:
             # sorted loss parameters
@@ -553,12 +484,7 @@ class SPSA(Optimizer):
         deltas1 = [bernoulli_perturbation(x.size, self.perturbation_dims) for _ in range(avg)]
         deltas2 = [bernoulli_perturbation(x.size, self.perturbation_dims) for _ in range(avg)]
 
-        if callable(loss):
-            gradient, preconditioner, fval = self._point_samples_blackbox(loss, x, eps, deltas1,
-                                                                          deltas2)
-        else:
-            gradient, preconditioner, fval = self._point_samples_circuits(loss, x, eps, deltas1,
-                                                                          deltas2)
+        gradient, preconditioner, fval = self._point_samples(loss, x, eps, deltas1, deltas2)
 
         # update the exponentially smoothed average
         if self.second_order:
@@ -628,7 +554,7 @@ class SPSA(Optimizer):
 
             self._nfev += 1
             if self.allowed_increase is None:
-                self.allowed_increase = 2 * self.estimate_stddev(loss, x)
+                self.allowed_increase = 2 * self.estimate_stddev(loss_callable, x)
 
         logger.info('=' * 30)
         logger.info('Starting SPSA optimization')
@@ -720,7 +646,7 @@ class SPSA(Optimizer):
         return self._minimize(objective_function, initial_point)
 
 
-class QNSPSA(SPSA):
+class _QNSPSA(_SPSA):
     """Quantum Natural SPSA."""
 
     def __init__(self,
@@ -815,29 +741,6 @@ class QNSPSA(SPSA):
             self.hessian_params = [x_pp, x_pm, x_mp, x_mm, y]
             self.hessian_expr = [~StateFn(left) @ StateFn(right) for right in rights]
 
-    # pylint: disable=unused-argument
-    def _point_sample_blackbox(self, loss, x, eps, delta1, delta2):
-        pert1, pert2 = eps * delta1, eps * delta2
-
-        # compute the gradient approximation and additionally return the loss function evaluations
-        plus, minus = loss(x + eps * delta1), loss(x - eps * delta1)
-        gradient_estimate = (plus - minus) / (2 * eps) * delta1
-        self._nfev += 2
-
-        # compute the preconditioner point estimate
-        plus = self.overlap_fn(x, x + pert1)
-        minus = self.overlap_fn(x, x - pert1)
-
-        # compute the preconditioner point estimate
-        diff = self.overlap_fn(x, x + pert1 + pert2) - plus
-        diff -= self.overlap_fn(x, x - pert1 + pert2) - minus
-        diff /= 2 * eps ** 2
-
-        rank_one = np.outer(delta1, delta2)
-        hessian_estimate = diff * (rank_one + rank_one.T) / 2
-
-        return gradient_estimate, hessian_estimate
-
     @staticmethod
     def get_overlap(circuit, backend=None, expectation=None):
         """Get the overlap function."""
@@ -867,48 +770,6 @@ class QNSPSA(SPSA):
 
 
 class QNSPSAVQE(VQE):
-    r"""The Variational Quantum Eigensolver algorithm.
-
-    `VQE <https://arxiv.org/abs/1304.3061>`__ is a hybrid algorithm that uses a
-    variational technique and interleaves quantum and classical computations in order to find
-    the minimum eigenvalue of the Hamiltonian :math:`H` of a given system.
-
-    An instance of VQE requires defining two algorithmic sub-components:
-    a trial state (a.k.a. ansatz) which is a :class:`QuantumCircuit`, and one of the classical
-    :mod:`~qiskit.algorithms.optimizers`. The ansatz is varied, via its set of parameters, by the
-    optimizer, such that it works towards a state, as determined by the parameters applied to the
-    variational form, that will result in the minimum expectation value being measured of the input
-    operator (Hamiltonian).
-
-    An optional array of parameter values, via the *initial_point*, may be provided as the
-    starting point for the search of the minimum eigenvalue. This feature is particularly useful
-    such as when there are reasons to believe that the solution point is close to a particular
-    point.  As an example, when building the dissociation profile of a molecule,
-    it is likely that using the previous computed optimal solution as the starting
-    initial point for the next interatomic distance is going to reduce the number of iterations
-    necessary for the variational algorithm to converge.  It provides an
-    `initial point tutorial <https://github.com/Qiskit/qiskit-tutorials-community/blob/master
-    /chemistry/h2_vqe_initial_point.ipynb>`__ detailing this use case.
-
-    The length of the *initial_point* list value must match the number of the parameters
-    expected by the variational form being used. If the *initial_point* is left at the default
-    of ``None``, then VQE will look to the variational form for a preferred value, based on its
-    given initial state. If the variational form returns ``None``,
-    then a random point will be generated within the parameter bounds set, as per above.
-    If the variational form provides ``None`` as the lower bound, then VQE
-    will default it to :math:`-2\pi`; similarly, if the variational form returns ``None``
-    as the upper bound, the default value will be :math:`2\pi`.
-
-    .. note::
-
-        The VQE stores the parameters of ``ansatz`` sorted by name to map the values
-        provided by the optimizer to the circuit. This is done to ensure reproducible results,
-        for example such that running the optimization twice with same random seeds yields the
-        same result. Also, the ``optimal_point`` of the result object can be used as initial
-        point of another VQE run by passing it as ``initial_point`` to the initializer.
-
-    """
-
     def __init__(self,
                  ansatz: Optional[QuantumCircuit] = None,
                  initial_point: Optional[np.ndarray] = None,
@@ -927,7 +788,6 @@ class QNSPSAVQE(VQE):
                  initial_hessian: Optional[np.ndarray] = None,
                  ) -> None:
         """
-
         Args:
             ansatz: A parameterized circuit used as Ansatz for the wave function.
             initial_point: An optional initial point (i.e. initial parameter values)
@@ -950,21 +810,11 @@ class QNSPSAVQE(VQE):
                 variational form, the evaluated mean and the evaluated standard deviation.`
             quantum_instance: Quantum Instance or Backend
         """
-        if ansatz is None:
-            ansatz = RealAmplitudes()
-
-        # set the initial point to the preferred parameters of the variational form
-        if initial_point is None and hasattr(ansatz, 'preferred_init_points'):
-            initial_point = ansatz.preferred_init_points
-
-        self._circuit_sampler = None  # type: Optional[CircuitSampler]
-        self._expectation = expectation
-        self._user_valid_expectation = self._expectation is not None
-        self._expect_op = None
-
         super().__init__(ansatz=ansatz,
                          initial_point=initial_point,
-                         quantum_instance=quantum_instance)
+                         quantum_instance=quantum_instance,
+                         expectation=expectation
+                         )
 
         self.natural_spsa = natural_spsa
         self.maxiter = maxiter
@@ -982,7 +832,6 @@ class QNSPSAVQE(VQE):
         self._callback = callback
 
         self._eval_count = 0
-        logger.info(self.print_settings())
 
     @property
     def optimizer(self):  # pylint: disable=arguments-differ
@@ -1002,11 +851,13 @@ class QNSPSAVQE(VQE):
         if self.quantum_instance is None:
             raise AlgorithmError("A QuantumInstance or Backend "
                                  "must be supplied to run the quantum algorithm.")
+        self.quantum_instance.circuit_summary = True
 
         if operator is None:
             raise AlgorithmError("The operator was never provided.")
 
-        operator = self._check_operator(operator)
+        self._check_operator_ansatz(operator)
+
         # We need to handle the array entries being Optional i.e. having value None
         if aux_operators:
             zero_op = I.tensorpower(operator.num_qubits) * 0.0
@@ -1022,13 +873,6 @@ class QNSPSAVQE(VQE):
         else:
             aux_operators = None
 
-        self._quantum_instance.circuit_summary = True
-
-        self._eval_count = 0
-
-        if not self._expect_op:
-            self._expect_op = self.construct_expectation(self._ansatz_params, operator)
-
         optimizer_settings = {'maxiter': self.maxiter,
                               'blocking': self.blocking,
                               'allowed_increase': self.allowed_increase,
@@ -1043,35 +887,55 @@ class QNSPSAVQE(VQE):
                               'backend': self._quantum_instance}
 
         if self.natural_spsa:
-            optimizer = QNSPSA(overlap_fn=self.ansatz, **optimizer_settings)
+            optimizer = _QNSPSA(overlap_fn=self.ansatz, **optimizer_settings)
         else:
-            optimizer = SPSA(**optimizer_settings)
+            optimizer = _SPSA(**optimizer_settings)
 
-        vqresult = self.find_minimum(initial_point=self.initial_point,
-                                     ansatz=self.ansatz,
-                                     cost_fn=self._expect_op,
-                                     optimizer=optimizer)
+        self._eval_count = 0
+        # energy_evaluation, expectation = self.get_energy_evaluation(
+        #     operator, return_expectation=True
+        # )
 
-        self._ret = VQEResult()
-        self._ret.combine(vqresult)
+        theta = ParameterVector('θ​', self.ansatz.num_parameters)
+        energy_expectation, expectation = self.construct_expectation(
+            theta, operator, return_expectation=True)
 
-        if vqresult.optimizer_evals is not None and \
-                self._eval_count >= vqresult.optimizer_evals:
-            self._eval_count = vqresult.optimizer_evals
-        self._eval_time = vqresult.optimizer_time
-        logger.info('Optimization complete in %s seconds.\nFound opt_params %s in %s evals',
-                    self._eval_time, vqresult.optimal_point, self._eval_count)
+        start_time = time()
+        opt_params, opt_value, nfev = optimizer.optimize(
+            num_vars=len(self.initial_point),
+            objective_function=energy_expectation,
+            # gradient_function=gradient,
+            # variable_bounds=bounds,
+            initial_point=self.initial_point,
+        )
+        eval_time = time() - start_time
 
-        self._ret.eigenvalue = vqresult.optimal_value + 0j
-        self._ret.eigenstate = self.get_optimal_vector()
-        self._ret.eigenvalue = self.get_optimal_cost()
-        if aux_operators:
-            self._eval_aux_ops(aux_operators)
-            self._ret.aux_operator_eigenvalues = self._ret.aux_operator_eigenvalues[0]
+        result = VQEResult()
+        result.optimal_point = opt_params
+        result.optimal_parameters = dict(zip(self._ansatz_params, opt_params))
+        result.optimal_value = opt_value
+        result.cost_function_evals = nfev
+        result.optimizer_time = eval_time
+        result.eigenvalue = opt_value + 0j
+        result.eigenstate = self._get_eigenstate(result.optimal_parameters)
 
-        self._ret.cost_function_evals = self._eval_count
+        logger.info(
+            "Optimization complete in %s seconds.\nFound opt_params %s in %s evals",
+            eval_time,
+            result.optimal_point,
+            self._eval_count,
+        )
 
-        return self._ret, optimizer.history
+        # TODO delete as soon as get_optimal_vector etc are removed
+        self._ret = result
+
+        if aux_operators is not None:
+            aux_values = self._eval_aux_ops(opt_params, aux_operators, expectation=expectation)
+            result.aux_operator_eigenvalues = aux_values[0]
+
+        # return result, None
+
+        return result, optimizer.history
 
 
 # Code from qn-spsa/utils.py
@@ -1125,6 +989,33 @@ class Publisher:
         self._messenger.publish(text)
 
 
+def _parse_optimizer(kwargs):
+    optimizer = kwargs.get('optimizer', SPSA())
+    # backwards compatibility: previously optimizers were dicts
+    if isinstance(optimizer, dict):
+        # verify the optimizer and split into name and parameters
+        optimizer_name = optimizer.pop('name', 'SPSA')
+        if optimizer_name not in ['SPSA', 'QN-SPSA']:
+            raise ValueError(f'Unsupported optimizer: {optimizer_name}.'
+                             'If specified via dict only SPSA and QN-SPSA are available.')
+
+        optimizer_params = optimizer
+
+        # de-serialize learning rate and perturbation if necessary
+        for attr in ['learning_rate', 'perturbation']:
+            if attr in optimizer_params.keys():
+                if isinstance(optimizer_params[attr], (list, tuple)):  # need to de-serialize
+                    iterator_factory = It.deserialize(optimizer_params[attr])
+                    optimizer_params[attr] = iterator_factory.get_iterator()
+
+        if optimizer_name == 'SPSA':
+            optimizer = _SPSA(**optimizer_params)
+        else:
+            optimizer = _QNSPSA(overlap_fn=lambda: None, **optimizer_params)
+
+    return optimizer
+
+
 def main(backend, user_messenger, **kwargs):
     """Entry function."""
     # parse inputs
@@ -1137,7 +1028,8 @@ def main(backend, user_messenger, **kwargs):
     operator = kwargs['operator']
     aux_operators = kwargs.get('aux_operators', None)
     initial_point = kwargs.get('initial_point', None)
-    optimizer = kwargs.get('optimizer', dict())
+    optimizer = _parse_optimizer(kwargs)
+
     shots = kwargs.get('shots', 1024)
     measurement_error_mitigation = kwargs.get('measurement_error_mitigation', False)
 
@@ -1153,20 +1045,6 @@ def main(backend, user_messenger, **kwargs):
 
     publisher = Publisher(user_messenger)
 
-    # verify the optimizer and split into name and parameters
-    optimizer_name = optimizer.pop('name', 'SPSA')
-    if optimizer_name not in ['SPSA', 'QN-SPSA']:
-        raise ValueError(f'Unsupported optimizer: {optimizer_name}. Available: SPSA, QN-SPSA')
-
-    optimizer_params = optimizer
-
-    # de-serialize learning rate and perturbation if necessary
-    for attr in ['learning_rate', 'perturbation']:
-        if attr in optimizer_params.keys():
-            if isinstance(optimizer_params[attr], (list, tuple)):  # need to de-serialize
-                iterator_factory = It.deserialize(optimizer_params[attr])
-                optimizer_params[attr] = iterator_factory.get_iterator()
-
     # verify the initial point
     if initial_point == 'random' or initial_point is None:
         initial_point = np.random.random(ansatz.num_parameters)
@@ -1174,15 +1052,32 @@ def main(backend, user_messenger, **kwargs):
         raise ValueError('Mismatching number of parameters and initial point dimension.')
 
     # construct the VQE instance
-    vqe = QNSPSAVQE(ansatz=ansatz,
-                    initial_point=initial_point,
-                    expectation=PauliExpectation(),
-                    callback=publisher.callback,
-                    quantum_instance=_quantum_instance,
-                    natural_spsa=(optimizer_name == 'QN-SPSA'),
-                    **optimizer_params
-                    )
-    result, history = vqe.compute_minimum_eigenvalue(operator, aux_operators)
+    if isinstance(optimizer, (SPSA, QNSPSA)):
+        vqe = QNSPSAVQE(ansatz=ansatz,
+                        initial_point=initial_point,
+                        expectation=PauliExpectation(),
+                        callback=publisher.callback,
+                        quantum_instance=_quantum_instance,
+                        natural_spsa=isinstance(optimizer, QNSPSA),
+                        allowed_increase=optimizer.allowed_increase,
+                        maxiter=optimizer.maxiter,
+                        blocking=optimizer.blocking,
+                        learning_rate=optimizer.learning_rate,
+                        perturbation=optimizer.perturbation,
+                        resamplings=optimizer.resamplings,
+                        regularization=optimizer.regularization,
+                        hessian_delay=optimizer.hessian_delay,
+                        initial_hessian=optimizer.initial_hessian
+                        )
+        result, history = vqe.compute_minimum_eigenvalue(operator, aux_operators)
+    else:
+        vqe = VQE(ansatz=ansatz,
+                  initial_point=initial_point,
+                  expectation=PauliExpectation(),
+                  callback=publisher.callback,
+                  quantum_instance=_quantum_instance)
+        result = vqe.compute_minimum_eigenvalue(operator, aux_operators)
+        history = None
 
     serialized_result = {
         'optimizer_evals': result.optimizer_evals,

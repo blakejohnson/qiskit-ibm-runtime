@@ -2,11 +2,11 @@
   "name": "vqe",
   "description": "Variational Quantum Eigensolver (VQE) to find the minimal eigenvalue of a Hamiltonian.",
   "max_execution_time": 18000,
-  "version": "1.0",
+  "version": "1.1",
   "parameters": [                         
     {"name": "ansatz", "description": "A parameterized quantum circuit preparing the ansatz wavefunction for the VQE. It is assumed that all qubits are initially in the 0 state.", "type": "QuantumCircuit", "required": true},
     {"name": "operator", "description": "The Hamiltonian whose smallest eigenvalue we're trying to find.", "type": "PauliSumOp", "required": true},
-    {"name": "optimizer", "description": "The classical optimizer used in to update the parameters in each iteration. Currently, only SPSA and QN-SPSA are supported. This must be a dictionary specifying the name and options of the optimizer, e.g. ``{'name': 'SPSA', 'maxiter': 100}``.", "type": "dict", "required": true},
+    {"name": "optimizer", "description": "The classical optimizer used in to update the parameters in each iteration. Can be either any of Qiskit's optimizer classes. If a dictionary, only SPSA and QN-SPSA are supported and the dictionary must specify the name and options of the optimizer, e.g. ``{'name': 'SPSA', 'maxiter': 100}``.", "type": "Union[Optimizer, dict]", "required": true},
     {"name": "initial_parameters", "description": "Initial parameters of the ansatz. Can be an array or the string ``'random'`` to choose random initial parameters.", "type": "Union[numpy.ndarray, str]", "required": true},
     {"name": "aux_operators", "description": "A list of operators to be evaluated at the final, optimized state.", "type": "List[PauliSumOp]", "required": false},
     {"name": "shots", "description": "The number of shots used for each circuit evaluation. Defaults to 1024.", "type": "int", "required": false},
