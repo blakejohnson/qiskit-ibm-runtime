@@ -5,6 +5,7 @@ os: linux
 install:
   - pip install -U -r requirements.txt
 
-jobs:
-  python: 3.8
-  script: echo hello
+python: 
+  - "3.8"
+
+script: echo hello
