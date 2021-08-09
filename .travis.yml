@@ -4,7 +4,6 @@ os: linux
 
 install:
   - pip install -U -r requirements.txt
-  - pip install -e .
 
 jobs:
   python: 3.8
