@@ -9,4 +9,4 @@ install:
 python: 
   - "3.8"
 
-script: python run_tests.py
+script: python run_tests.py ${IBMQ_API_TOKEN}
