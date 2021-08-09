@@ -4,6 +4,7 @@ os: linux
 
 install:
   - pip install -U -r requirements.txt
+  - pip install -U -r requirements-dev.txt
 
 python: 
   - "3.8"
