@@ -6,7 +6,6 @@ from qiskit.circuit.library import EfficientSU2
 from qiskit.opflow import X, Z, I
 
 print("-------------VQE script tests started-------------")
-
 spin_coupling = (Z ^ Z ^ I) + (I ^ Z ^ Z)
 transverse_field = (X ^ I ^ I) + (I ^ X ^ I) + (I ^ I ^ X)
 hamiltonian = -0.5 * (spin_coupling + 0.5 * transverse_field)
