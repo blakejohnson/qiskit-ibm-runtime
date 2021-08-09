@@ -1,0 +1,11 @@
+language: python
+
+os: linux
+
+install:
+  - pip install -U -r requirements.txt
+  - pip install -e .
+
+jobs:
+  python: 3.8
+  script: python3 run_tests.py
