@@ -7,6 +7,7 @@ from qiskit.opflow import X, Z, I
 
 from qiskit_nature.runtime import VQEProgram
 
+print("--------QAQO nature program tests started---------")
 spin_coupling = (Z ^ Z ^ I) + (I ^ Z ^ Z)
 transverse_field = (X ^ I ^ I) + (I ^ X ^ I) + (I ^ I ^ X)
 hamiltonian = -0.5 * (spin_coupling + 0.5 * transverse_field)
@@ -29,3 +30,4 @@ vqe = VQEProgram(
 )
 result = vqe.compute_minimum_eigenvalue(hamiltonian)
 print(result)
+print("-------QAQO nature program tests completed--------")

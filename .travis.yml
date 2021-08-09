@@ -4,8 +4,9 @@ os: linux
 
 install:
   - pip install -U -r requirements.txt
-  - pip install -e .
+  - pip install -U -r requirements-dev.txt
 
-jobs:
-  python: 3.8
-  script: python run_tests.py
+python: 
+  - "3.8"
+
+script: python run_tests.py ${IBMQ_API_TOKEN}
