@@ -7,7 +7,7 @@ from qiskit.opflow import Z, I
 
 from qiskit_optimization.runtime import QAOAProgram
 
-print("----------QAQO program tests started----------")
+print("------------QAQO program tests started------------")
 
 hamiltonian = (Z ^ Z ^ I ^ I) + (I ^ Z ^ Z ^ I) + (Z ^ I ^ I ^ Z)
 reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(hamiltonian)
@@ -40,4 +40,4 @@ qaoa = QAOAProgram(
 )
 result = qaoa.compute_minimum_eigenvalue(hamiltonian)
 print("Runtime:", result.eigenvalue)
-print("----------QAQO program tests completed----------")
+print("-----------QAQO program tests completed-----------")

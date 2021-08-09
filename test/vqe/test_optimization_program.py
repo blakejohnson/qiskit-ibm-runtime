@@ -8,7 +8,7 @@ from qiskit.opflow import Z, I
 
 from qiskit_optimization.runtime import VQEProgram
 
-print("----------VQE optimization program tests started----------")
+print("------VQE optimization program tests started------")
 hamiltonian = (Z ^ Z ^ I ^ I) + (I ^ Z ^ Z ^ I) + (Z ^ I ^ I ^ Z)
 
 reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(hamiltonian)
@@ -31,4 +31,4 @@ vqe = VQEProgram(
 )
 result = vqe.compute_minimum_eigenvalue(hamiltonian)
 print(result)
-print("----------VQE optimization program tests completed----------")
+print("-----VQE optimization program tests completed-----")
