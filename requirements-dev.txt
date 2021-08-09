@@ -1,1 +1,2 @@
 qiskit-optimization
+qiskit-ibmq-provider
