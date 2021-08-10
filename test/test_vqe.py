@@ -42,7 +42,7 @@ class TestVQE(TestCase):
 
         result = job.result()
         print("Runtime:", result["eigenvalue"])
-        #self.assertAlmostEqual(result["eigenvalue"], reference.eigenvalue)
+        self.assertTrue(abs(result["eigenvalue"] - reference.eigenvalue) <= 1)
 
     def test_nature_program(self):
         """Test vqe nature program."""
@@ -67,17 +67,16 @@ class TestVQE(TestCase):
             store_intermediate=True,
         )
         result = vqe.compute_minimum_eigenvalue(hamiltonian)
-        print("actual:",result)
         print(result.eigenvalue)
         reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(hamiltonian)
         print("expected:", reference.eigenvalue)
+        self.assertTrue(abs(result["eigenvalue"] - reference.eigenvalue) <= 1)
 
     def test_optimization_program(self):
         """Test optimization program."""
         hamiltonian = (Z ^ Z ^ I ^ I) + (I ^ Z ^ Z ^ I) + (Z ^ I ^ I ^ Z)
 
         reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(hamiltonian)
-        print("Exact result:", reference.eigenvalue)
 
         ansatz = RealAmplitudes(4, entanglement="linear", reps=3)
         initial_point = np.random.random(ansatz.num_parameters)
@@ -95,5 +94,4 @@ class TestVQE(TestCase):
             backend=backend,
         )
         result = vqe.compute_minimum_eigenvalue(hamiltonian)
-        print(result)
-        print("actual:", result.eigenvalue)
+        self.assertAlmostEqual(result.eigenvalue, reference.eigenvalue, 2)

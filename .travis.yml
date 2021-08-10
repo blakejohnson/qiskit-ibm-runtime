@@ -9,4 +9,4 @@ install:
 python: 
   - "3.8"
 
-script: python -m unittest discover ./test
+script: cd ./test; python -m unittest -v
