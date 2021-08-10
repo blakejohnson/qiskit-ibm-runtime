@@ -19,7 +19,7 @@ class TestVQE(TestCase):
         self.hamiltonian = hamiltonian
 
     def test_script(self):
-        """Test VQE script."""
+        """Test vqe script."""
         reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(self.hamiltonian)
         print("Exact result:", reference.eigenvalue)
         ansatz = EfficientSU2(3, entanglement="linear", reps=3)
@@ -69,11 +69,11 @@ class TestVQE(TestCase):
             store_intermediate=True,
         )
         result = vqe.compute_minimum_eigenvalue(self.hamiltonian)
-        print("VQE Prgram result:", result.eigenvalue)
+        print("VQE program result:", result.eigenvalue)
         self.assertTrue(abs(result.eigenvalue - reference.eigenvalue) <= 1)
 
     def test_optimization_program(self):
-        """Test optimization program."""
+        """Test vqe optimization program."""
         self.hamiltonian = (Z ^ Z ^ I ^ I) + (I ^ Z ^ Z ^ I) + (Z ^ I ^ I ^ Z)
 
         reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(self.hamiltonian)

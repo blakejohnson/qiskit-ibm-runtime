@@ -9,6 +9,7 @@ from qiskit_optimization.runtime import QAOAProgram
 class TestQAOA(TestCase):
     """Test QAOA."""
     def test_program(self):
+        """Test qaqo program."""
         hamiltonian = (Z ^ Z ^ I ^ I) + (I ^ Z ^ Z ^ I) + (Z ^ I ^ I ^ Z)
         reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(hamiltonian)
         print("Exact:", reference.eigenvalue)
