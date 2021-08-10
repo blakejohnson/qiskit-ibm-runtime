@@ -4,7 +4,7 @@ from qiskit import IBMQ, QuantumCircuit
 from unittest import TestCase
 
 class TestCircuitRunner(TestCase):
-    """Test circuit_runner"""
+    """Test circuit_runner."""
 
     def setUp(self) -> None:
         """Test case setup."""
