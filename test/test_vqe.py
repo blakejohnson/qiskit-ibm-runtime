@@ -10,20 +10,24 @@ from qiskit.circuit.library import RealAmplitudes
 
 class TestVQE(TestCase):
     """Test VQE."""
-    def test_script(self):
-        """Test VQE script."""
+
+    def setUp(self) -> None:
+        """Test case setup."""
         spin_coupling = (Z ^ Z ^ I) + (I ^ Z ^ Z)
         transverse_field = (X ^ I ^ I) + (I ^ X ^ I) + (I ^ I ^ X)
         hamiltonian = -0.5 * (spin_coupling + 0.5 * transverse_field)
+        self.hamiltonian = hamiltonian
 
-        reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(hamiltonian)
+    def test_script(self):
+        """Test VQE script."""
+        reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(self.hamiltonian)
         print("Exact result:", reference.eigenvalue)
         ansatz = EfficientSU2(3, entanglement="linear", reps=3)
         initial_point = np.random.random(ansatz.num_parameters)
         optimizer = SPSA(maxiter=300)
 
         inputs = {
-            "operator": hamiltonian,
+            "operator": self.hamiltonian,
             "ansatz": ansatz,
             "initial_point": initial_point,
             "optimizer": optimizer
@@ -46,10 +50,8 @@ class TestVQE(TestCase):
 
     def test_nature_program(self):
         """Test vqe nature program."""
-        spin_coupling = (Z ^ Z ^ I) + (I ^ Z ^ Z)
-        transverse_field = (X ^ I ^ I) + (I ^ X ^ I) + (I ^ I ^ X)
-        hamiltonian = -0.5 * (spin_coupling + 0.5 * transverse_field)
-
+        reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(self.hamiltonian)
+        print("Exact result:", reference.eigenvalue)
         ansatz = EfficientSU2(3, entanglement="linear", reps=3)
         initial_point = np.random.random(ansatz.num_parameters)
         optimizer = SPSA(maxiter=300)
@@ -66,18 +68,15 @@ class TestVQE(TestCase):
             backend=backend,
             store_intermediate=True,
         )
-        result = vqe.compute_minimum_eigenvalue(hamiltonian)
-
-        reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(hamiltonian)
-        print("Exact result:", reference.eigenvalue)
+        result = vqe.compute_minimum_eigenvalue(self.hamiltonian)
         print("VQE Prgram result:", result.eigenvalue)
         self.assertTrue(abs(result.eigenvalue - reference.eigenvalue) <= 1)
 
     def test_optimization_program(self):
         """Test optimization program."""
-        hamiltonian = (Z ^ Z ^ I ^ I) + (I ^ Z ^ Z ^ I) + (Z ^ I ^ I ^ Z)
+        self.hamiltonian = (Z ^ Z ^ I ^ I) + (I ^ Z ^ Z ^ I) + (Z ^ I ^ I ^ Z)
 
-        reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(hamiltonian)
+        reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(self.hamiltonian)
         print("Exact result:", reference.eigenvalue)
         ansatz = RealAmplitudes(4, entanglement="linear", reps=3)
         initial_point = np.random.random(ansatz.num_parameters)
@@ -94,6 +93,6 @@ class TestVQE(TestCase):
             provider=provider,
             backend=backend,
         )
-        result = vqe.compute_minimum_eigenvalue(hamiltonian)
+        result = vqe.compute_minimum_eigenvalue(self.hamiltonian)
         print("VQE program result:", result.eigenvalue)
         self.assertTrue(abs(result.eigenvalue - reference.eigenvalue) <= 1)
