@@ -29,4 +29,4 @@ class TestCircuitRunner(TestCase):
         result = job.result()
         print("CIRCUIT_RUNNER")
         print("Runtime:", result)
-        print("get_count:", result.get_counts())
+        print("status", job.status())
