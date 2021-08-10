@@ -15,9 +15,8 @@ class TestCircuitRunner(TestCase):
         qc.h(range(0, N))
         self.qc = qc
         
-    def test_no_error_mitigation(self):
-
-
+    def test_circuit_runner(self):
+        """Test circuit_runner program."""
         program_inputs = {
             'circuits': self.qc,
             'shots': 2048,

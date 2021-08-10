@@ -9,8 +9,7 @@ class MethodCallLogger(object):
         self.func(*args)
         self.call_count += 1
 class TestSampleProgram(TestCase):
-    """Test sample_program"""
-
+    """Test sample_program."""
     def setUp(self) -> None:
         """Test case setup."""
         def interim_result_callback(job_id, interim_result):
@@ -19,7 +18,7 @@ class TestSampleProgram(TestCase):
         self.interim_result_callback = interim_result_callback
 
     def test_run_program(self):
-        """Test sample program"""
+        """Test sample program."""
         provider = IBMQ.load_account()
         input = {
             "iterations": 2
