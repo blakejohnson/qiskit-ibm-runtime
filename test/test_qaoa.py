@@ -40,4 +40,4 @@ class TestQAOA(TestCase):
         )
         result = qaoa.compute_minimum_eigenvalue(hamiltonian)
         print("Runtime:", result.eigenvalue)
-        self.assertTrue(abs(result.eigenvalue - reference.eigenvalue) <= 1)
+        self.assertTrue(abs(result.eigenvalue - reference.eigenvalue) <= 2)
