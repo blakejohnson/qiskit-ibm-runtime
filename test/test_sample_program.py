@@ -31,5 +31,5 @@ class TestSampleProgram(TestCase):
                                 )
         expected_result = "All done!"
         self.assertEqual(job.result(), expected_result)
-        self.assertTrue(self.interim_result_callback.call_count, input["iterations"])
+        self.assertEqual(self.interim_result_callback.call_count, input["iterations"])
 
