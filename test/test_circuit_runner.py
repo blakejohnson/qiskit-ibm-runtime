@@ -1,7 +1,7 @@
-from qiskit.providers import provider
 from qiskit.providers.ibmq import RunnerResult
 from qiskit import IBMQ, QuantumCircuit
 from unittest import TestCase
+from qiskit.providers.jobstatus import JobStatus
 
 class TestCircuitRunner(TestCase):
     """Test circuit_runner."""
@@ -32,8 +32,4 @@ class TestCircuitRunner(TestCase):
                                     inputs=program_inputs,
                                     result_decoder=RunnerResult
                                     )
-        result = job.result()
-        print("Runtime:", result)
-        expected_status = "JobStatus.DONE"
-        self.assertEqual(str(job.status()), expected_status)
-
+        self.assertEqual(str(job.status()), JobStatus.DONE)

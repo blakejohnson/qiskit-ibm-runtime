@@ -96,3 +96,4 @@ class TestVQE(TestCase):
         result = vqe.compute_minimum_eigenvalue(self.hamiltonian)
         print("VQE program result:", result.eigenvalue)
         self.assertTrue(abs(result.eigenvalue - reference.eigenvalue) <= 1)
+        

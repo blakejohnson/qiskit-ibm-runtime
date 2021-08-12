@@ -13,11 +13,11 @@ class TestSampleProgram(TestCase):
     def setUp(self) -> None:
         """Test case setup."""
         def interim_result_callback(job_id, interim_result):
-            print("Interim result:", job_id, interim_result)
+            pass
         interim_result_callback= MethodCallLogger(interim_result_callback)
         self.interim_result_callback = interim_result_callback
 
-    def test_run_program(self):
+    def test_sample_program(self):
         """Test sample program."""
         provider = IBMQ.load_account()
         input = {
@@ -32,4 +32,3 @@ class TestSampleProgram(TestCase):
         expected_result = "All done!"
         self.assertEqual(job.result(), expected_result)
         self.assertEqual(self.interim_result_callback.call_count, input["iterations"])
-
