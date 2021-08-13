@@ -38,4 +38,4 @@ class TestCircuitRunner(TestCase):
                                     inputs=program_inputs,
                                     result_decoder=RunnerResult
                                     )
-        self.assertEqual(str(job.status()), JobStatus.DONE, job.error_message())
+        self.assertEqual(job.status(), JobStatus.DONE, job.error_message())
