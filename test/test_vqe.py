@@ -1,12 +1,13 @@
-from unittest import TestCase
-import numpy as np
 from qiskit import IBMQ
 from qiskit.algorithms import NumPyMinimumEigensolver
 from qiskit.algorithms.optimizers import SPSA
-from qiskit.circuit.library import EfficientSU2
+from qiskit.circuit.library import EfficientSU2, RealAmplitudes
 from qiskit.opflow import X, Z, I
 from qiskit_nature.runtime import VQEProgram
-from qiskit.circuit.library import RealAmplitudes
+
+from unittest import TestCase, SkipTest
+import numpy as np
+import os
 
 class TestVQE(TestCase):
     """Test VQE."""
@@ -17,6 +18,14 @@ class TestVQE(TestCase):
         transverse_field = (X ^ I ^ I) + (I ^ X ^ I) + (I ^ I ^ X)
         hamiltonian = -0.5 * (spin_coupling + 0.5 * transverse_field)
         self.hamiltonian = hamiltonian
+        hgp = os.getenv("QISKIT_IBM_HGP", None)
+        if not hgp:
+            raise SkipTest("Requires ibm provider.")
+        self.hgp = hgp
+        backend_name = os.getenv("QISKIT_IBM_DEVICE", None)
+        if not backend_name:
+            raise SkipTest("Runtime device not specified")
+        self.backend_name = backend_name
 
     def test_script(self):
         """Test vqe script."""
@@ -33,10 +42,10 @@ class TestVQE(TestCase):
             "optimizer": optimizer
         }
 
-        options = {"backend_name": "ibmq_qasm_simulator"}
+        options = {"backend_name": self.backend_name}
 
         IBMQ.load_account()
-        provider = IBMQ.get_provider(hub="ibm-q", group="open", project="main")
+        provider = IBMQ.get_provider(hub=self.hgp[0], group=self.hgp[1], project=self.hgp[2])
 
         job = provider.runtime.run(
             program_id="vqe",
@@ -57,8 +66,8 @@ class TestVQE(TestCase):
         optimizer = SPSA(maxiter=300)
 
         IBMQ.load_account()
-        provider = IBMQ.get_provider(hub="ibm-q", group="open", project="main")
-        backend = provider.get_backend("ibmq_qasm_simulator")
+        provider = IBMQ.get_provider(hub=self.hgp[0], group=self.hgp[1], project=self.hgp[2])
+        backend = provider.get_backend(self.backend_name)
 
         vqe = VQEProgram(
             ansatz=ansatz,
@@ -83,8 +92,8 @@ class TestVQE(TestCase):
         optimizer = SPSA(maxiter=300)
 
         IBMQ.load_account()
-        provider = IBMQ.get_provider(hub="ibm-q", group="open", project="main")
-        backend = provider.get_backend("ibmq_qasm_simulator")
+        provider = IBMQ.get_provider(hub=self.hgp[0], group=self.hgp[1], project=self.hgp[2])
+        backend = provider.get_backend(self.backend_name)
 
         vqe = VQEProgram(
             ansatz=ansatz,
@@ -96,4 +105,3 @@ class TestVQE(TestCase):
         result = vqe.compute_minimum_eigenvalue(self.hamiltonian)
         print("VQE program result:", result.eigenvalue)
         self.assertTrue(abs(result.eigenvalue - reference.eigenvalue) <= 1)
-        

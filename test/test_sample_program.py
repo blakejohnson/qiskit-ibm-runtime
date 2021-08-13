@@ -1,6 +1,9 @@
 from qiskit import IBMQ
-from unittest import TestCase
-class MethodCallLogger(object):
+
+import os
+from unittest import TestCase, SkipTest
+
+class MethodCallLogger():
     def __init__(self, func):
         self.func = func
         self.call_count = 0
@@ -16,6 +19,10 @@ class TestSampleProgram(TestCase):
             pass
         interim_result_callback= MethodCallLogger(interim_result_callback)
         self.interim_result_callback = interim_result_callback
+        backend_name = os.getenv("QISKIT_IBM_DEVICE", None)
+        if not backend_name:
+            raise SkipTest("Runtime device not specified")
+        self.backend_name = backend_name
 
     def test_sample_program(self):
         """Test sample program."""
@@ -23,7 +30,7 @@ class TestSampleProgram(TestCase):
         input = {
             "iterations": 2
         }
-        options = {'backend_name': 'ibmq_qasm_simulator'}
+        options = {"backend_name": self.backend_name}
         job = provider.runtime.run(program_id="sample-program",
                                 options=options,
                                 inputs=input,
