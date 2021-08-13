@@ -21,7 +21,7 @@ class TestVQE(TestCase):
         hgp = os.getenv("QISKIT_IBM_HGP", None)
         if not hgp:
             raise SkipTest("Requires ibm provider.")
-        self.hgp = hgp
+        self.hgp = hgp.split(",")
         backend_name = os.getenv("QISKIT_IBM_DEVICE", None)
         if not backend_name:
             raise SkipTest("Runtime device not specified")
