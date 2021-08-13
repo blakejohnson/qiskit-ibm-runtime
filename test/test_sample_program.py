@@ -3,7 +3,7 @@ from qiskit import IBMQ
 import os
 from unittest import TestCase, SkipTest
 
-class MethodCallLogger():
+class MethodCallLogger:
     def __init__(self, func):
         self.func = func
         self.call_count = 0
