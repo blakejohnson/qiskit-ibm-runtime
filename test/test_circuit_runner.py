@@ -5,6 +5,7 @@ from qiskit.providers.jobstatus import JobStatus
 import os
 from unittest import TestCase, SkipTest
 
+
 class TestCircuitRunner(TestCase):
     """Test circuit_runner."""
 
@@ -20,22 +21,22 @@ class TestCircuitRunner(TestCase):
         if not backend_name:
             raise SkipTest("Runtime device not specified")
         self.backend_name = backend_name
-        
+
     def test_circuit_runner(self):
         """Test circuit_runner program."""
         program_inputs = {
             'circuits': self.qc,
             'shots': 2048,
             'optimization_level': 0,
-            'initial_layout': [0,1,4,7,10,12],
+            'initial_layout': [0, 1, 4, 7, 10, 12],
             'measurement_error_mitigation': False
         }
 
         options = {"backend_name": self.backend_name}
 
         job = self.provider.runtime.run(program_id="circuit-runner",
-                                    options=options,
-                                    inputs=program_inputs,
-                                    result_decoder=RunnerResult
-                                    )
+                                        options=options,
+                                        inputs=program_inputs,
+                                        result_decoder=RunnerResult
+                                        )
         self.assertTrue(job.status() in [JobStatus.QUEUED, JobStatus.DONE], job.error_message())
