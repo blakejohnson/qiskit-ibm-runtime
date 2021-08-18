@@ -31,7 +31,7 @@ class TestVQE(TestCase):
             print("Using staging creds")
             os.environ["QE_TOKEN"] = os.getenv("QE_TOKEN_STAGING", "")
             os.environ["QE_URL"] = os.getenv("QE_URL_STAGING", "")
-        IBMQ.load_account()
+        IBMQ.enable_account(os.getenv("QE_TOKEN", ""), os.getenv("QE_URL", ""))
         cls.provider = IBMQ.get_provider(hub=hgp[0], group=hgp[1], project=hgp[2])
         cls.backend = cls.provider.get_backend(backend_name)
         
