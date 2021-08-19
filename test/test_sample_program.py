@@ -1,7 +1,7 @@
 from qiskit import IBMQ
 
-import os
-from unittest import TestCase, SkipTest
+from unittest import TestCase
+from decorator import get_provider_and_backend
 
 
 class MethodCallLogger:
@@ -18,26 +18,11 @@ class TestSampleProgram(TestCase):
     """Test sample_program."""
 
     @classmethod
-    def setUpClass(cls):
+    @get_provider_and_backend 
+    def setUpClass(cls, provider, backend_name):
         """Class setup."""
-        hgp = os.getenv("QISKIT_IBM_HGP_STAGING", None) \
-            if os.getenv("QISKIT_IBM_USE_STAGING_CREDENTIALS", "") == "True" \
-            else os.getenv("QISKIT_IBM_HGP", None)
-        if not hgp:
-            raise SkipTest("Requires ibm provider.")
-        hgp = hgp.split(",")
-        backend_name = os.getenv("QISKIT_IBM_DEVICE_STAGING", None) \
-            if os.getenv("QISKIT_IBM_USE_STAGING_CREDENTIALS", "") == "True" \
-            else os.getenv("QISKIT_IBM_DEVICE", None)          
-        if not backend_name:
-            raise SkipTest("Runtime device not specified")
+        cls.provider = provider
         cls.backend_name = backend_name
-        if os.getenv("QISKIT_IBM_USE_STAGING_CREDENTIALS", "") == "True":
-            print("Using staging creds")
-            os.environ["QE_TOKEN"] = os.getenv("QE_TOKEN_STAGING", "")
-            os.environ["QE_URL"] = os.getenv("QE_URL_STAGING", "")
-        IBMQ.enable_account(os.getenv("QE_TOKEN", ""), os.getenv("QE_URL", ""))     
-        cls.provider = IBMQ.get_provider(hub=hgp[0], group=hgp[1], project=hgp[2])
 
     def setUp(self) -> None:
         """Test case setup."""
@@ -45,18 +30,14 @@ class TestSampleProgram(TestCase):
             pass
         interim_result_callback = MethodCallLogger(interim_result_callback)
         self.interim_result_callback = interim_result_callback
-        backend_name = os.getenv("QISKIT_IBM_DEVICE", None)
-        if not backend_name:
-            raise SkipTest("Runtime device not specified")
-        self.backend_name = backend_name
 
     def test_sample_program(self):
         """Test sample program."""
         input = {
             "iterations": 2
         }
-        options = {"backend_name": self.__class__.backend_name}
-        job = self.__class__.provider.runtime.run(program_id="sample-program",
+        options = {"backend_name": self.backend_name}
+        job = self.provider.runtime.run(program_id="sample-program",
                                    options=options,
                                    inputs=input,
                                    callback=self.interim_result_callback
