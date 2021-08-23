@@ -1,4 +1,5 @@
 from qiskit import IBMQ
+from qiskit.providers.ibmq import least_busy
 
 import os
 from unittest import SkipTest
@@ -18,17 +19,20 @@ def get_provider_and_backend(func):
             else os.getenv("QISKIT_IBM_HGP", None)
         if not hgp:
             raise SkipTest("Requires ibm provider.")
-        hgp = hgp.split(",")
-        backend_name = os.getenv("QISKIT_IBM_DEVICE_STAGING", None) \
-            if os.getenv("QISKIT_IBM_USE_STAGING_CREDENTIALS", "") == "True" \
-            else os.getenv("QISKIT_IBM_DEVICE", None)          
-        if not backend_name:
-            raise SkipTest("Runtime device not specified")
+        hgp = hgp.split("/")
         if os.getenv("QISKIT_IBM_USE_STAGING_CREDENTIALS", "") == "True":
             os.environ["QE_TOKEN"] = os.getenv("QE_TOKEN_STAGING", "")
             os.environ["QE_URL"] = os.getenv("QE_URL_STAGING", "")
         _enable_account(os.getenv("QE_TOKEN", ""), os.getenv("QE_URL", "")) 
         provider = IBMQ.get_provider(hub=hgp[0], group=hgp[1], project=hgp[2])
+        backend_name = os.getenv("QISKIT_IBM_DEVICE_STAGING", None) \
+            if os.getenv("QISKIT_IBM_USE_STAGING_CREDENTIALS", "") == "True" \
+            else os.getenv("QISKIT_IBM_DEVICE", None)          
+        if not backend_name:
+            backend_name = least_busy(provider.backends(min_num_qubits=5,
+                                      operational=True,
+                                      simulator=False,
+                                      input_allowed='runtime')).name()
         kwargs.update({'backend_name': backend_name, "provider": provider})
         return func(*args, **kwargs)
     return _wrapper
