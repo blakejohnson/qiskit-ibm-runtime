@@ -31,8 +31,7 @@ def get_provider_and_backend(func):
         if not backend_name:
             backend_name = least_busy(provider.backends(min_num_qubits=5,
                                       operational=True,
-                                      simulator=False,
-                                      input_allowed='runtime')).name()
+                                      simulator=False)).name()
         kwargs.update({'backend_name': backend_name, "provider": provider})
         return func(*args, **kwargs)
     return _wrapper
