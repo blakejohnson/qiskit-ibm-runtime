@@ -24,7 +24,7 @@ class TestCircuitRunner(TestCase):
         qc.h(range(0, N))
         self.qc = qc
 
-    def test_circuit_runner(self):
+    async def test_circuit_runner(self):
         """Test circuit_runner program."""
         program_inputs = {
             'circuits': self.qc,
@@ -41,4 +41,4 @@ class TestCircuitRunner(TestCase):
                                         inputs=program_inputs,
                                         result_decoder=RunnerResult
                                         )
-        self.assertEqual(job.status(),JobStatus.DONE, job.error_message())
+        await self.assertEqual(job.status(),JobStatus.DONE, job.error_message())
