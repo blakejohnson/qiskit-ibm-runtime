@@ -28,7 +28,7 @@ class TestVQE(TestCase):
         hamiltonian = -0.5 * (spin_coupling + 0.5 * transverse_field)
         self.hamiltonian = hamiltonian
         
-    def test_script(self):
+    def test_vqe_direct(self):
         """Test vqe script."""
         reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(self.hamiltonian)
         print("Exact result:", reference.eigenvalue)
