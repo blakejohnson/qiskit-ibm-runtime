@@ -1,4 +1,3 @@
-from qiskit import IBMQ
 from qiskit.algorithms import NumPyMinimumEigensolver
 from qiskit.algorithms.optimizers import SPSA
 from qiskit.circuit.library import EfficientSU2, RealAmplitudes
@@ -6,17 +5,19 @@ from qiskit.opflow import X, Z, I
 from qiskit_nature.runtime import VQEProgram
 
 import numpy as np
-from unittest import TestCase
-from decorator import get_provider_and_backend
+
+from .decorator import get_provider_and_backend
+from .base_testcase import BaseTestCase
 
 
-class TestVQE(TestCase):
+class TestVQE(BaseTestCase):
     """Test VQE."""
 
     @classmethod
     @get_provider_and_backend
     def setUpClass(cls, provider, backend_name):
         """Class setup."""
+        super().setUpClass()
         cls.provider = provider
         cls.backend_name = backend_name
         cls.backend = cls.provider.get_backend(backend_name)
@@ -31,7 +32,7 @@ class TestVQE(TestCase):
     def test_vqe_direct(self):
         """Test vqe script."""
         reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(self.hamiltonian)
-        print("Exact result:", reference.eigenvalue)
+        self.log.info("Exact result: %s", reference.eigenvalue)
         ansatz = EfficientSU2(3, entanglement="linear", reps=3)
         initial_point = np.random.random(ansatz.num_parameters)
         optimizer = SPSA(maxiter=300)
@@ -50,16 +51,17 @@ class TestVQE(TestCase):
             inputs=inputs,
             options=options
         )
+        self.log.debug("Job ID: %s", job.job_id())
 
         result = job.result()
-        print("Runtime:", result["eigenvalue"])
+        self.log.info("Runtime: %s", result["eigenvalue"])
         if self.backend.configuration().simulator:
             self.assertTrue(abs(result["eigenvalue"] - reference.eigenvalue) <= 1)
 
     def test_nature_program(self):
         """Test vqe nature program."""
         reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(self.hamiltonian)
-        print("Exact result:", reference.eigenvalue)
+        self.log.info("Exact result: %s", reference.eigenvalue)
         ansatz = EfficientSU2(3, entanglement="linear", reps=3)
         initial_point = np.random.random(ansatz.num_parameters)
         optimizer = SPSA(maxiter=300)
@@ -73,7 +75,7 @@ class TestVQE(TestCase):
             store_intermediate=True,
         )
         result = vqe.compute_minimum_eigenvalue(self.hamiltonian)
-        print("VQE program result:", result.eigenvalue)
+        self.log.info("VQE program result: %s", result.eigenvalue)
         if self.backend.configuration().simulator:
             self.assertTrue(abs(result.eigenvalue - reference.eigenvalue) <= 1)
 
@@ -82,7 +84,7 @@ class TestVQE(TestCase):
         self.hamiltonian = (Z ^ Z ^ I ^ I) + (I ^ Z ^ Z ^ I) + (Z ^ I ^ I ^ Z)
 
         reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(self.hamiltonian)
-        print("Exact result:", reference.eigenvalue)
+        self.log.info("Exact result: %s", reference.eigenvalue)
         ansatz = RealAmplitudes(4, entanglement="linear", reps=3)
         initial_point = np.random.random(ansatz.num_parameters)
         optimizer = SPSA(maxiter=300)
@@ -95,6 +97,6 @@ class TestVQE(TestCase):
             backend=self.backend,
         )
         result = vqe.compute_minimum_eigenvalue(self.hamiltonian)
-        print("VQE program result:", result.eigenvalue)
+        self.log.info("VQE program result: %s", result.eigenvalue)
         if self.backend.configuration().simulator:
             self.assertTrue(abs(result.eigenvalue - reference.eigenvalue) <= 1)

@@ -1,21 +1,23 @@
-from qiskit import IBMQ, Aer
+from qiskit import Aer
 from qiskit.algorithms import NumPyMinimumEigensolver, QAOA
 from qiskit.algorithms.optimizers import SPSA
 from qiskit.opflow import Z, I
 from qiskit_optimization.runtime import QAOAProgram
 
 import numpy as np
-from unittest import TestCase
-from decorator import get_provider_and_backend
+
+from .decorator import get_provider_and_backend
+from .base_testcase import BaseTestCase
 
 
-class TestQAOA(TestCase):
+class TestQAOA(BaseTestCase):
     """Test QAOA."""
 
     @classmethod
     @get_provider_and_backend
     def setUpClass(cls, provider, backend_name):
         """Class setup."""
+        super().setUpClass()
         cls.provider = provider
         cls.backend = cls.provider.get_backend(backend_name)
 
@@ -23,7 +25,7 @@ class TestQAOA(TestCase):
         """Test qaqo program."""
         hamiltonian = (Z ^ Z ^ I ^ I) + (I ^ Z ^ Z ^ I) + (Z ^ I ^ I ^ Z)
         reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(hamiltonian)
-        print("Exact:", reference.eigenvalue)
+        self.log.info("Exact: %s", reference.eigenvalue)
 
         reps = 2
         initial_point = np.random.random(2 * reps)
@@ -37,7 +39,7 @@ class TestQAOA(TestCase):
             quantum_instance=simulator
         )
         local_result = local_qaoa.compute_minimum_eigenvalue(hamiltonian)
-        print("Local simulator:", local_result.eigenvalue)
+        self.log.info("Local simulator: %s", local_result.eigenvalue)
 
         qaoa = QAOAProgram(
             optimizer=optimizer,
@@ -47,7 +49,6 @@ class TestQAOA(TestCase):
             backend=self.backend,
         )
         result = qaoa.compute_minimum_eigenvalue(hamiltonian)
-        print("Runtime:", result.eigenvalue)
+        self.log.info("Runtime: %s", result.eigenvalue)
         if self.backend.configuration().simulator:
             self.assertTrue(abs(result.eigenvalue - reference.eigenvalue) <= 2)
-        

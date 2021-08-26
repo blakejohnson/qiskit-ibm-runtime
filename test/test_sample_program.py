@@ -1,7 +1,5 @@
-from qiskit import IBMQ
-
-from unittest import TestCase
-from decorator import get_provider_and_backend
+from .decorator import get_provider_and_backend
+from .base_testcase import BaseTestCase
 
 
 class MethodCallLogger:
@@ -14,13 +12,14 @@ class MethodCallLogger:
         self.call_count += 1
 
 
-class TestSampleProgram(TestCase):
+class TestSampleProgram(BaseTestCase):
     """Test sample_program."""
 
     @classmethod
     @get_provider_and_backend 
     def setUpClass(cls, provider, backend_name):
         """Class setup."""
+        super().setUpClass()
         cls.provider = provider
         cls.backend_name = backend_name
 
@@ -33,15 +32,16 @@ class TestSampleProgram(TestCase):
 
     def test_sample_program(self):
         """Test sample program."""
-        input = {
+        runtime_inputs = {
             "iterations": 2
         }
         options = {"backend_name": self.backend_name}
         job = self.provider.runtime.run(program_id="sample-program",
-                                   options=options,
-                                   inputs=input,
-                                   callback=self.interim_result_callback
-                                   )
+                                        options=options,
+                                        inputs=runtime_inputs,
+                                        callback=self.interim_result_callback
+                                        )
+        self.log.debug("Job ID: %s", job.job_id())
         expected_result = "All done!"
         self.assertEqual(job.result(), expected_result)
-        self.assertEqual(self.interim_result_callback.call_count, input["iterations"])
+        self.assertEqual(self.interim_result_callback.call_count, runtime_inputs["iterations"])

@@ -1,7 +1,7 @@
 retworkx>=0.8.0
 qiskit-terra
-qiskit-aqua
 qiskit-aer
 cvxopt
 jupyter
 matplotlib
+numpy

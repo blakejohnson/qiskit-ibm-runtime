@@ -1,18 +1,19 @@
-from qiskit import IBMQ, QuantumCircuit
+from qiskit import QuantumCircuit
 from qiskit.providers.ibmq import RunnerResult
 from qiskit.providers.jobstatus import JobStatus
 
-from unittest import TestCase
-from decorator import get_provider_and_backend
+from .decorator import get_provider_and_backend
+from .base_testcase import BaseTestCase
 
 
-class TestCircuitRunner(TestCase):
+class TestCircuitRunner(BaseTestCase):
     """Test circuit_runner."""
 
     @classmethod
     @get_provider_and_backend
     def setUpClass(cls, provider, backend_name):
         """Class setup."""
+        super().setUpClass()
         cls.provider = provider
         cls.backend_name = backend_name
 
@@ -41,5 +42,6 @@ class TestCircuitRunner(TestCase):
                                         inputs=program_inputs,
                                         result_decoder=RunnerResult
                                         )
+        self.log.debug("Job ID: %s", job.job_id())
         job.wait_for_final_state()
-        self.assertEqual(job.status(),JobStatus.DONE, job.error_message())
+        self.assertEqual(job.status(), JobStatus.DONE, job.error_message())
