@@ -323,7 +323,7 @@ class _SPSA(Optimizer):
             pert = np.array([1 - 2 * np.random.binomial(1, 0.5)
                              for _ in range(dim)])
             delta = loss(initial_point + c * pert) - \
-                loss(initial_point - c * pert)
+                    loss(initial_point - c * pert)
             avg_magnitudes += np.abs(delta / (2 * c))
 
         avg_magnitudes /= steps
@@ -418,8 +418,8 @@ class _SPSA(Optimizer):
 
         if self.second_order:
             for params, value_matrix in zip(
-                self.grad_params + self.hessian_params,
-                [theta_p_, theta_m_, x_pp_, x_pm_, x_mp_, x_mm_, y_],
+                    self.grad_params + self.hessian_params,
+                    [theta_p_, theta_m_, x_pp_, x_pm_, x_mp_, x_mm_, y_],
             ):
                 values_dict.update({
                     params[i]: value_matrix[:, i].tolist() for i in range(num_parameters)
@@ -1052,7 +1052,7 @@ def main(backend, user_messenger, **kwargs):
         raise ValueError('Mismatching number of parameters and initial point dimension.')
 
     # construct the VQE instance
-    if isinstance(optimizer, (SPSA, QNSPSA)):
+    if isinstance(optimizer, (SPSA, QNSPSA, _SPSA, _QNSPSA)):
         vqe = QNSPSAVQE(ansatz=ansatz,
                         initial_point=initial_point,
                         expectation=PauliExpectation(),
@@ -1079,6 +1079,9 @@ def main(backend, user_messenger, **kwargs):
         result = vqe.compute_minimum_eigenvalue(operator, aux_operators)
         history = None
 
+    eigenvalues_list = result.aux_operator_eigenvalues.tolist() \
+        if result.aux_operator_eigenvalues is not None else None
+
     serialized_result = {
         'optimizer_evals': result.optimizer_evals,
         'optimizer_time': result.optimizer_time,
@@ -1088,7 +1091,7 @@ def main(backend, user_messenger, **kwargs):
         'cost_function_evals': result.cost_function_evals,
         'eigenstate': result.eigenstate,
         'eigenvalue': result.eigenvalue,
-        'aux_operator_eigenvalues': result.aux_operator_eigenvalues,
+        'aux_operator_eigenvalues': eigenvalues_list,
         'optimizer_history': history
     }
 
