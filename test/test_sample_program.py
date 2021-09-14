@@ -25,9 +25,7 @@ class TestSampleProgram(BaseTestCase):
 
     def setUp(self) -> None:
         """Test case setup."""
-        def interim_result_callback(job_id, interim_result):
-            pass
-        interim_result_callback = MethodCallLogger(interim_result_callback)
+        interim_result_callback = MethodCallLogger(self.simple_callback)
         self.interim_result_callback = interim_result_callback
 
     def test_sample_program(self):

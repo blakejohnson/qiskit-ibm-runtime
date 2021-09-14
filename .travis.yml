@@ -1,12 +1,35 @@
-language: python
 
-os: linux
+cache: pip
+sudo: false
 
-install:
-  - pip install -U -r requirements.txt
-  - pip install -U -r requirements-dev.txt
+stage_generic: &stage_linux
+  os: linux
+  language: python
+  python: 3.8
+  install:
+    - pip install -U -r requirements.txt
+    - pip install -U -r requirements-dev.txt
+  script:
+    # Run the tests.
+    - make test
 
-python: 
-  - "3.8"
+###############################################################################
+# Stage-related definitions
+###############################################################################
 
-script: make test
+# Define the order of the stages.
+stages:
+  - test
+
+jobs:
+  include:
+    - stage: test
+      <<: *stage_linux
+      if: branch = master
+
+    - stage: test
+      <<: *stage_linux
+      if: branch != master
+      env:
+        - QISKIT_IBM_USE_STAGING_CREDENTIALS=true
+        - QISKIT_IBM_DEVICE_STAGING=ibmq_qasm_simulator

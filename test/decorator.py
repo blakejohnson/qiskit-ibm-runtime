@@ -14,10 +14,9 @@ def get_provider_and_backend(func):
         callable: the decorated function.
     """
     def _wrapper(*args, **kwargs):
-        if os.getenv("QISKIT_IBM_USE_STAGING_CREDENTIALS", "") == "True":
-            os.environ["QE_TOKEN"] = os.getenv("QE_TOKEN_STAGING", "")
-            os.environ["QE_URL"] = os.getenv("QE_URL_STAGING", "")
-        _enable_account(os.getenv("QE_TOKEN", ""), os.getenv("QE_URL", ""))
+        qe_token = _get_env_val("QE_TOKEN", "QE_TOKEN_STAGING")
+        qe_url = _get_env_val("QE_URL", "QE_URL_STAGING")
+        _enable_account(qe_token, qe_url)
 
         backend = _get_backend()
         kwargs.update({'backend_name': backend.name(), "provider": backend.provider()})
@@ -43,9 +42,7 @@ def _enable_account(qe_token: str, qe_url: str) -> None:
 def _get_backend():
     """Get the specified backend."""
 
-    backend_name = os.getenv("QISKIT_IBM_DEVICE_STAGING", None) \
-        if os.getenv("QISKIT_IBM_USE_STAGING_CREDENTIALS", "") == "True" \
-        else os.getenv("QISKIT_IBM_DEVICE", None)
+    backend_name = _get_env_val("QISKIT_IBM_DEVICE", "QISKIT_IBM_DEVICE_STAGING")
 
     _backend = None
     provider = _get_custom_provider() or IBMQ.providers()[0]
@@ -76,11 +73,24 @@ def _get_custom_provider():
     Returns:
         Custom provider or ``None`` if default is to be used.
     """
-    hgp = os.getenv("QISKIT_IBM_HGP_STAGING", None) \
-        if os.getenv("QISKIT_IBM_USE_STAGING_CREDENTIALS", "") == "True" \
-        else os.getenv("QISKIT_IBM_HGP", None)
+    hgp = _get_env_val("QISKIT_IBM_HGP", "QISKIT_IBM_HGP_STAGING")
     if hgp:
         hgp = hgp.split("/")
         return IBMQ.get_provider(hub=hgp[0], group=hgp[1], project=hgp[2])
 
     return None  # No custom provider.
+
+
+def _get_env_val(prod_var, staging_var):
+    """Return the value of the environment variable.
+
+    Args:
+        prod_var: Environment variable to select if production.
+        staging_var: Environment variable to select if staging.
+
+    Returns:
+        Environment variable value.
+    """
+    return os.getenv(staging_var, None) \
+        if os.getenv("QISKIT_IBM_USE_STAGING_CREDENTIALS", "").lower() == "true" \
+        else os.getenv(prod_var, None)

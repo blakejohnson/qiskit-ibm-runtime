@@ -20,6 +20,8 @@ class TestQAOA(BaseTestCase):
         super().setUpClass()
         cls.provider = provider
         cls.backend = cls.provider.get_backend(backend_name)
+        # Use callback if on real device to avoid CI timeout
+        cls.callback_func = None if cls.backend.configuration().simulator else cls.simple_callback
 
     def test_program(self):
         """Test qaqo program."""
@@ -47,6 +49,7 @@ class TestQAOA(BaseTestCase):
             initial_point=initial_point,
             provider=self.provider,
             backend=self.backend,
+            callback=self.callback_func
         )
         result = qaoa.compute_minimum_eigenvalue(hamiltonian)
         self.log.info("Runtime: %s", result.eigenvalue)

@@ -21,6 +21,8 @@ class TestVQE(BaseTestCase):
         cls.provider = provider
         cls.backend_name = backend_name
         cls.backend = cls.provider.get_backend(backend_name)
+        # Use callback if on real device to avoid CI timeout
+        cls.callback_func = None if cls.backend.configuration().simulator else cls.simple_callback
         
     def setUp(self) -> None:
         """Test case setup."""
@@ -49,7 +51,8 @@ class TestVQE(BaseTestCase):
         job = self.provider.runtime.run(
             program_id="vqe",
             inputs=inputs,
-            options=options
+            options=options,
+            callback=self.callback_func
         )
         self.log.debug("Job ID: %s", job.job_id())
 
@@ -73,6 +76,7 @@ class TestVQE(BaseTestCase):
             provider=self.provider,
             backend=self.backend,
             store_intermediate=True,
+            callback=self.callback_func
         )
         result = vqe.compute_minimum_eigenvalue(self.hamiltonian)
         self.log.info("VQE program result: %s", result.eigenvalue)
@@ -95,6 +99,7 @@ class TestVQE(BaseTestCase):
             initial_point=initial_point,
             provider=self.provider,
             backend=self.backend,
+            callback=self.callback_func
         )
         result = vqe.compute_minimum_eigenvalue(self.hamiltonian)
         self.log.info("VQE program result: %s", result.eigenvalue)

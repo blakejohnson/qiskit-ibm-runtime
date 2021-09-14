@@ -22,9 +22,6 @@ class TestQKA(BaseTestCase):
     def test_qka_random(self):
         """Test QKA using randomly generated data."""
 
-        def _interim_callback(job_id, interim_result):
-            self.log.debug(f"Interim result: %s", interim_result)
-
         num_samples = 5   # number of samples per class in the input data
         num_features = 2  # number of features in the input data
         C = 1             # SVM soft-margin penalty
@@ -50,7 +47,7 @@ class TestQKA(BaseTestCase):
         job = self.provider.runtime.run(program_id="quantum-kernel-alignment",
                                         options=options,
                                         inputs=runtime_inputs,
-                                        callback=_interim_callback
+                                        callback=self.simple_callback
                                         )
         self.log.debug("Job ID: %s", job.job_id())
         result = job.result()

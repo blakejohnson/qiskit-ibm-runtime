@@ -31,3 +31,8 @@ class BaseTestCase(TestCase):
         logger.addHandler(stream_handler)
 
         logger.setLevel(log_level)
+
+    @classmethod
+    def simple_callback(cls, *args, **kwargs):
+        """Simple callback function."""
+        cls.log.debug("Callback args=%s, kwargs=%s", args, kwargs)
