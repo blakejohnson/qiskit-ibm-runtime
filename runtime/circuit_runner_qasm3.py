@@ -24,8 +24,8 @@ def main(backend, user_messenger, circuits,
         circuits = [circuits]
 
     if not circuits or \
-        not isinstance(circuits[0], (QuantumCircuit, str)) or \
-            any(not isinstance(circuit, type(circuits[0])) for circuit in circuits):
+        (not all(isinstance(circ, QuantumCircuit) for circ in circuits) and \
+            not all(isinstance(circ, str) for circ in circuits)):
         raise ValueError('Circuit need to be of type QuantumCircuit or str and \
             circuit types need to be consistent in a list of circuits.')
 
