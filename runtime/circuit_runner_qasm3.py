@@ -3,13 +3,12 @@
 import json
 import sys
 from time import perf_counter
-from typing import List, Optional, Union
 
 from qiskit import Aer
 from qiskit.circuit.quantumcircuit import QuantumCircuit
 from qiskit.compiler import transpile, schedule
 from qiskit.result import marginal_counts
-from qiskit.providers.ibmq.runtime.utils import RuntimeEncoder, RuntimeDecoder
+from qiskit.providers.ibmq.runtime.utils import RuntimeDecoder
 from qiskit.providers.ibmq.runtime import UserMessenger
 import mthree
 
@@ -21,10 +20,16 @@ def main(backend, user_messenger, circuits,
          measurement_error_mitigation=False,
          **kwargs):
 
-    if not isinstance(circuits, list):
+    if circuits and not isinstance(circuits, list):
         circuits = [circuits]
 
-    if circuits and isinstance(circuits[0], QuantumCircuit):
+    if not circuits or \
+        not isinstance(circuits[0], (QuantumCircuit, str)) or \
+            any(not isinstance(circuit, type(circuits[0])) for circuit in circuits):
+        raise ValueError('Circuit need to be of type QuantumCircuit or str and \
+            circuit types need to be consistent in a list of circuits.')
+
+    if isinstance(circuits[0], QuantumCircuit):
         # transpiling the circuits using given transpile options
         transpiler_options = transpiler_options or {}
         circuits = transpile(circuits,
@@ -59,7 +64,7 @@ def main(backend, user_messenger, circuits,
     # Compute raw results
     result = backend.run(circuits, **kwargs).result()
 
-    if circuits and isinstance(circuits[0], QuantumCircuit):
+    if isinstance(circuits[0], QuantumCircuit):
         # Do the actual mitigation here
         if measurement_error_mitigation:
             quasi_probs = []
