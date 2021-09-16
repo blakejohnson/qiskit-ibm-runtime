@@ -50,7 +50,7 @@ class TestCircuitRunnerQASM3(BaseTestCase):
         output = measure input;'''
 
     def test_circuit_runner_qasm3(self):
-        """Test circuit_runner program."""
+        """Test circuit_runner_qasm3 program."""
         program_inputs = {
             'circuits': self.qasm3_str,
             'use_qasm3': True,
