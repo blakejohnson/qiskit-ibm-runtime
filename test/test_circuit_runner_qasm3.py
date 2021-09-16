@@ -1,3 +1,5 @@
+from unittest import skip
+
 from qiskit.providers.ibmq import RunnerResult
 from qiskit.providers.jobstatus import JobStatus
 
@@ -49,6 +51,7 @@ class TestCircuitRunnerQASM3(BaseTestCase):
         h input;
         output = measure input;'''
 
+    @skip("Skip until backend supports qasm3")
     def test_circuit_runner_qasm3(self):
         """Test circuit_runner_qasm3 program."""
         program_inputs = {
