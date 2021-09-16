@@ -51,7 +51,6 @@ class TestCircuitRunnerQASM3(BaseTestCase):
         h input;
         output = measure input;'''
 
-    @skip("Skip until backend supports qasm3")
     def test_circuit_runner_qasm3(self):
         """Test circuit_runner_qasm3 program."""
         program_inputs = {
