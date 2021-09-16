@@ -53,6 +53,7 @@ class TestCircuitRunnerQASM3(BaseTestCase):
         """Test circuit_runner program."""
         program_inputs = {
             'circuits': self.qasm3_str,
+            'use_qasm3': True,
         }
 
         options = {"backend_name": self.backend_name}
