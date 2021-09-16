@@ -18,22 +18,41 @@ class TestCircuitRunnerQASM3(BaseTestCase):
 
     def setUp(self) -> None:
         """Test case setup."""
-        self.qc = '''OPENQASM 3;
+        self.qasm3_str ='''OPENQASM 3;
         include "stdgates.inc";
-        qubit[4] q;
-        bit[4] c;
-        reset q;
-        x q[0];
-        x q[2];
-        h q[0];
-        h q[1];
-        h q[2];
-        h q[3];'''
+
+        def segment qubit[2] anc, qubit psi -> bit[2] {
+        bit[2] b;
+        reset anc;
+        h anc;
+        ccx anc[0], anc[1], psi;
+        s psi;
+        ccx anc[0], anc[1], psi;
+        z psi;
+        h anc;
+        measure anc -> b;
+        return b;
+        }
+
+        qubit input;
+        qubit[2] ancilla;
+        bit[2] flags = "11";
+        bit output;
+
+        reset input;
+        h input;
+
+        while(int(flags) != 0) {
+        flags = segment ancilla, input;
+        }
+        rz(pi - arccos(3 / 5)) input;
+        h input;
+        output = measure input;'''
 
     def test_circuit_runner_qasm3(self):
         """Test circuit_runner program."""
         program_inputs = {
-            'circuits': self.qc,
+            'circuits': self.qasm3_str,
         }
 
         options = {"backend_name": self.backend_name}
@@ -41,7 +60,7 @@ class TestCircuitRunnerQASM3(BaseTestCase):
         job = self.provider.runtime.run(program_id="circuit-runner-qasm3",
                                         options=options,
                                         inputs=program_inputs,
-                                        result_decoder=RunnerResult
+                                        result_decoder=RunnerResult,
                                         )
         self.log.debug("Job ID: %s", job.job_id())
         job.wait_for_final_state()
