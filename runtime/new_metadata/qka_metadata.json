@@ -1,0 +1,56 @@
+{
+  "name": "quantum-kernel-alignment",
+  "description": "Quantum kernel alignment algorithm that learns, on a given dataset, a quantum kernel maximizing the SVM classification margin.",
+  "max_execution_time": 28800,
+  "parameters": {
+    "$schema": "https://json-schema.org/draft/2019-09/schema",
+    "properties": {
+      "feature_map": {
+        "description": "An instance of FeatureMap in dictionary format used to map classical data into a quantum state space.", 
+        "type": "object"
+      },
+      "data": {
+        "description": "NxD array of training data, where N is the number of samples and D is the feature dimension. This is a numpy array.", 
+        "type": "array"
+      },
+      "labels": {
+        "description": "Nx1 array of +/-1 labels of the N training samples. This is a numpy array.", 
+        "type": "array"
+      },
+      "initial_kernel_parameters": {
+        "description": "Initial parameters of the quantum kernel. If not specified, an array of randomly generated numbers is used. This is a numpy array.", 
+        "type": "array"
+      },
+      "maxiters": {
+        "description": "Number of SPSA optimization steps. Default is 1.", 
+        "type": "integer",
+        "default": 1
+      },
+      "C": {
+        "description": "Penalty parameter for the soft-margin support vector machine. Default is 1.", 
+        "type": "number",
+        "default": 1
+
+      },
+      "initial_layout": {
+        "description": "Initial position of virtual qubits on the physical qubits of the quantum device. Default is None.", 
+        "type": ["null", "array", "object"],
+        "default": "null"
+      }
+    },
+    "required": ["feature_map", "data", "labels"]
+  },
+  "return_values": {
+    "$schema": "https://json-schema.org/draft/2019-09/schema",
+    "properties": {
+      "aligned_kernel_parameters": {
+        "description": "The optimized kernel parameters found from quantum kernel alignment. This is a numpy array.", 
+        "type": "array"
+      },
+      "aligned_kernel_matrix": {
+        "description": "The aligned quantum kernel matrix evaluated with the optimized kernel parameters on the training data. This is a numpy array.",
+        "type": "array"
+      }
+    }
+  }
+}
