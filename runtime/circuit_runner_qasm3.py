@@ -136,6 +136,8 @@ def final_measurement_mapping(qc):
         mapping = {}
         for idx, qubit in enumerate(qmap):
             mapping[qubit] = cmap[idx]
+    else:
+        raise ValueError('Measurement not found in circuits.')
 
     # Sort so that classical bits are in numeric order low->high.
     mapping = dict(sorted(mapping.items(), key=lambda item: item[1])) 
