@@ -62,7 +62,7 @@ def main(backend, user_messenger, circuits,
             mit.tensored_cals_from_system(all_meas_qubits)
 
     # Compute raw results
-    result = backend.run(circuits, **kwargs).result()
+    result = backend.run(circuits, use_qasm3=True, **kwargs).result()
 
     if isinstance(circuits[0], QuantumCircuit):
         # Do the actual mitigation here
