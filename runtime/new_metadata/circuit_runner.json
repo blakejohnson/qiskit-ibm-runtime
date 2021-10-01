@@ -2,71 +2,95 @@
   "name": "circuit-runner",
   "description": "A runtime program that takes one or more circuits, compiles them, executes them, and optionally applies measurement error mitigation.",
   "max_execution_time": 14400,
-  "parameters": {
-    "$schema": "https://json-schema.org/draft/2019-09/schema",
-    "properties": {
-      "circuits": {
-        "type": ["object", "array"],
-        "description": "A circuit or a list of QuantumCircuits."
+  "spec": {
+    "parameters": {
+      "$schema": "https://json-schema.org/draft/2019-09/schema",
+      "properties": {
+        "circuits": {
+          "type": [
+            "object",
+            "array"
+          ],
+          "description": "A circuit or a list of QuantumCircuits."
+        },
+        "shots": {
+          "description": "Number of repetitions of each circuit, for sampling. Default: 1024.",
+          "type": "integer",
+          "default": 1024
+        },
+        "initial_layout": {
+          "description": "Initial position of virtual qubits on physical qubits.",
+          "type": [
+            "object",
+            "array"
+          ]
+        },
+        "layout_method": {
+          "description": "Name of layout selection pass ('trivial', 'dense', 'noise_adaptive', 'sabre')",
+          "type": "string",
+          "enum": [
+            "trivial",
+            "dense",
+            "noise_adaptive",
+            "sabre"
+          ]
+        },
+        "routing_method": {
+          "description": "Name of routing pass ('basic', 'lookahead', 'stochastic', 'sabre').",
+          "type": "string",
+          "enum": [
+            "basic",
+            "lookahead",
+            "stochastic",
+            "sabre"
+          ]
+        },
+        "translation_method": {
+          "description": "Name of translation pass ('unroller', 'translator', 'synthesis').",
+          "type": "string",
+          "enum": [
+            "unroller",
+            "translator",
+            "synthesis"
+          ]
+        },
+        "seed_transpiler": {
+          "description": "Sets random seed for the stochastic parts of the transpiler.",
+          "type": "integer"
+        },
+        "optimization_level": {
+          "description": "How much optimization to perform on the circuits (0-3). Higher levels generate more optimized circuits. Default is 1.",
+          "type": "integer",
+          "min": 0,
+          "max": 3,
+          "default": 1
+        },
+        "init_qubits": {
+          "description": "Whether to reset the qubits to the ground state for each shot.",
+          "type": "boolean"
+        },
+        "rep_delay": {
+          "description": "Delay between programs in seconds.",
+          "type": "number"
+        },
+        "transpiler_options": {
+          "description": "Additional compilation options.",
+          "type": "object"
+        },
+        "measurement_error_mitigation": {
+          "description": "Whether to apply measurement error mitigation. Default is False.",
+          "type": "boolean",
+          "default": false
+        }
       },
-      "shots": {
-        "description": "Number of repetitions of each circuit, for sampling. Default: 1024.", 
-        "type": "integer",
-        "default": 1024
-      },
-      "initial_layout": {
-        "description": "Initial position of virtual qubits on physical qubits.", 
-        "type": ["object", "array"]
-      },
-      "layout_method": {
-        "description": "Name of layout selection pass ('trivial', 'dense', 'noise_adaptive', 'sabre')", 
-        "type": "string",
-        "enum": ["trivial", "dense", "noise_adaptive", "sabre"]
-      },
-      "routing_method": {
-        "description": "Name of routing pass ('basic', 'lookahead', 'stochastic', 'sabre').", 
-        "type": "string",
-        "enum": ["basic", "lookahead", "stochastic", "sabre"]
-      },
-      "translation_method": {
-        "description": "Name of translation pass ('unroller', 'translator', 'synthesis').", 
-        "type": "string",
-        "enum": ["unroller", "translator", "synthesis"]
-      },
-      "seed_transpiler": {
-        "description": "Sets random seed for the stochastic parts of the transpiler.", 
-        "type": "integer"
-      },
-      "optimization_level": {
-        "description": "How much optimization to perform on the circuits (0-3). Higher levels generate more optimized circuits. Default is 1.", 
-        "type": "integer",
-        "min": 0,
-        "max": 3,
-        "default": 1
-      },
-      "init_qubits": {
-        "description": "Whether to reset the qubits to the ground state for each shot.", 
-        "type": "boolean"
-      },
-      "rep_delay": {
-        "description": "Delay between programs in seconds.", 
-        "type": "number"
-      },
-      "transpiler_options": {
-        "description": "Additional compilation options.", 
-        "type": "object"
-      },
-      "measurement_error_mitigation": {
-        "description": "Whether to apply measurement error mitigation. Default is False.", 
-        "type": "boolean",
-        "default": false
-      }
+      "required": [
+        "circuits"
+      ]
     },
-    "required": ["circuits"]
-  },
-  "return_values": {
-    "$schema": "https://json-schema.org/draft/2019-09/schema",
-    "description": "Circuit execution results in a RunnerResult object.", 
-    "type": "object"
+    "return_values": {
+      "$schema": "https://json-schema.org/draft/2019-09/schema",
+      "description": "Circuit execution results in a RunnerResult object.",
+      "type": "object"
+    }
   }
 }
