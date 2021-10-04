@@ -1,0 +1,14 @@
+{
+  "name": "expval",
+  "description": "Expectation Value Evaluator",
+  "max_execution_time": 18000,
+  "version": "0.1",
+  "parameters": [
+    {"name": "state", "description": "A parameterized or non-parameterized quantum circuit.", "type": "QuantumCircuit", "required": true},
+    {"name": "observable", "description": "The Hamiltonian to be evaluated.", "type": "list[tuple[str, float]]", "required": true},
+    {"name": "parameters", "description": "The parameters to be bound.", "type": "Union[list[float], list[list[float]]]", "required": false},
+    {"name": "class_name", "description": "The name of the evaluator class.", "type": "str", "required": false},
+    {"name": "transpile_options", "description": "Options for transpile.", "type": "dict", "required": false},
+    {"name": "run_options", "description": "Options for backend.run.", "type": "dict", "required": false}
+  ]
+}
