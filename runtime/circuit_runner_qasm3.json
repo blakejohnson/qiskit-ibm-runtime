@@ -1,10 +1,11 @@
 {
     "name": "circuit-runner-qasm3",
-    "description": "A runtime program that takes one or more circuits or qasm3 string, compiles them, executes them, and optionally applies measurement error mitigation.",
+    "description": "A runtime program that takes one or more circuits, converts them to QASM3, compiles them, executes them, and optionally applies measurement error mitigation. This program can also take and execute one or more QASM3 strings. Note that this program can only run on a backend that supports QASM3.",
     "max_execution_time": 14400,
     "version": "1.0",
+    "backend_requirements": {"input_allowed":  "qasm3"},
     "parameters": [
-      {"name": "circuits", "description": "A circuit/qasm3 string or a list of circuits/qasm3 string.", "type": "A QuantumCircuit/str or a list of QuantumCircuit/str.", "required": true},
+      {"name": "circuits", "description": "A circuit/qasm3 string or a list of circuits/qasm3 strings.", "type": "A QuantumCircuit/str or a list of QuantumCircuit/str.", "required": true},
       {"name": "shots", "description": "Number of repetitions of each circuit, for sampling. Default: 1024.", "type": "int", "required": false},
       {"name": "initial_layout", "description": "Initial position of virtual qubits on physical qubits.", "type": "dict or list", "required": false},
       {"name": "layout_method", "description": "Name of layout selection pass ('trivial', 'dense', 'noise_adaptive', 'sabre')", "type": "string", "required": false},
@@ -21,4 +22,3 @@
       {"name": "-", "description": "Circuit execution results.", "type": "RunnerResult object"}
     ]
   }
-  
