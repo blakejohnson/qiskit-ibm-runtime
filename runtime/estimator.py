@@ -7,7 +7,9 @@ from qiskit.quantum_info import SparsePauliOp
 def main(backend, user_messenger, **kwargs):
 
     state = kwargs.pop("state")
-    observable = SparsePauliOp.from_list(kwargs.pop("observable"))
+    observable = kwargs.pop("observable")
+    if isinstance(observable, list):
+        observable = SparsePauliOp.from_list(observable)
     parameters = kwargs.pop("parameters")
     class_name = kwargs.pop("class_name", "PauliExpectationValue")
     transpile_options = kwargs.pop("transpile_options", {})
