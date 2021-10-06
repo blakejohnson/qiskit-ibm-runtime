@@ -1,6 +1,6 @@
 {
-  "name": "expval",
-  "description": "Expectation Value Evaluator. This program is in beta mode and is only available to select accounts.",
+  "name": "estimator",
+  "description": "Expectation value estimator. This program is in beta mode and is only available to select accounts.",
   "max_execution_time": 18000,
   "version": "0.1",
   "parameters": [
