@@ -9,6 +9,7 @@
     {"name": "parameters", "description": "The parameters to be bound.", "type": "Union[list[float], list[list[float]]]", "required": false},
     {"name": "class_name", "description": "The name of the evaluator class.", "type": "str", "required": false},
     {"name": "transpile_options", "description": "Options for transpile.", "type": "dict", "required": false},
-    {"name": "run_options", "description": "Options for backend.run.", "type": "dict", "required": false}
+    {"name": "run_options", "description": "Options for backend run.", "type": "dict", "required": false},
+    {"name": "measurement_error_mitigation", "description": "Whether to apply measurement error mitigation. Default is False.", "type": "bool", "required": false}
   ]
 }
