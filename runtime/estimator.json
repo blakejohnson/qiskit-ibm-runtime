@@ -1,15 +1,20 @@
 {
   "name": "estimator",
-  "description": "Expectation value estimator. This program is in beta mode and is only available to select accounts.",
+  "description": "Expectation value estimator. A runtime program that estimates the value of an observable for an input quantum circuit. This program is in beta mode and is only available to select accounts.",
   "max_execution_time": 18000,
   "version": "0.1",
   "parameters": [
-    {"name": "state", "description": "A parameterized or non-parameterized quantum circuit.", "type": "QuantumCircuit", "required": true},
+    {"name": "circuit", "description": "A parameterized or non-parameterized quantum circuit.", "type": "QuantumCircuit", "required": true},
     {"name": "observable", "description": "The Hamiltonian to be evaluated.", "type": "list[tuple[str, float]]", "required": true},
     {"name": "parameters", "description": "The parameters to be bound.", "type": "Union[list[float], list[list[float]]]", "required": false},
     {"name": "class_name", "description": "The name of the evaluator class.", "type": "str", "required": false},
     {"name": "transpile_options", "description": "Options for transpile.", "type": "dict", "required": false},
     {"name": "run_options", "description": "Options for backend run.", "type": "dict", "required": false},
     {"name": "measurement_error_mitigation", "description": "Whether to apply measurement error mitigation. Default is False.", "type": "bool", "required": false}
+  ],
+  "return_values": [
+    {"name": "value", "description": "Estimated expectation value.", "type": "float"},
+    {"name": "variance", "description": "Variance of expectations.", "type": "float"},
+    {"name": "confidence_interval", "description": "The confidence interval.", "type": "Tuple[float, float]"}
   ]
 }
