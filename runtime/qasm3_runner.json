@@ -1,0 +1,19 @@
+{
+    "name": "qasm3-runner",
+    "description": "A runtime program that takes one or more circuits, converts them to OpenQASM3, compiles them, executes them, and optionally applies measurement error mitigation. This program can also take and execute one or more OpenQASM3 strings. Note that this program can only run on a backend that supports OpenQASM3.",
+    "max_execution_time": 14400,
+    "version": "1.0",
+    "backend_requirements": {"input_allowed":  "qasm3"},
+    "parameters": [
+      {"name": "circuits", "description": "A circuit/OpenQASM3 string or a list of circuits/OpenQASM3 strings (real backend only).", "type": "A QuantumCircuit/str or a list of QuantumCircuit/str.", "required": true},
+      {"name": "transpiler_config", "description": "Compilation options.", "type": "Dict", "required": false},
+      {"name": "exporter_config", "description": "Options to use when converting circuits to QASM3 strings, if applicable.", "type": "Dict", "required": false},
+      {"name": "run_config", "description": "Execution time options. Currently only 'shots' and 'rep_delay' are supported.", "type": "Dict", "required": false},
+      {"name": "qasm3_args", "description": "Input arguments to the OpenQASM3 program. Only supported when running on a simulator.", "type": "Dict or List[Dict]", "required": false},
+      {"name": "skip_transpilation", "description": "Skip circuit transpilation. Default is false.", "type": "bool", "required": false},
+      {"name": "use_measurement_mitigation", "description": "Whether to apply measurement error mitigation. Default is False. Currently, error mitigation only applies to QuantumCircuit.", "type": "bool", "required": false}
+    ],
+    "return_values": [
+      {"name": "-", "description": "Execution results. A RunnerResult is returned if a real backend is used. Otherwise a list of per-shot result is returned for each circuit.", "type": "RunnerResult, List[Dict], or List[List]"}
+    ]
+  }
