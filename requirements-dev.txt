@@ -1,3 +1,5 @@
 qiskit-optimization
 qiskit-ibmq-provider
 qiskit-nature
+pyyaml
+requests

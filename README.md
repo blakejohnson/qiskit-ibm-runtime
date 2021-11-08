@@ -1,22 +1,43 @@
 # This repo is now used to store runtime programs
 
-The `runtime/` directory contains the source code and metadata files for all the Qiskit Runtime
-programs available today. They should match the files in https://github.com/Qiskit-Partners/qiskit-runtime, 
-with the exceptions of
+The `runtime` directory contains the source code and metadata files for all **public** Qiskit Runtime
+programs. 
 
-- `vqe`: Waiting for Qiskit Terra 0.18.0 release
-- `circuit-runner`: Uses internal M3 measurement error mitigation 
+## Creating a Qiskit Runtime program
 
+Refer to the tutorials in https://github.com/Qiskit-Partners/qiskit-runtime/tree/main/tutorials
+on how to create and upload your own Qiskit Runtime programs. The `sample_vqe_program` directory 
+contains an in-depth walk through on creating a more realistic program.
 
-### Using Qiskit Runtime
+All non-open users can upload runtime programs now, and new runtime programs are by default private.
+A private program can only be seen and used by its owner. Therefore you can upload and 
+test your program before opening a PR here.    
 
-**Note:**
+## Publishing a Qiskit Runtime program
 
-1. You need the `near-time-systems` role in order to upload a new program.
-1. When updating a program, it is important to specify a `max_execution_time`, which is the maximum 
-amount of time, in seconds, the program is allowed to run. If the execution time exceeds this 
-number, a second runtime program will be started.
+Once you are happy with your program and want to make it public for all to see/use, simply open
+a PR in this repo. But note that
 
+- The source script and metadata file of your program must be named `<program_name>.py` and 
+`<program_name>.json`, respectively, where `<program_name>` is the name of your program (but with 
+ underscore).
+ They must also be in the `runtime` directory. Make sure the `name` field in the metadata matches
+ your program name.
+ 
+    - Python module names cannot have hyphens, and runtime program IDs cannot have underscores. Therefore, 
+    we have been using `program_name.py` to name the source file and `program-name` as the program name.
+
+- Remember to add test cases for your program. Qiskit Runtime always updates to the latest Qiskit, and
+the nightly CI run for this repo will hopefully catch any incompatibilities early. 
+
+- Once the PR is merged, the program is uploaded and made public on both staging and production IQX. 
+It is, however, _not_ published on IBM Cloud Runtime by default. If
+you want your program to also be on IBM Cloud Runtime, update the `program_config.yaml` file to include
+it under `cloud_runtime_programs`.
+
+The same process can be used to update an existing public program.
+
+## Quickstart on using Qiskit Runtime
 
 ```python
 from qiskit import IBMQ
@@ -25,7 +46,6 @@ provider = IBMQ.load_account()
 
 # Upload a new runtime program.
 program_id = provider.runtime.upload_program(
-    name='sample-program', 
     data='runtime/sample_program.py', 
     metadata='runtime/sample_program.json'
 )
