@@ -39,7 +39,8 @@
       },
       "required": [
         "circuits",
-        "observable"
+        "observable",
+        "parameters"
       ]
     },
     "return_values": {
