@@ -1,0 +1,26 @@
+{
+  "name": "sample-expval",
+  "description": "A sample expectation value program.",
+  "max_execution_time": 1000,
+  "version": "1.0",
+  "parameters": [
+    {"name": "circuits", "description": "A single or list of QuantumCircuits.",
+      "type": "QuantumCircuit or list", "required": true},
+     {"name": "expectation_operators", "description": "One or more expectation values to evaluate",
+      "type": "str or dict or list", "required": false},
+     {"name": "shots", "description": "Number of shots per circuit.", "type": "int", "required": false},
+     {"name": "transpiler_config", "description": "A collection of kwargs passed to transpile.",
+      "type": "dict", "required": false},
+     {"name": "run_config", "description": "A collection of kwargs passed to backend.run.",
+      "type": "dict", "required": false},
+     {"name": "return_stddev", "description": "Return upper-bound on standard deviation.",
+      "type": "bool", "required": false},
+     {"name": "skip_transpilation", "description": "Skip circuit transpilation.",
+      "type": "bool", "required": false},
+     {"name": "use_measurement_mitigation", "description": "Use measurement mitigation to improve results.",
+      "type": "bool", "required": false}
+  ],
+  "return_values": [
+    {"name": "result", "description": "A list of expectation values and optionally standard deviations.", "type": "list"}
+  ]
+}
