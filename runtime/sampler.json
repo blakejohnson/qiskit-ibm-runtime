@@ -43,17 +43,19 @@
     },
     "return_values": {
       "$schema": "https://json-schema.org/draft/2019-09/schema",
-      "raw_counts": {
-        "description": "A list of counts data for each circuit passed",
-        "type": "list"
-      },
-      "quasiprobabilities": {
-        "description": "Quasiprobabilities for each circuit if using measurement mitigation",
-        "type": "list"
-      },
-      "mitigation_overhead": {
-        "description": "Mitigation overheads",
-        "type": "list"
+      "properties": {
+        "raw_counts": {
+          "description": "A list of counts data for each circuit passed",
+          "type": "array"
+        },
+        "quasiprobabilities": {
+          "description": "Quasiprobabilities for each circuit if using measurement mitigation",
+          "type": "array"
+        },
+        "mitigation_overhead": {
+          "description": "Mitigation overheads",
+          "type": "array"
+        }
       }
     }
   }
