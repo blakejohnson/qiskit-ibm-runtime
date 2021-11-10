@@ -3,3 +3,5 @@ cloud_runtime_programs:
   - sample-program
   - vqe
   - quantum-kernel-alignment
+  - sampler
+  - circuit-runner

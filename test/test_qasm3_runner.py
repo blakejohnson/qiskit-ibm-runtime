@@ -32,7 +32,7 @@ result = measure q;
 """
 
 
-class TestCircuitRunnerQASM3(BaseTestCase):
+class TestQASM3Runner(BaseTestCase):
     """Test circuit_runner_qasm3."""
 
     @classmethod
@@ -40,6 +40,7 @@ class TestCircuitRunnerQASM3(BaseTestCase):
     def setUpClass(cls, provider, backend_name):
         """Class setup."""
         super().setUpClass()
+        cls.provider = provider
         cls.runtime = provider.runtime
         cls.backend_name = backend_name
         cls.program_id = cls._find_program_id("qasm3-runner")
@@ -124,6 +125,9 @@ class TestCircuitRunnerQASM3(BaseTestCase):
         Returns:
             Job result if `block_for_result` is ``True``. Otherwise the job.
         """
+        backend_names = [backend.name() for backend in self.provider.backends()]
+        if backend not in backend_names:
+            raise self.skipTest("No access to the backend.")
         circuits = circuits or QASM3_STR
         program_inputs = {
             "circuits": circuits
