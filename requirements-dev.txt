@@ -1,5 +1,5 @@
 qiskit-optimization
-qiskit-ibmq-provider
+qiskit-ibmq-provider>=0.18
 qiskit-nature
 pyyaml
 requests

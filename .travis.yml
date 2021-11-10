@@ -12,7 +12,6 @@ stage_generic: &stage_linux
   install:
     - pip install -U -r requirements.txt
     - pip install -U -r requirements-dev.txt
-    - pip install -I git+https://github.com/Qiskit/qiskit-ibmq-provider.git@runtime-release-q4
 
 ###############################################################################
 # Stage-related definitions

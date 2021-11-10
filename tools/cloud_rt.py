@@ -86,8 +86,11 @@ class CloudRuntimeClient:
     def _make_request(self, url, func, **kwargs):
         headers = self._header.copy()
         headers.update(kwargs.pop("headers", {}))
-        response = func(url, headers=headers, **kwargs)
-        if response.status_code != requests.codes.ok:
-            LOG.error("Bad request: %s", response.text)
-        response.raise_for_status()
+        try:
+            response = func(url, headers=headers, **kwargs)
+            response.raise_for_status()
+        except requests.RequestException as ex:
+            if ex.response is not None:
+                LOG.error("%s: %s", str(ex), ex.response.text)
+            raise
         return response
