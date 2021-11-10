@@ -56,13 +56,16 @@ class CloudRuntimeClient:
         response = self._make_request(self._base_url, requests.get)
         programs = []
         for prog in response.json()["programs"]:
+            prog["program_id"] = prog["id"]
             programs.append(SimpleNamespace(**prog))
         return programs
 
     def program(self, program_id):
         url = self._base_url + f"/{program_id}"
         response = self._make_request(url, requests.get)
-        return SimpleNamespace(**response.json())
+        prog = response.json()
+        prog["program_id"] = prog["id"]
+        return SimpleNamespace(**prog)
 
     def _read_metadata(self, metadata):
         with open(metadata, 'r') as file:
