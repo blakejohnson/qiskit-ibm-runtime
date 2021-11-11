@@ -86,6 +86,7 @@ def main(backend, user_messenger,
         # Convert circuits to qasm3
         qasm3_strs = []
         qasm3_metadata = []
+        exporter_config = exporter_config or {}
         for circ in circuits:
             qasm3_strs.append(Exporter(**exporter_config).dumps(circ))
             qasm3_metadata.append(get_circuit_metadata(circ))
