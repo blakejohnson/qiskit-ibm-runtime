@@ -40,9 +40,7 @@ def main(backend, user_messenger, **kwargs):
             program consumer.
         kwargs: User inputs.
     """
-    if "iterations" not in kwargs:
-        raise ValueError('"iterations" is a required input parameter.')
-    iterations = kwargs["iterations"]
+    iterations = kwargs.get("iterations", 1)
     for it in range(iterations):
         qc = prepare_circuits(backend)
         result = backend.run(qc).result()
