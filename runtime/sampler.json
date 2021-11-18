@@ -13,7 +13,7 @@
             "object"
           ]
         },
-        "transpiler_config": {
+        "transpile_config": {
           "description": "A collection of kwargs passed to transpile.",
           "type": "object"
         },
