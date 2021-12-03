@@ -1,7 +1,9 @@
 retworkx>=0.8.0
 qiskit-terra
 qiskit-aer
+qiskit-machine-learning[torch,sparse]
 cvxopt
 jupyter
 matplotlib
 numpy
+dill>=0.3.4

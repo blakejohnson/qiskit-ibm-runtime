@@ -1,0 +1,49 @@
+{
+    "name": "torch-infer",
+    "description": "A runtime program to run inference and calculate the scores of Hybrid QNN models with Pytorch.",
+    "max_execution_time": 28800,
+    "spec": {
+        "parameters": {
+            "$schema": "https://json-schema.org/draft/2019-09/schema",
+            "properties": {
+                "model": {
+                    "description": "A hybrid QNN model to be used for inference.",
+                    "type": "object"
+                },
+                "data": {
+                    "description": "A PyTorch data loader object containing the inference dataset.",
+                    "type": "object"
+                },
+                "score_func": {
+                    "description": "Optional Scoring function for ``score`` functionality.",
+                    "type": ["string", "object"],
+                    "default": "null"
+                },
+                "shots": {
+                    "description": "The number of shots used for each circuit evaluation. Defaults to 1024.",
+                    "type": "integer",
+                    "default": "1024"
+                },
+                "measurement_error_mitigation": {
+                    "description": "Whether to apply measurement error mitigation in form of a complete measurement fitter to the measurements. Defaults to False.",
+                    "type": "boolean",
+                    "default": false
+                }
+            },
+            "required": ["model", "data"]
+        },
+        "return_values": {
+            "$schema": "https://json-schema.org/draft/2019-09/schema",
+            "properties": {
+                "prediction": {
+                    "description": "The result of applying model on inference data.",
+                    "type": "object"
+                },
+                "score": {
+                    "description": "If provided, result of applying scoring function on prediction results.",
+                    "type": "number"
+                }
+            }
+        }
+    }
+}
