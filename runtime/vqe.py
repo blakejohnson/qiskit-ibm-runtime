@@ -840,6 +840,8 @@ class QNSPSAVQE(VQE):
 
     @optimizer.setter
     def optimizer(self, optimizer):
+        if optimizer is None:
+            return
         raise NotImplementedError('The optimizer is a SPSA version with batched circuits and '
                                   'cannot be set.')
 
@@ -936,6 +938,24 @@ class QNSPSAVQE(VQE):
         # return result, None
 
         return result, optimizer.history
+
+    def print_settings(self):
+        """
+        Preparing the setting of VQE into a string.
+        Returns:
+            str: the formatted setting of VQE
+        """
+        ret = "\n"
+        ret += "==================== Setting of {} ============================\n".format(
+            self.__class__.__name__
+        )
+        ret += f"{self.setting}"
+        ret += "===============================================================\n"
+        if self.ansatz is not None:
+            ret += "{}".format(self.ansatz.draw(output="text"))
+        else:
+            ret += "ansatz has not been set"
+        return ret
 
 
 # Code from qn-spsa/utils.py
