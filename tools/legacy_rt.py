@@ -3,7 +3,7 @@ import logging
 
 import requests
 
-LEGACY_RUNTIME_URL_PROD = "https://runtime-us-east.quantum-computing.ibm.com/"
+LEGACY_RUNTIME_URL_PROD = "https://runtime-us-east.quantum-computing.ibm.com"
 LEGACY_RUNTIME_URL_STAGING = "https://runtime-us-east-dev.quantum-computing.ibm.com"
 LOG = logging.getLogger(__name__)
 

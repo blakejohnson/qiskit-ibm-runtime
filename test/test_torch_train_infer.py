@@ -23,6 +23,7 @@ from qiskit_machine_learning.connectors import TorchConnector
 from qiskit_machine_learning.neural_networks import TwoLayerQNN
 from .base_testcase import BaseTestCase
 from .decorator import get_provider_and_backend
+from .utils import find_program_id
 
 try:
     from torch import Tensor
@@ -71,16 +72,6 @@ class TestTorchTrainInfer(BaseTestCase):
         # Construct QNN
         self.qnn = TwoLayerQNN(1, feature_map, ansatz)
 
-    def find_program_id(self, program_name):
-        """Returns the actual program id"""
-        potential_id = None
-        for program in self.provider.runtime.programs():
-            if program.name == program_name:
-                return program.program_id
-            elif program.name.startswith(program_name):
-                potential_id = program.program_id
-        return potential_id
-
     def test_torch_train_direct(self):
         """Test torch train script directly."""
         initial_weights = np.array([-0.08473834])
@@ -95,7 +86,7 @@ class TestTorchTrainInfer(BaseTestCase):
             "seed": 42,
         }
         options = {"backend_name": self.backend_name}
-        program_id = self.find_program_id("torch-train")
+        program_id = find_program_id(self.provider.runtime, "torch-train")
         job = self.provider.runtime.run(program_id=program_id, inputs=inputs, options=options)
         result = job.result()
 
@@ -138,7 +129,7 @@ class TestTorchTrainInfer(BaseTestCase):
         }
 
         options = {"backend_name": self.backend_name}
-        program_id = self.find_program_id("torch-infer")
+        program_id = find_program_id(self.provider.runtime, "torch-infer")
         job = self.provider.runtime.run(program_id=program_id, inputs=inputs, options=options)
         result = job.result()
         self.assertEqual(len(result["prediction"]), 20)
