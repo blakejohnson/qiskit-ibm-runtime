@@ -1099,7 +1099,7 @@ def main(backend, user_messenger, **kwargs):
         result = vqe.compute_minimum_eigenvalue(operator, aux_operators)
         history = None
 
-    eigenvalues_list = result.aux_operator_eigenvalues.tolist() \
+    eigenvalues_list = result.aux_operator_eigenvalues \
         if result.aux_operator_eigenvalues is not None else None
 
     serialized_result = {

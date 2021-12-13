@@ -30,6 +30,7 @@ class TestVQE(BaseTestCase):
         transverse_field = (X ^ I ^ I) + (I ^ X ^ I) + (I ^ I ^ X)
         hamiltonian = -0.5 * (spin_coupling + 0.5 * transverse_field)
         self.hamiltonian = hamiltonian
+        self.observables = [Z ^ Z ^ Z, Z ^ I ^ I]
         
     def test_vqe_direct(self):
         """Test vqe script."""
@@ -101,7 +102,11 @@ class TestVQE(BaseTestCase):
             backend=self.backend,
             callback=self.callback_func
         )
-        result = vqe.compute_minimum_eigenvalue(self.hamiltonian)
+        result = vqe.compute_minimum_eigenvalue(self.hamiltonian, aux_operators=self.observables)
         self.log.info("VQE program result: %s", result.eigenvalue)
+
+        self.assertIsNotNone(result.eigenvalue)
+        self.assertIsNotNone(result.aux_operator_eigenvalues)
+
         if self.backend.configuration().simulator:
             self.assertTrue(abs(result.eigenvalue - reference.eigenvalue) <= 1)
