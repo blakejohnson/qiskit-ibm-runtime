@@ -30,8 +30,22 @@ a PR in this repo. But note that
 - Remember to add test cases for your program. Qiskit Runtime always updates to the latest Qiskit, and
 the nightly CI run for this repo will hopefully catch any incompatibilities early. 
 
+    - Runtime now append a random suffix to the program name to make the program ID. For example, if 
+    you create a program named `hello-world`, the program ID will be something like `hello-world-ro3PBBMNB9`.
+    Therefore your test case will fail if you try to do `runtime.run(program_id="hello-world")`. 
+    
+        Instead, you can use the [find_program_id](https://github.ibm.com/IBM-Q-Software/ntc-ibm-programs/blob/master/test/utils.py#L4)
+        utility function to find the correct ID:
+        
+        ```python
+        from .utils import find_program_id
+        program_id = find_program_id(self.provider.runtime, "hello-world")
+        job = self.provider.runtime.run(program_id, ...)
+        ```
+
 - Once the PR is merged, the program is uploaded and made public on both staging and production IQX. 
-It is, however, _not_ published on IBM Cloud Runtime by default. If
+The CI will also fix the program ID to make it pretty (e.g. changing `hello-world-ro3PBBMNB9` to `hello-world`).
+The program is, however, _not_ published on IBM Cloud Runtime by default. If
 you want your program to also be on IBM Cloud Runtime, update the `program_config.yaml` file to include
 it under `cloud_runtime_programs`.
 
