@@ -52,8 +52,11 @@ class CloudRuntimeClient:
 
         self._make_request(url, requests.put)
 
-    def programs(self):
-        response = self._make_request(self._base_url, requests.get)
+    def programs(self, limit):
+        params = {}
+        if limit:
+            params["limit"] = limit
+        response = self._make_request(self._base_url, requests.get, params=params)
         programs = []
         for prog in response.json()["programs"]:
             prog["program_id"] = prog["id"]

@@ -86,7 +86,7 @@ def find_program_id(pgm_fn, runtime):
 
     potential_id = None
     # TODO: Use filtering when supported
-    for prog in runtime.programs():
+    for prog in runtime.programs(limit=None):
         if prog.name == metadata["name"]:
             if prog.program_id == metadata["name"]:
                 return prog.program_id

@@ -2,7 +2,7 @@ from qiskit.algorithms import NumPyMinimumEigensolver
 from qiskit.algorithms.optimizers import SPSA
 from qiskit.circuit.library import EfficientSU2, RealAmplitudes
 from qiskit.opflow import X, Z, I
-from qiskit_nature.runtime import VQEProgram
+from qiskit_nature.runtime import VQEClient
 
 import numpy as np
 
@@ -70,7 +70,7 @@ class TestVQE(BaseTestCase):
         initial_point = np.random.random(ansatz.num_parameters)
         optimizer = SPSA(maxiter=300)
 
-        vqe = VQEProgram(
+        vqe = VQEClient(
             ansatz=ansatz,
             optimizer=optimizer,
             initial_point=initial_point,
@@ -94,7 +94,7 @@ class TestVQE(BaseTestCase):
         initial_point = np.random.random(ansatz.num_parameters)
         optimizer = SPSA(maxiter=300)
 
-        vqe = VQEProgram(
+        vqe = VQEClient(
             ansatz=ansatz,
             optimizer=optimizer,
             initial_point=initial_point,
