@@ -46,8 +46,8 @@ provider = IBMQ.load_account()
 
 # Upload a new runtime program.
 program_id = provider.runtime.upload_program(
-    data='runtime/sample_program.py', 
-    metadata='runtime/sample_program.json'
+    data='runtime/hello_world.py', 
+    metadata='runtime/hello_world.json'
 )
 print(program_id)
 
@@ -55,7 +55,7 @@ print(program_id)
 provider.runtime.pprint_programs(refresh=True)
 
 # Print just one program
-print(provider.runtime.program(program_id='sample-program', refresh=True))
+print(provider.runtime.program(program_id='hello-world', refresh=True))
 
 # Delete a program
 provider.runtime.delete_program(program_id='id-to-delete')
@@ -69,7 +69,7 @@ runtime_inputs = {
     "iterations": 2
 }
 options = {'backend_name': 'ibmq_montreal'}
-job = provider.runtime.run(program_id="sample-program",
+job = provider.runtime.run(program_id="hello-world",
                            options=options,
                            inputs=runtime_inputs,
                            callback=interim_result_callback

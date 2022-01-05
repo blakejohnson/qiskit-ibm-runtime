@@ -5,3 +5,4 @@ cloud_runtime_programs:
   - quantum-kernel-alignment
   - sampler
   - circuit-runner
+  - hello-world
