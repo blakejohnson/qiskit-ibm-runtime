@@ -21,7 +21,7 @@ from qiskit.algorithms.minimum_eigen_solvers import MinimumEigensolverResult
 from qiskit.circuit import ParameterVector, QuantumCircuit
 from qiskit.opflow import (
     StateFn, CircuitSampler, PauliExpectation, ExpectationBase, OperatorBase,
-    ListOp, I
+    ListOp, PauliSumOp
 )
 from qiskit.providers import BaseBackend, Backend
 from qiskit.utils import QuantumInstance
@@ -862,16 +862,22 @@ class QNSPSAVQE(VQE):
 
         # We need to handle the array entries being Optional i.e. having value None
         if aux_operators:
-            zero_op = I.tensorpower(operator.num_qubits) * 0.0
-            converted = []
-            for op in aux_operators:
-                if op is None:
-                    converted.append(zero_op)
-                else:
-                    converted.append(op)
+            zero_op = PauliSumOp.from_list([("I" * self.ansatz.num_qubits, 0)])
 
-            # For some reason Chemistry passes aux_ops with 0 qubits and paulis sometimes.
-            aux_operators = [zero_op if op == 0 else op for op in converted]
+            # Convert the None and zero values when aux_operators is a list.
+            # Drop None and convert zero values when aux_operators is a dict.
+            if isinstance(aux_operators, list):
+                key_op_iterator = enumerate(aux_operators)
+                converted = [zero_op] * len(aux_operators)
+            else:
+                key_op_iterator = aux_operators.items()
+                converted = {}
+            for key, op in key_op_iterator:
+                if op is not None:
+                    converted[key] = zero_op if op == 0 else op
+
+            aux_operators = converted
+
         else:
             aux_operators = None
 
@@ -933,7 +939,7 @@ class QNSPSAVQE(VQE):
 
         if aux_operators is not None:
             aux_values = self._eval_aux_ops(opt_params, aux_operators, expectation=expectation)
-            result.aux_operator_eigenvalues = aux_values[0]
+            result.aux_operator_eigenvalues = aux_values
 
         # return result, None
 
@@ -1099,7 +1105,7 @@ def main(backend, user_messenger, **kwargs):
         result = vqe.compute_minimum_eigenvalue(operator, aux_operators)
         history = None
 
-    eigenvalues_list = result.aux_operator_eigenvalues \
+    aux_operator_values = result.aux_operator_eigenvalues \
         if result.aux_operator_eigenvalues is not None else None
 
     serialized_result = {
@@ -1111,7 +1117,7 @@ def main(backend, user_messenger, **kwargs):
         'cost_function_evals': result.cost_function_evals,
         'eigenstate': result.eigenstate,
         'eigenvalue': result.eigenvalue,
-        'aux_operator_eigenvalues': eigenvalues_list,
+        'aux_operator_eigenvalues': aux_operator_values,
         'optimizer_history': history
     }
 

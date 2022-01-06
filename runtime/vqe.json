@@ -26,7 +26,7 @@
           ]
         },
         "aux_operators": {
-          "description": "A list of operators to be evaluated at the final, optimized state. This is a list of PauliSumOp.",
+          "description": "A list or dict (with strings as keys) of operators of type PauliSumOp to be evaluated at the final, optimized state.",
           "type": "array"
         },
         "shots": {
