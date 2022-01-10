@@ -113,9 +113,6 @@ class TestVQE(BaseTestCase):
         )
         self.log.info("VQE program result: %s", result.eigenvalue)
 
-        if self.backend.configuration().simulator:
-            self.assertLess(abs(result.eigenvalue - reference.eigenvalue), 1)
-
     def test_nature_full_workflow(self):
         """Test the ground state search workflow from Qiskit Nature."""
         molecule = Molecule(
