@@ -4,16 +4,11 @@ from time import perf_counter
 
 from qiskit.circuit.quantumcircuit import QuantumCircuit
 from qiskit.compiler import transpile
+from qiskit.qasm3 import Exporter
 from qiskit.result import marginal_counts
 from qiskit.providers.ibmq.runtime.utils import RuntimeEncoder
 import mthree
 import numpy as np
-
-try:
-    from qiskit.qasm3 import Exporter
-    HAS_QASM3_EXPORTER = True
-except ImportError:
-    HAS_QASM3_EXPORTER = False
 
 QASM3_SIM_NAME = "simulator_qasm3"
 
@@ -71,7 +66,7 @@ def main(backend, user_messenger,
         raise NotImplementedError("Measurement error mitigation is only supported for "
                                   "QuantumCircuit inputs and non-simulator backends.")
 
-    if is_qc and not HAS_QASM3_EXPORTER:
+    if is_qc:
         raise RuntimeError(
             "You are not authorized to use this program with QuantumCircuit inputs.")
 

@@ -63,8 +63,7 @@ class TestQASM3Runner(BaseTestCase):
     def test_circuit_runner_qasm3_real(self):
         """Test circuit_runner_qasm3 program on a real device."""
         program_inputs = {
-            'circuits': QASM3_STR,
-            'use_qasm3': True,
+            'circuits': QASM3_STR
         }
 
         options = {"backend_name": self.backend_name}
