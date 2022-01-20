@@ -1,9 +1,9 @@
-from unittest import skip, skipIf
+from unittest import skip, SkipTest
 
 from qiskit.providers.ibmq import RunnerResult
 from qiskit.providers.jobstatus import JobStatus
 
-from .decorator import get_provider_and_backend
+from .decorator import get_provider_and_backend, IBMQ
 from .base_testcase import BaseTestCase
 
 
@@ -40,9 +40,23 @@ class TestQASM3Runner(BaseTestCase):
     def setUpClass(cls, provider, backend_name):
         """Class setup."""
         super().setUpClass()
-        cls.provider = provider
+
+        _backend = None
+        for provider in IBMQ.providers():
+            backends = provider.backends(
+                name="simulator_qasm3",
+                operational=True)
+
+            if backends:
+                _backend = backends[0]
+                break
+
+        if not _backend:
+            raise SkipTest("No access to QASM3 backend")
+
+        cls.provider = _backend.provider()
         cls.runtime = provider.runtime
-        cls.backend_name = backend_name
+        cls.backend_name = _backend.name()
         cls.program_id = cls._find_program_id("qasm3-runner")
 
     @skip("Skip until backend supports qasm3")
@@ -110,7 +124,6 @@ class TestQASM3Runner(BaseTestCase):
             circuits=None,
             qasm3_args=None,
             run_config=None,
-            backend="simulator_qasm3",
             block_for_result=True
     ):
         """Run the circuit-runner-qasm3 program.
@@ -119,15 +132,11 @@ class TestQASM3Runner(BaseTestCase):
             circuits: Circuit(s) to run. Default is self.qasm3_str.
             qasm3_args: Args to pass to the QASM3 program.
             run_config: Execution time configuration.
-            backend: Backend to use.
             block_for_result: Whether to block for result.
 
         Returns:
             Job result if `block_for_result` is ``True``. Otherwise the job.
         """
-        backend_names = [backend.name() for backend in self.provider.backends()]
-        if backend not in backend_names:
-            raise self.skipTest("No access to the backend.")
         circuits = circuits or QASM3_STR
         program_inputs = {
             "circuits": circuits
@@ -136,7 +145,7 @@ class TestQASM3Runner(BaseTestCase):
             program_inputs["qasm3_args"] = qasm3_args
         if run_config:
             program_inputs["run_config"] = run_config
-        options = {"backend_name": backend}
+        options = {"backend_name": self.backend_name}
 
         job = self.runtime.run(program_id=self.program_id,
                                options=options,
@@ -150,7 +159,7 @@ class TestQASM3Runner(BaseTestCase):
     @classmethod
     def _find_program_id(cls, program_name):
         """Find ID of the program."""
-        for pgm in cls.runtime.programs(refresh=True):
+        for pgm in cls.runtime.programs(refresh=True, limit=None):
             if pgm.name == program_name:
                 return pgm.program_id
         raise ValueError("Unable to find ID for program %s", program_name)
