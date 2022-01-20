@@ -2415,7 +2415,10 @@ def main(backend, user_messenger, **kwargs):
             serialized_inputs["aux_operators"].append(op.primitive.to_list())
 
     initial_point = kwargs.get("initial_point", None)
-    serialized_inputs["initial_point"] = list(initial_point)
+    if initial_point is not None:
+        serialized_inputs["initial_point"] = list(initial_point)
+    else:
+        serialized_inputs["initial_point"] = None
 
     use_initial_mapping = kwargs.get("use_initial_mapping", False)
     serialized_inputs["use_initial_mapping"] = use_initial_mapping
