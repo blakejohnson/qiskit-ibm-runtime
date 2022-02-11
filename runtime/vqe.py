@@ -920,7 +920,7 @@ class QNSPSAVQE(VQE):
 
         result = VQEResult()
         result.optimal_point = opt_params
-        result.optimal_parameters = dict(zip(self._ansatz_params, opt_params))
+        result.optimal_parameters = dict(zip(self.ansatz.parameters, opt_params))
         result.optimal_value = opt_value
         result.cost_function_evals = nfev
         result.optimizer_time = eval_time

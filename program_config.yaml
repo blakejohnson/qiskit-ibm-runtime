@@ -1,8 +1,5 @@
 # Programs to be published to cloud runtime
 cloud_runtime_programs:
-  - sample-program
-  - vqe
-  - quantum-kernel-alignment
   - sampler
-  - circuit-runner
+  - estimator
   - hello-world

@@ -133,7 +133,7 @@ class TestQAOARuntime(BaseTestCase):
         # check history
         history = result["optimizer_history"]
         for key in ["nfevs", "params", "energy", "std"]:
-            self.assertTrue(len(history[key]) == counter["count"])
+            self.assertEqual(len(history[key]), counter["count"] - 1)
 
         # check inputs
         for key in [
