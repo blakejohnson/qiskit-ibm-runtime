@@ -1,7 +1,7 @@
 {
     "name": "hello-world",
     "description": "A sample runtime program.",
-    "max_execution_time": 300,
+    "max_execution_time": 600,
     "spec": {
       "backend_requirements": {
         "min_num_qubits": 5
@@ -37,4 +37,4 @@
       }
     }
   }
-  
+

@@ -1,7 +1,7 @@
 {
   "name": "sample-program",
   "description": "(DEPRECATED) A sample runtime program. This runtime program is deprecated, please use hello-world instead.",
-  "max_execution_time": 300,
+  "max_execution_time": 600,
   "spec": {
     "backend_requirements": {
       "min_num_qubits": 5
