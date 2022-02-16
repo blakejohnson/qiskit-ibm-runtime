@@ -21,7 +21,7 @@ import numpy as np
 
 from qiskit import QuantumCircuit
 from qiskit.algorithms import VQE
-from qiskit.algorithms.optimizers import SPSA
+from qiskit.algorithms.optimizers import SPSA, QNSPSA
 from qiskit.circuit import ParameterVector, Parameter, Gate
 from qiskit.circuit.library import NLocal, EvolvedOperatorAnsatz
 from qiskit.circuit.exceptions import CircuitError
@@ -2377,6 +2377,25 @@ def pulse_pass_creator(backend) -> PassManager:
     ]
     return PassManager(pulse_efficient_passes)
 
+def _parse_optimizer(optimizer, ansatz, backend):
+    """Parse the input optimizer.
+
+    Returns the SPSA optimizer with default settings if ``optimizer`` is ``None``. If the 
+    the optimizer is QNSPSA, ensure the fidelity is properly set. For all other cases,
+    the ``optimizer`` is returned as is.
+    """
+    if optimizer is None:
+        optimizer = SPSA()
+
+    if isinstance(optimizer, QNSPSA):
+        # though the user might specify CVaR for the expectation value calculation,
+        # that algorithm does not make sense to measure the fidelity and we always use 
+        # the PauliExpectation
+        expectation = PauliExpectation()
+        fidelity = QNSPSA.get_fidelity(ansatz, backend, expectation)
+        optimizer.fidelity = fidelity
+
+    return optimizer
 
 def main(backend, user_messenger, **kwargs):
     """Entry function."""
@@ -2423,15 +2442,17 @@ def main(backend, user_messenger, **kwargs):
     use_initial_mapping = kwargs.get("use_initial_mapping", False)
     serialized_inputs["use_initial_mapping"] = use_initial_mapping
 
-    optimizer = kwargs.get("optimizer", SPSA(maxiter=300))
+    reps = kwargs.get("reps", 1)
+    serialized_inputs["reps"] = reps
+
+    ansatz = QAOAAnsatz(operator, reps)
+
+    optimizer = _parse_optimizer(kwargs.get("optimizer", None), ansatz, backend)
     serialized_inputs["optimizer"] = {
         "__class__.__name__": optimizer.__class__.__name__,
         "__class__": str(optimizer.__class__),
         "settings": getattr(optimizer, "settings", {}),
     }
-
-    reps = kwargs.get("reps", 1)
-    serialized_inputs["reps"] = reps
 
     shots = kwargs.get("shots", 1024)
     serialized_inputs["shots"] = shots
@@ -2506,7 +2527,7 @@ def main(backend, user_messenger, **kwargs):
 
     # construct the QAOA instance
     qaoa = VQE(
-        ansatz=QAOAAnsatz(operator, reps),
+        ansatz=ansatz,
         optimizer=optimizer,
         initial_point=initial_point,
         expectation=expectation,
