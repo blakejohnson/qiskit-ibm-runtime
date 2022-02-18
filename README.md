@@ -20,12 +20,14 @@ a PR in this repo. But note that
 
 - The source script and metadata file of your program must be named `<program_name>.py` and 
 `<program_name>.json`, respectively, where `<program_name>` is the name of your program (but with 
- underscore).
- They must also be in the `runtime` directory. Make sure the `name` field in the metadata matches
- your program name.
+ underscore). Make sure the `name` field in the metadata matches your program name.
  
     - Python module names cannot have hyphens, and runtime program IDs cannot have underscores. Therefore, 
     we have been using `program_name.py` to name the source file and `program-name` as the program name.
+
+- If the program is for cloud runtime, put the files in the `cloud_programs` directory. If it's for
+IQX runtime, put it in the `iqx_programs` directory. Put them in both if it's for both. If you don't know 
+where it should go, contact @jessieyu or @tmittal.
 
 - Remember to add test cases for your program. Qiskit Runtime always updates to the latest Qiskit, and
 the nightly CI run for this repo will hopefully catch any incompatibilities early. 
@@ -43,11 +45,8 @@ the nightly CI run for this repo will hopefully catch any incompatibilities earl
         job = self.provider.runtime.run(program_id, ...)
         ```
 
-- Once the PR is merged, the program is uploaded and made public on both staging and production IQX. 
+- Once the PR is merged, the program is uploaded and made public on both staging and production. 
 The CI will also fix the program ID to make it pretty (e.g. changing `hello-world-ro3PBBMNB9` to `hello-world`).
-The program is, however, _not_ published on IBM Cloud Runtime by default. If
-you want your program to also be on IBM Cloud Runtime, update the `program_config.yaml` file to include
-it under `cloud_runtime_programs`.
 
 The same process can be used to update an existing public program.
 

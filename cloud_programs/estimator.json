@@ -1,0 +1,64 @@
+{
+  "name": "estimator",
+  "description": "Expectation value estimator. A runtime program that estimates the value of an observable for an input quantum circuit. This program is in beta mode and is only available to select accounts.",
+  "max_execution_time": 18000,
+  "spec": {
+    "parameters": {
+      "$schema": "https://json-schema.org/draft/2019-09/schema",
+      "properties": {
+        "circuit": {
+          "description": "A parameterized or non-parameterized QuantumCircuit.",
+          "type": "object"
+        },
+        "observable": {
+          "description": "The Hamiltonian to be evaluated. This is a list[tuple[str, float]].",
+          "type": "array"
+        },
+        "parameters": {
+          "description": "The parameters to be bound. This can be either a list[float] or list[list[float]]].",
+          "type": "array"
+        },
+        "class_name": {
+          "description": "The name of the evaluator class. Default is PauliExpectationValue.",
+          "type": "string",
+          "default": "PauliExpectationValue"
+        },
+        "transpile_options": {
+          "description": "Options for transpile.",
+          "type": "object"
+        },
+        "run_options": {
+          "description": "Options for backend run.",
+          "type": "object"
+        },
+        "measurement_error_mitigation": {
+          "description": "Whether to apply measurement error mitigation. Default is False.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "circuits",
+        "observable",
+        "parameters"
+      ]
+    },
+    "return_values": {
+      "$schema": "https://json-schema.org/draft/2019-09/schema",
+      "properties": {
+        "value": {
+          "description": "Estimated expectation value. This is a float.",
+          "type": "number"
+        },
+        "variance": {
+          "description": "Variance of expectations. This is a float.",
+          "type": "number"
+        },
+        "confidence_interval": {
+          "description": "The confidence interval. This is a tuple[float, float].",
+          "type": "array"
+        }
+      }
+    }
+  }
+}

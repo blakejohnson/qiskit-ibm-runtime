@@ -1,5 +1,0 @@
-# Programs to be published to cloud runtime
-cloud_runtime_programs:
-  - sampler
-  - estimator
-  - hello-world

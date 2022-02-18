@@ -17,7 +17,7 @@ from qiskit.transpiler import CouplingMap
 from qiskit.providers.aer import AerSimulator
 from qiskit.exceptions import QiskitError
 
-from runtime.qaoa import (
+from iqx_programs.qaoa import (
     SwapStrategy,
     LineSwapStrategy,
     get_swap_strategy,

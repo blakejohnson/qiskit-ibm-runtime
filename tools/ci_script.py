@@ -4,7 +4,6 @@ import os
 import sys
 import json
 
-import yaml
 from qiskit import IBMQ
 from qiskit.providers.ibmq.runtime.exceptions import RuntimeProgramNotFound
 
@@ -13,20 +12,20 @@ from tools.cloud_rt import CloudRuntimeClient
 from tools.legacy_rt import LegacyRuntimeClient
 
 
-PROGRAM_DIR = "runtime"
+IQX_PROGRAM_DIR = "iqx_programs"
+CLOUD_PROGRAM_DIR = "cloud_programs"
 PROGRAM_ID_FILE = "program_ids.txt"
-PROGRAM_CONFIG_FILE = "program_config.yaml"
 VALID_PROGRAM_ID_PATTERN = r"^[a-z0-9][a-z0-9.-]*[a-z0-9]$"
 LOG = logging.getLogger("tools.ci_script")
 
 
-def find_changed_programs():
+def find_changed_programs(program_dir):
     added = set()
     modified = set()
     deleted = set()
     git_diff = git.find_changes().split("\n")
     del git_diff[-1]  # Delete blank entry
-    program_dir = PROGRAM_DIR + "/"
+    program_dir = program_dir + "/"
     for line in git_diff:
         line_list = line.split()
         if len(line_list) == 2:
@@ -78,8 +77,8 @@ def get_provider():
     return IBMQ.enable_account(qe_token, url=qe_url)
 
 
-def find_program_id(pgm_fn, runtime):
-    pgm_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), PROGRAM_DIR)
+def find_program_id(pgm_fn, runtime, program_dir):
+    pgm_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), program_dir)
     metadata_file = os.path.join(pgm_dir, f"{pgm_fn}.json")
     with open(metadata_file, "r") as file:
         metadata = json.load(file)
@@ -98,26 +97,40 @@ def find_program_id(pgm_fn, runtime):
 
 
 def update_programs():
-    added, modified, deleted = find_changed_programs()
-
-    runtime = get_provider().runtime
-    cloud_programs = get_cloud_programs()
-    cloud_client = CloudRuntimeClient()
-
-    program_ids = _batch_update(added, "upload", runtime)
-    program_ids += _batch_update(modified, "update", runtime)
-    _batch_delete(deleted, runtime)
-
-    cloud_pids = _batch_update(added & cloud_programs, "upload", cloud_client)
-    cloud_pids += _batch_update(modified & cloud_programs, "update", cloud_client)
-    _batch_delete(deleted & cloud_programs, cloud_client)
+    updated = {
+        "legacy": update_iqx_programs(),
+        "cloud": update_cloud_programs()
+    }
 
     with open(PROGRAM_ID_FILE, "w") as file:
-        json.dump({"legacy": program_ids, "cloud": cloud_pids}, file)
+        json.dump(updated, file)
 
 
-def _batch_update(programs, func, runtime):
-    pgm_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), PROGRAM_DIR)
+def update_iqx_programs():
+    added, modified, deleted = find_changed_programs(IQX_PROGRAM_DIR)
+
+    runtime = get_provider().runtime
+    program_ids = _batch_update(added, "upload", runtime, IQX_PROGRAM_DIR)
+    program_ids += _batch_update(modified, "update", runtime, IQX_PROGRAM_DIR)
+    _batch_delete(deleted, runtime, IQX_PROGRAM_DIR)
+
+    return program_ids
+
+
+def update_cloud_programs():
+    added, modified, deleted = find_changed_programs(CLOUD_PROGRAM_DIR)
+
+    cloud_client = CloudRuntimeClient()
+
+    cloud_pids = _batch_update(added, "upload", cloud_client, CLOUD_PROGRAM_DIR)
+    cloud_pids += _batch_update(modified, "update", cloud_client, CLOUD_PROGRAM_DIR)
+    _batch_delete(deleted, cloud_client, CLOUD_PROGRAM_DIR)
+
+    return cloud_pids
+
+
+def _batch_update(programs, func, runtime, program_dir):
+    pgm_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), program_dir)
     program_ids = []
     for pgm in programs:
         data_file = os.path.join(pgm_dir, f"{pgm}.py")
@@ -127,7 +140,7 @@ def _batch_update(programs, func, runtime):
             LOG.debug("Uploaded new program %s using %s", program_id, runtime)
             program_ids.append(program_id)
         else:
-            program_id = find_program_id(pgm, runtime)
+            program_id = find_program_id(pgm, runtime, program_dir)
             runtime.update_program(
                 program_id=program_id, data=data_file, metadata=metadata_file)
             LOG.debug("Updated program %s using %s", program_id, runtime)
@@ -135,9 +148,9 @@ def _batch_update(programs, func, runtime):
     return program_ids
 
 
-def _batch_delete(programs, runtime):
+def _batch_delete(programs, runtime, program_dir):
     for pgm in programs:
-        program_id = find_program_id(pgm, runtime)
+        program_id = find_program_id(pgm, runtime, program_dir)
         _delete_program(program_id, runtime)
 
 
@@ -211,13 +224,6 @@ def _batch_cleanup(program_ids, runtime):
                 _delete_program(pid, runtime)
         except:
             pass
-
-
-def get_cloud_programs():
-    pgm_config = os.path.join(os.path.dirname(os.path.dirname(__file__)), PROGRAM_CONFIG_FILE)
-    with open(pgm_config, "r") as file:
-        config = yaml.safe_load(file)
-    return set(config.get("cloud_runtime_programs", []))
 
 
 def main(func):
