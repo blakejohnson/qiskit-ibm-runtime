@@ -26,10 +26,11 @@ def main(backend, user_messenger,
     sampler = Sampler(
         backend=backend,
         circuits=circuits,
-        transpile_options=transpile_options
     )
     if skip_transpilation:
         sampler.set_skip_transpilation()
+    elif transpile_options:
+        sampler.set_transpile_options(**transpile_options)
 
     run_options = run_options or {}
     raw_result = sampler.run(parameters=parameters, **run_options)

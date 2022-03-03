@@ -18,7 +18,7 @@
           "type": "array"
         },
         "transpile_options": {
-          "description": "A collection of kwargs passed to transpile.",
+          "description": "A collection of kwargs passed to transpile. Ignored if skip_transpilation is set to True.",
           "type": "object"
         },
         "run_options": {

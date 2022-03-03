@@ -15,8 +15,9 @@ def main(
         circuits=circuits,
         observables=observables,
         backend=backend,
-        transpile_options=transpile_options,
     )
+    if transpile_options:
+        estimator.set_transpile_options(**transpile_options)
     run_options = run_options or {}
     shots = run_options.get("shots") or backend.options.shots
     raw_result = estimator.run(parameters=parameters, grouping=grouping, **run_options)
