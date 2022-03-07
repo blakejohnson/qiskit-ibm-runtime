@@ -1,7 +1,7 @@
 {
   "name": "sampler",
   "description": "Generates quasi-probabilities by sampling quantum circuits.",
-  "max_execution_time": 14400,
+  "max_execution_time": 10000,
   "spec": {
     "parameters": {
       "$schema": "https://json-schema.org/draft/2019-09/schema",
@@ -14,7 +14,15 @@
           ]
         },
         "parameters": {
-          "description": "The parameters to be bound. This can be either a list[float] or list[list[float]]].",
+          "description": "Parameters of the quantum circuits.",
+          "type": "array"
+        },
+        "circuits_indices": {
+          "description": "Indexes of the circuits to evaluate.",
+          "type": "array"
+        },
+        "parameters_values": {
+          "description": "Concrete parameters to be bound.",
           "type": "array"
         },
         "transpile_options": {
@@ -42,9 +50,9 @@
           "description": "List of quasi-probabilities returned for each circuit.",
           "type": "array"
         },
-        "shots": {
-          "description": "Number of shots executed.",
-          "type": "integer"
+        "metadata": {
+          "description": "Additional metadata.",
+          "type": "array"
         }
       }
     }

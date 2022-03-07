@@ -1,10 +1,14 @@
+from dataclasses import asdict
+
 from qiskit.quantum_info.primitives.sampler.sampler import Sampler
 
 
 def main(backend, user_messenger,
          circuits,
-         transpile_options=None,
          parameters=None,
+         circuits_indices=None,
+         parameters_values=None,
+         transpile_options=None,
          run_options=None,
          skip_transpilation=False
          ):
@@ -15,27 +19,34 @@ def main(backend, user_messenger,
         backend (ProgramBackend): Qiskit backend instance.
         user_messenger (UserMessenger): Used to communicate with the program user.
         circuits: (QuantumCircuit or list): A single list of QuantumCircuits.
+        parameters (list): Parameters of the quantum circuits.
+        circuits_indices (list): Indexes of the circuits to evaluate.
+        parameters_values (list): Concrete parameters to be bound.
         transpile_options (dict): A collection of kwargs passed to transpile().
-        parameters (list): Parameters to be bound to the circuits.
         run_options (dict): A collection of kwargs passed to backend.run().
         skip_transpilation (bool): Skip transpiling of circuits, default=False.
 
     Returns:
-        dict: A dictionary with counts, quasiprobabilities, and mitigation_overhead keys.
+        dict: A dictionary with quasiprobabilities, and mitigation_overhead keys.
     """
     sampler = Sampler(
         backend=backend,
         circuits=circuits,
+        parameters=parameters
     )
     if skip_transpilation:
-        sampler.set_skip_transpilation()
+        sampler.set_skip_transpilation()  # TODO there is no way to skip now
     elif transpile_options:
         sampler.set_transpile_options(**transpile_options)
 
     run_options = run_options or {}
-    raw_result = sampler.run(parameters=parameters, **run_options)
-    result = {
-        "quasi_dists": raw_result.quasi_dists,
-        "shots": raw_result.shots
-    }
+    raw_result = sampler(
+        circuits=circuits_indices,
+        parameters=parameters_values,
+        **run_options)
+
+    result = asdict(raw_result)
+    for metadata in result["metadata"]:
+        metadata.pop("raw_results")
+
     return result
