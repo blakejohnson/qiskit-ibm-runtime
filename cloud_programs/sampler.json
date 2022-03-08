@@ -26,15 +26,15 @@
           "type": "array"
         },
         "transpile_options": {
-          "description": "A collection of kwargs passed to transpile. Ignored if skip_transpilation is set to True.",
+          "description": "A collection of key-value pairs passed to the transpiler. Ignored if skip_transpilation is set to True.",
           "type": "object"
         },
         "run_options": {
-          "description": "A collection of kwargs passed to backend.run.",
+          "description": "A collection of key-value pairs identifying the execution options, such as shots.",
           "type": "object"
         },
         "skip_transpilation": {
-          "description": "Skip circuit transpilation. Default is False.",
+          "description": "Skip circuit transpilation.",
           "type": "boolean",
           "default": false
         }

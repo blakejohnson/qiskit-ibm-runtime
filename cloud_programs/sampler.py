@@ -32,11 +32,10 @@ def main(backend, user_messenger,
     sampler = Sampler(
         backend=backend,
         circuits=circuits,
-        parameters=parameters
+        parameters=parameters,
+        skip_transpilation=False
     )
-    if skip_transpilation:
-        sampler.set_skip_transpilation()  # TODO there is no way to skip now
-    elif transpile_options:
+    if not skip_transpilation and transpile_options:
         sampler.set_transpile_options(**transpile_options)
 
     run_options = run_options or {}
@@ -46,7 +45,4 @@ def main(backend, user_messenger,
         **run_options)
 
     result = asdict(raw_result)
-    for metadata in result["metadata"]:
-        metadata.pop("raw_results")
-
     return result
