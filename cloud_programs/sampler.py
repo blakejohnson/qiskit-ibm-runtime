@@ -45,4 +45,6 @@ def main(backend, user_messenger,
         **run_options)
 
     result = asdict(raw_result)
+    result["quasi_dists"] = [dist.binary_probabilities() for dist in result["quasi_dists"]]
+
     return result
