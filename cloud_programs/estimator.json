@@ -60,10 +60,6 @@
         "metadata": {
           "description": "Additional metadata.",
           "type": "array"
-        },
-        "shots": {
-          "description": "Number of shots executed.",
-          "type": "integer"
         }
       }
     }

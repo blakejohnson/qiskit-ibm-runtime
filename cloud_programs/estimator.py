@@ -50,6 +50,7 @@ def main(
         **run_options)
 
     result = asdict(raw_result)
-    result["shots"] = shots
+    for metadata in result["metadata"]:
+        metadata["shots"] = shots
 
     return result
