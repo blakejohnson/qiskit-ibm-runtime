@@ -6,8 +6,8 @@ from qiskit.quantum_info.primitives.sampler.sampler import Sampler
 def main(backend, user_messenger,
          circuits,
          parameters=None,
-         circuits_indices=None,
-         parameters_values=None,
+         circuit_indices=None,
+         parameter_values=None,
          transpile_options=None,
          run_options=None,
          skip_transpilation=False
@@ -20,8 +20,8 @@ def main(backend, user_messenger,
         user_messenger (UserMessenger): Used to communicate with the program user.
         circuits: (QuantumCircuit or list): A single list of QuantumCircuits.
         parameters (list): Parameters of the quantum circuits.
-        circuits_indices (list): Indexes of the circuits to evaluate.
-        parameters_values (list): Concrete parameters to be bound.
+        circuit_indices (list): Indexes of the circuits to evaluate.
+        parameter_values (list): Concrete parameters to be bound.
         transpile_options (dict): A collection of kwargs passed to transpile().
         run_options (dict): A collection of kwargs passed to backend.run().
         skip_transpilation (bool): Skip transpiling of circuits, default=False.
@@ -40,8 +40,8 @@ def main(backend, user_messenger,
 
     run_options = run_options or {}
     raw_result = sampler(
-        circuits=circuits_indices,
-        parameters=parameters_values,
+        circuits=circuit_indices,
+        parameters=parameter_values,
         **run_options)
 
     result = asdict(raw_result)

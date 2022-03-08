@@ -17,11 +17,11 @@
           "description": "Parameters of the quantum circuits.",
           "type": "array"
         },
-        "circuits_indices": {
+        "circuit_indices": {
           "description": "Indexes of the circuits to evaluate.",
           "type": "array"
         },
-        "parameters_values": {
+        "parameter_values": {
           "description": "Concrete parameters to be bound.",
           "type": "array"
         },

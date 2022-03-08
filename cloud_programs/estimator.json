@@ -24,16 +24,16 @@
           "description": "Parameters of quantum circuits, specifying the order in which values will be bound.",
           "type": "array"
         },
-        "circuits_indices": {
-          "description": "A list of circuit indices. It should have the same length as observables_indices and parameters_values.",
+        "circuit_indices": {
+          "description": "A list of circuit indices. It should have the same length as observable_indices and parameter_values.",
           "type": "array"
         },
-        "observables_indices": {
-          "description": "A list of observable indices. It should have the same length as circuits_indices and parameters_values.",
+        "observable_indices": {
+          "description": "A list of observable indices. It should have the same length as circuit_indices and parameter_values.",
           "type": "array"
         },
-        "parameters_values": {
-          "description": "Concrete parameters to be bound. It should have the same length as circuits_indices and observables_indices.",
+        "parameter_values": {
+          "description": "Concrete parameters to be bound. It should have the same length as circuit_indices and observable_indices.",
           "type": "array"
         },
         "transpile_options": {
@@ -54,7 +54,7 @@
       "$schema": "https://json-schema.org/draft/2019-09/schema",
       "properties": {
         "value": {
-          "description": "Estimated expectation values. This is a numpy array. The i-th element is calculated using the circuit and observable indexed by the i-th circuits_indices and i-th observables_indices, and bound with i-th parameters_values.",
+          "description": "Estimated expectation values. This is a numpy array. The i-th element is calculated using the circuit and observable indexed by the i-th circuit_indices and i-th observable_indices, and bound with i-th parameter_values.",
           "type": "array"
         },
         "metadata": {

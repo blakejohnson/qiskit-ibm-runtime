@@ -9,9 +9,9 @@ def main(
         circuits,
         observables,
         parameters=None,
-        circuits_indices=None,
-        observables_indices=None,
-        parameters_values=None,
+        circuit_indices=None,
+        observable_indices=None,
+        parameter_values=None,
         transpile_options=None,
         run_options=None,
 ):
@@ -24,9 +24,9 @@ def main(
         observables: Observables.
         parameters: Parameters of quantum circuits, specifying the order in which values
             will be bound.
-        circuits_indices: List of circuit indices.
-        observables_indices: List of observable indices.
-        parameters_values: Concrete parameters to be bound.
+        circuit_indices: List of circuit indices.
+        observable_indices: List of observable indices.
+        parameter_values: Concrete parameters to be bound.
         transpile_options: Transpilation options.
         run_options: Execution time options.
 
@@ -44,9 +44,9 @@ def main(
     run_options = run_options or {}
     shots = run_options.get("shots") or backend.options.shots
     raw_result = estimator(
-        circuits=circuits_indices,
-        observables=observables_indices,
-        parameters=parameters_values,
+        circuits=circuit_indices,
+        observables=observable_indices,
+        parameters=parameter_values,
         **run_options)
 
     result = asdict(raw_result)
