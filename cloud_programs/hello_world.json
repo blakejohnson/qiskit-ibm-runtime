@@ -1,6 +1,6 @@
 {
     "name": "hello-world",
-    "description": "A sample runtime program.",
+    "description": "Get started by running this simple test program.",
     "max_execution_time": 600,
     "spec": {
       "backend_requirements": {
