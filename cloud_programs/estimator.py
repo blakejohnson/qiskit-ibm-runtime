@@ -1,6 +1,6 @@
 from dataclasses import asdict
 
-from qiskit.quantum_info.primitives.estimator.pauli_estimator import PauliEstimator
+from qiskit_primitives.estimator import Estimator
 
 
 def main(
@@ -33,7 +33,7 @@ def main(
     Returns:
 
     """
-    estimator = PauliEstimator(
+    estimator = Estimator(
         backend=backend,
         circuits=circuits,
         observables=observables,
@@ -43,9 +43,9 @@ def main(
     run_options = run_options or {}
     shots = run_options.get("shots") or backend.options.shots
     raw_result = estimator(
-        circuits=circuit_indices,
-        observables=observable_indices,
-        parameters=parameter_values,
+        circuit_indices=circuit_indices,
+        observable_indices=observable_indices,
+        parameter_values=parameter_values,
         **run_options)
 
     result = asdict(raw_result)

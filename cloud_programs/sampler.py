@@ -1,6 +1,6 @@
 from dataclasses import asdict
 
-from qiskit.quantum_info.primitives.sampler.sampler import Sampler
+from qiskit_primitives.sampler import Sampler
 
 
 def main(backend, user_messenger,
@@ -36,8 +36,8 @@ def main(backend, user_messenger,
 
     run_options = run_options or {}
     raw_result = sampler(
-        circuits=circuit_indices,
-        parameters=parameter_values,
+        circuit_indices=circuit_indices,
+        parameter_values=parameter_values,
         **run_options)
 
     result = asdict(raw_result)
