@@ -8,7 +8,6 @@ def main(backend, user_messenger,
          parameters=None,
          circuit_indices=None,
          parameter_values=None,
-         transpile_options=None,
          run_options=None,
          skip_transpilation=False
          ):
@@ -22,7 +21,6 @@ def main(backend, user_messenger,
         parameters (list): Parameters of the quantum circuits.
         circuit_indices (list): Indexes of the circuits to evaluate.
         parameter_values (list): Concrete parameters to be bound.
-        transpile_options (dict): A collection of kwargs passed to transpile().
         run_options (dict): A collection of kwargs passed to backend.run().
         skip_transpilation (bool): Skip transpiling of circuits, default=False.
 
@@ -33,10 +31,8 @@ def main(backend, user_messenger,
         backend=backend,
         circuits=circuits,
         parameters=parameters,
-        skip_transpilation=False
+        skip_transpilation=skip_transpilation
     )
-    if not skip_transpilation and transpile_options:
-        sampler.set_transpile_options(**transpile_options)
 
     run_options = run_options or {}
     raw_result = sampler(

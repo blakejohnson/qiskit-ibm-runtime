@@ -12,7 +12,7 @@ def main(
         circuit_indices=None,
         observable_indices=None,
         parameter_values=None,
-        transpile_options=None,
+        skip_transpilation=False,
         run_options=None,
 ):
     """Estimator primitive.
@@ -27,7 +27,7 @@ def main(
         circuit_indices: List of circuit indices.
         observable_indices: List of observable indices.
         parameter_values: Concrete parameters to be bound.
-        transpile_options: Transpilation options.
+        skip_transpilation: Skip transpiling of circuits, default=False.
         run_options: Execution time options.
 
     Returns:
@@ -37,10 +37,9 @@ def main(
         backend=backend,
         circuits=circuits,
         observables=observables,
-        parameters=parameters
+        parameters=parameters,
+        skip_transpilation=skip_transpilation
     )
-    if transpile_options:
-        estimator.set_transpile_options(**transpile_options)
     run_options = run_options or {}
     shots = run_options.get("shots") or backend.options.shots
     raw_result = estimator(

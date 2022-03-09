@@ -36,9 +36,10 @@
           "description": "Concrete parameters to be bound. It should have the same length as circuit_indices and observable_indices.",
           "type": "array"
         },
-        "transpile_options": {
-          "description": "A collection of key-value pairs passed to the transpiler.",
-          "type": "object"
+        "skip_transpilation": {
+          "description": "Whether to skip circuit transpilation.",
+          "type": "boolean",
+          "default": false
         },
         "run_options": {
           "description": "A collection of key-value pairs identifying the execution options, such as shots.",
