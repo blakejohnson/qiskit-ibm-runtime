@@ -89,6 +89,7 @@ class TestVQE(BaseTestCase):
         if self.backend.configuration().simulator:
             self.assertLess(abs(result["eigenvalue"] - reference.eigenvalue), 1)
 
+    @skip("Test case hangs. Skip until fixed.")
     def test_nature_program(self):
         """Test vqe nature program."""
         reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(
