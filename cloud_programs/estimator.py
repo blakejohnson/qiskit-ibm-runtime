@@ -1,5 +1,3 @@
-from dataclasses import asdict
-
 from qiskit_primitives.estimator import Estimator
 
 
@@ -48,7 +46,7 @@ def main(
         parameter_values=parameter_values,
         **run_options)
 
-    result = asdict(raw_result)
+    result = raw_result.__dict__
     for metadata in result["metadata"]:
         metadata["shots"] = shots
 

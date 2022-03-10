@@ -1,5 +1,3 @@
-from dataclasses import asdict
-
 from qiskit_primitives.sampler import Sampler
 
 
@@ -40,7 +38,7 @@ def main(backend, user_messenger,
         parameter_values=parameter_values,
         **run_options)
 
-    result = asdict(raw_result)
+    result = raw_result.__dict__
     result["quasi_dists"] = [dist.binary_probabilities() for dist in result["quasi_dists"]]
 
     return result
