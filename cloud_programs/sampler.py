@@ -23,7 +23,7 @@ def main(backend, user_messenger,
         skip_transpilation (bool): Skip transpiling of circuits, default=False.
 
     Returns:
-        dict: A dictionary with quasiprobabilities, and mitigation_overhead keys.
+        dict: A dictionary with quasi-probabilities and metadata.
     """
     sampler = Sampler(
         backend=backend,

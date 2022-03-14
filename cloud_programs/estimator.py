@@ -28,7 +28,7 @@ def main(
         skip_transpilation: Skip transpiling of circuits, default=False.
         run_options: Execution time options.
 
-    Returns:
+    Returns: Expectation values and metadata.
 
     """
     estimator = Estimator(
