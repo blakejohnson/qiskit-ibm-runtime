@@ -36,7 +36,8 @@
         }
       },
       "required": [
-        "circuits"
+        "circuits",
+        "circuit_indices"
       ]
     },
     "return_values": {

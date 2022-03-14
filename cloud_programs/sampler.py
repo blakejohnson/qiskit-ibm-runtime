@@ -3,8 +3,8 @@ from qiskit_primitives.sampler import Sampler
 
 def main(backend, user_messenger,
          circuits,
+         circuit_indices,
          parameters=None,
-         circuit_indices=None,
          parameter_values=None,
          skip_transpilation=False,
          run_options=None

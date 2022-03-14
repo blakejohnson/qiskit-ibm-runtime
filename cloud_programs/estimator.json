@@ -48,7 +48,9 @@
       },
       "required": [
         "circuits",
-        "observable"
+        "circuit_indices",
+        "observable",
+        "observable_indices"
       ]
     },
     "return_values": {
