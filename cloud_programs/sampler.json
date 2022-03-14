@@ -25,14 +25,14 @@
           "description": "Concrete parameters to be bound.",
           "type": "array"
         },
-        "run_options": {
-          "description": "A collection of key-value pairs identifying the execution options, such as shots.",
-          "type": "object"
-        },
         "skip_transpilation": {
           "description": "Whether to skip circuit transpilation.",
           "type": "boolean",
           "default": false
+        },
+        "run_options": {
+          "description": "A collection of key-value pairs identifying the execution options, such as shots.",
+          "type": "object"
         }
       },
       "required": [
