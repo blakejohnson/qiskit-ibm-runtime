@@ -1,5 +1,7 @@
 # Circuit runner QASM3 runtime program
 
+import os
+
 from time import perf_counter
 
 from qiskit.circuit.quantumcircuit import QuantumCircuit
@@ -46,6 +48,7 @@ def main(backend, user_messenger,
     Returns:
         Program result.
     """
+    os.environ["NTC_HTTP_ROUTE_ENABLED"] = "false"
 
     if circuits and not isinstance(circuits, list):
         circuits = [circuits]
@@ -66,10 +69,6 @@ def main(backend, user_messenger,
         raise NotImplementedError("Measurement error mitigation is only supported for "
                                   "QuantumCircuit inputs and non-simulator backends.")
 
-    if is_qc:
-        raise RuntimeError(
-            "You are not authorized to use this program with QuantumCircuit inputs.")
-
     run_config = run_config or {}
 
     if is_qc:
@@ -82,6 +81,7 @@ def main(backend, user_messenger,
         qasm3_strs = []
         qasm3_metadata = []
         exporter_config = exporter_config or {}
+        exporter_config["disable_constants"] = exporter_config.get("disable_constants", True)
         for circ in circuits:
             qasm3_strs.append(Exporter(**exporter_config).dumps(circ))
             qasm3_metadata.append(get_circuit_metadata(circ))

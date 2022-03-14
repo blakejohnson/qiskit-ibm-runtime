@@ -22,7 +22,7 @@
           "type": "object"
         },
         "exporter_config": {
-          "description": "Options to use when converting circuits to QASM3 strings, if applicable.",
+          "description": "Options to use when converting circuits to QASM3 strings, if applicable. 'disable_constants' is set to True by default.",
           "type": "object"
         },
         "run_config": {
