@@ -7,14 +7,14 @@
       "$schema": "https://json-schema.org/draft/2019-09/schema",
       "properties": {
         "circuits": {
-          "description": "One or more parameterized or non-parameterized QuantumCircuit.",
+          "description": "One or more parameterized or non-parameterized QuantumCircuit preparing state Ψ.",
           "type": [
             "object",
             "array"
           ]
         },
         "observables": {
-          "description": "The Hamiltonians to be evaluated.",
+          "description": "One or more observables H whose expectation values are evaluated.",
           "type": [
             "object",
             "array"
@@ -55,7 +55,7 @@
       "$schema": "https://json-schema.org/draft/2019-09/schema",
       "properties": {
         "value": {
-          "description": "Estimated expectation values. This is a numpy array. The i-th element is calculated using the circuit and observable indexed by the i-th circuit_indices and i-th observable_indices, and bound with i-th parameter_values.",
+          "description": "Estimated expectation values <Ψ|H|Ψ>. This is a numpy array. The i-th element is calculated using the circuit and observable indexed by the i-th circuit_indices and i-th observable_indices, and bound with i-th parameter_values.",
           "type": "array"
         },
         "metadata": {
