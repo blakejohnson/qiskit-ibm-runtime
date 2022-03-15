@@ -31,6 +31,13 @@ def main(
     Returns: Expectation values and metadata.
 
     """
+    if len(circuit_indices) != len(observable_indices):
+        raise ValueError("The length of circuit_indices must "
+                         "match the length of observable_indices.")
+    if parameter_values and len(parameter_values) != len(circuit_indices):
+        raise ValueError("The length of parameter_values must "
+                         "match the length of circuit_indices")
+
     estimator = Estimator(
         backend=backend,
         circuits=circuits,

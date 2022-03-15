@@ -22,7 +22,7 @@
           "type": "array"
         },
         "parameter_values": {
-          "description": "Concrete parameters to be bound.",
+          "description": "A list of concrete parameters to be bound for each circuit.",
           "type": "array"
         },
         "skip_transpilation": {
