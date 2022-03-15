@@ -33,7 +33,7 @@
           "type": "array"
         },
         "parameter_values": {
-          "description": "A list of concrete parameters to be bound for each circuit. It must have the same length as circuit_indices and observable_indices.",
+          "description": "A list of concrete parameters to be bound for each circuit. If specified, it must have the same length as circuit_indices and observable_indices.",
           "type": "array"
         },
         "skip_transpilation": {
