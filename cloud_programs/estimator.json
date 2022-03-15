@@ -7,45 +7,62 @@
       "$schema": "https://json-schema.org/draft/2019-09/schema",
       "properties": {
         "circuits": {
-          "description": "One or more parameterized or non-parameterized QuantumCircuit.",
-          "type": "object"
+          "description": "One or more parameterized or non-parameterized QuantumCircuit preparing state Ψ.",
+          "type": [
+            "object",
+            "array"
+          ]
         },
         "observables": {
-          "description": "The Hamiltonian to be evaluated. This is a list[tuple[str, float]].",
-          "type": "array"
+          "description": "One or more observables H whose expectation values are evaluated.",
+          "type": [
+            "object",
+            "array"
+          ]
         },
         "parameters": {
-          "description": "The parameters to be bound. This can be either a list[float] or list[list[float]]].",
+          "description": "Parameters of quantum circuits, specifying the order in which values will be bound.",
           "type": "array"
         },
-        "transpile_options": {
-          "description": "Transpilation options.",
-          "type": "object"
+        "circuit_indices": {
+          "description": "A list of circuit indices. It must have the same length as observable_indices and parameter_values.",
+          "type": "array"
+        },
+        "observable_indices": {
+          "description": "A list of observable indices. It must have the same length as circuit_indices and parameter_values.",
+          "type": "array"
+        },
+        "parameter_values": {
+          "description": "A list of concrete parameters to be bound for each circuit. If specified, it must have the same length as circuit_indices and observable_indices.",
+          "type": "array"
+        },
+        "skip_transpilation": {
+          "description": "Whether to skip circuit transpilation.",
+          "type": "boolean",
+          "default": false
         },
         "run_options": {
-          "description": "Execution time options.",
+          "description": "A collection of key-value pairs identifying the execution options, such as shots.",
           "type": "object"
         }
       },
       "required": [
         "circuits",
-        "observable"
+        "circuit_indices",
+        "observable",
+        "observable_indices"
       ]
     },
     "return_values": {
       "$schema": "https://json-schema.org/draft/2019-09/schema",
       "properties": {
         "value": {
-          "description": "Estimated expectation value. This is a numpy array.",
+          "description": "Estimated expectation values <Ψ|H|Ψ>. This is a numpy array. The i-th element is calculated using the circuit and observable indexed by the i-th circuit_indices and i-th observable_indices, and bound with i-th parameter_values.",
           "type": "array"
         },
-        "variance": {
-          "description": "Variance of expectations. This is a numpy array.",
+        "metadata": {
+          "description": "Additional metadata.",
           "type": "array"
-        },
-        "shots": {
-          "description": "Number of shots executed.",
-          "type": "integer"
         }
       }
     }
