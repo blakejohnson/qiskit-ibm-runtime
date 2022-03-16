@@ -18,7 +18,7 @@
           "type": "array"
         },
         "circuit_indices": {
-          "description": "Indexes of the circuits to evaluate.",
+          "description": "Indices of the circuits to evaluate.",
           "type": "array"
         },
         "parameter_values": {
