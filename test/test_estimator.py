@@ -1,12 +1,11 @@
-from unittest import skip
 
 from qiskit.circuit.library import RealAmplitudes
 from qiskit.opflow import PauliSumOp
 from qiskit.providers.jobstatus import JobStatus
+from qiskit.providers.ibmq.runtime.exceptions import RuntimeJobFailureError
 
 from .decorator import get_provider_and_backend
 from .base_testcase import BaseTestCase
-from .utils import find_program_id
 
 
 class TestEstimator(BaseTestCase):
@@ -19,12 +18,9 @@ class TestEstimator(BaseTestCase):
         super().setUpClass()
         cls.service = provider.runtime
         cls.backend_name = backend_name
-
-    @skip("Skip until all setup")
-    def test_estimator(self):
-        """Test estimator."""
-        program_id = find_program_id(self.service, "estimator")
-        observable = PauliSumOp.from_list(
+        cls.options = {"backend_name": backend_name}
+        cls.program_id = "estimator"
+        cls.observable = PauliSumOp.from_list(
             [
                 ("II", -1.052373245772859),
                 ("IZ", 0.39793742484318045),
@@ -33,23 +29,66 @@ class TestEstimator(BaseTestCase):
                 ("XX", 0.18093119978423156),
             ]
         )
-        ansatz = RealAmplitudes(num_qubits=2, reps=2)
-        parameters = [0, 1, 1, 2, 3, 5]
-        run_options = {"shots": 1000}
+        cls.ansatz = RealAmplitudes(num_qubits=2, reps=2)
 
-        program_inputs = {
-            "circuits": ansatz,
-            "observables": observable,
-            "parameters": parameters,
-            "run_options": run_options
+    def test_run_without_params(self):
+        """Test estimator without parameters."""
+        circuit = self.ansatz.bind_parameters([0, 1, 1, 2, 3, 5])
+        inputs = {
+            "circuits": circuit,
+            "observables": self.observable,
+            "circuit_indices": [0],
+            "observable_indices": [0],
+        }
+        self._run_job_and_verify(inputs)
+
+    def test_run_single_params(self):
+        """Test estimator with a single parameter."""
+        inputs = {
+            "circuits": self.ansatz,
+            "observables": self.observable,
+            "parameter_values": [[0, 1, 1, 2, 3, 5]],
+            "circuit_indices": [0],
+            "observable_indices": [0],
         }
 
-        options = {"backend_name": self.backend_name}
+        self._run_job_and_verify(inputs)
 
-        job = self.service.run(program_id=program_id,
-                               options=options,
-                               inputs=program_inputs,
+    def test_run_multi_params(self):
+        """Test estimator with multiple parameters."""
+        inputs = {
+            "circuits": self.ansatz,
+            "observables": self.observable,
+            "parameter_values": [[0, 1, 1, 2, 3, 5], [1, 1, 2, 3, 5, 8]],
+            "circuit_indices": [0, 0],
+            "observable_indices": [0, 0],
+        }
+        self._run_job_and_verify(inputs)
+
+    def test_bad_circuit_indices(self):
+        """Test passing bad circuit indices."""
+        inputs = {
+            "circuits": self.ansatz,
+            "observables": self.observable,
+            "parameter_values": [[0, 1, 1, 2, 3, 5]],
+            "circuit_indices": [0, 1],
+            "observable_indices": [0],
+        }
+        job = self.service.run(program_id=self.program_id,
+                               options=self.options,
+                               inputs=inputs,
                                )
         self.log.debug("Job ID: %s", job.job_id())
-        job.wait_for_final_state()
+        with self.assertRaises(RuntimeJobFailureError):
+            job.result()
+        self.assertEqual(job.status(), JobStatus.ERROR, job.error_message())
+
+    def _run_job_and_verify(self, inputs):
+        """Run a job."""
+        job = self.service.run(program_id=self.program_id,
+                               options=self.options,
+                               inputs=inputs,
+                               )
+        self.log.debug("Job ID: %s", job.job_id())
+        job.result()
         self.assertEqual(job.status(), JobStatus.DONE, job.error_message())
