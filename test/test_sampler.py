@@ -30,7 +30,8 @@ class TestSampler(BaseTestCase):
     def test_sampler(self):
         """Test sampler program."""
         program_inputs = {
-            'circuits': self.qc,
+            "circuits": self.qc,
+            "circuit_indices": [0]
         }
 
         options = {"backend_name": self.backend_name}

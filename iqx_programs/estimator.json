@@ -1,61 +1,67 @@
 {
   "name": "estimator",
-  "description": "Expectation value estimator. A runtime program that estimates the value of an observable for an input quantum circuit. This program is in beta mode and is only available to select accounts.",
+  "description": "Calculates expectation values of quantum operators.",
   "max_execution_time": 18000,
   "spec": {
     "parameters": {
       "$schema": "https://json-schema.org/draft/2019-09/schema",
       "properties": {
-        "circuit": {
-          "description": "A parameterized or non-parameterized QuantumCircuit.",
-          "type": "object"
+        "circuits": {
+          "description": "One or more parameterized or non-parameterized QuantumCircuit preparing state Ψ.",
+          "type": [
+            "object",
+            "array"
+          ]
         },
-        "observable": {
-          "description": "The Hamiltonian to be evaluated. This is a list[tuple[str, float]].",
-          "type": "array"
+        "observables": {
+          "description": "One or more observables H whose expectation values are evaluated.",
+          "type": [
+            "object",
+            "array"
+          ]
         },
         "parameters": {
-          "description": "The parameters to be bound. This can be either a list[float] or list[list[float]]].",
+          "description": "Parameters of quantum circuits, specifying the order in which values will be bound.",
           "type": "array"
         },
-        "class_name": {
-          "description": "The name of the evaluator class. Default is PauliExpectationValue.",
-          "type": "string",
-          "default": "PauliExpectationValue"
+        "circuit_indices": {
+          "description": "A list of circuit indices. It must have the same length as observable_indices and parameter_values.",
+          "type": "array"
         },
-        "transpile_options": {
-          "description": "Options for transpile.",
-          "type": "object"
+        "observable_indices": {
+          "description": "A list of observable indices. It must have the same length as circuit_indices and parameter_values.",
+          "type": "array"
         },
-        "run_options": {
-          "description": "Options for backend run.",
-          "type": "object"
+        "parameter_values": {
+          "description": "A list of concrete parameters to be bound for each circuit. If specified, it must have the same length as circuit_indices and observable_indices.",
+          "type": "array"
         },
-        "measurement_error_mitigation": {
-          "description": "Whether to apply measurement error mitigation. Default is False.",
+        "skip_transpilation": {
+          "description": "Whether to skip circuit transpilation.",
           "type": "boolean",
           "default": false
+        },
+        "run_options": {
+          "description": "A collection of key-value pairs identifying the execution options, such as shots.",
+          "type": "object"
         }
       },
       "required": [
         "circuits",
+        "circuit_indices",
         "observable",
-        "parameters"
+        "observable_indices"
       ]
     },
     "return_values": {
       "$schema": "https://json-schema.org/draft/2019-09/schema",
       "properties": {
         "value": {
-          "description": "Estimated expectation value. This is a float.",
-          "type": "number"
+          "description": "Estimated expectation values <Ψ|H|Ψ>. This is a numpy array. The i-th element is calculated using the circuit and observable indexed by the i-th circuit_indices and i-th observable_indices, and bound with i-th parameter_values.",
+          "type": "array"
         },
-        "variance": {
-          "description": "Variance of expectations. This is a float.",
-          "type": "number"
-        },
-        "confidence_interval": {
-          "description": "The confidence interval. This is a tuple[float, float].",
+        "metadata": {
+          "description": "Additional metadata.",
           "type": "array"
         }
       }
