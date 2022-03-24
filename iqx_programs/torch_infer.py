@@ -63,6 +63,9 @@ except ImportError:
         pass
 
 
+WAIT=0.2
+
+
 class TorchInferer:
     """Class used to run predictions and scoring using PyTorch."""
 
@@ -150,9 +153,10 @@ def main(backend, user_messenger, **kwargs):
             shots=shots,
             measurement_error_mitigation_shots=shots,
             measurement_error_mitigation_cls=CompleteMeasFitter,
+            wait=WAIT,
         )
     else:
-        _quantum_instance = QuantumInstance(backend, shots=shots)
+        _quantum_instance = QuantumInstance(backend, shots=shots, wait=WAIT)
 
     if isinstance(model, TorchConnector):
         # Case for single qnn that has been wrapped in a TorchConnector

@@ -62,6 +62,9 @@ from qiskit.transpiler.passes.optimization.echo_rzx_weyl_decomposition import (
 from qiskit_optimization import QuadraticProgram
 
 
+WAIT=0.2
+
+
 class Publisher:
     """Class used to publish interim results."""
 
@@ -2508,6 +2511,7 @@ def main(backend, user_messenger, **kwargs):
         pass_manager=pass_manager,
         bound_pass_manager=pulse_passes,
         optimization_level=optimization_level,
+        wait=WAIT,
     )
 
     quantum_instance.circuit_summary = True

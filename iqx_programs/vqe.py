@@ -35,6 +35,8 @@ OVERLAP = Callable[[np.ndarray, np.ndarray], float]
 # parameters, loss, stepsize, number of function evaluations, accepted
 CALLBACK = Callable[[np.ndarray, float, float, int, bool], None]
 
+WAIT=0.2
+
 logger = logging.getLogger(__name__)
 
 
@@ -1064,10 +1066,12 @@ def main(backend, user_messenger, **kwargs):
         _quantum_instance = QuantumInstance(backend,
                                             shots=shots,
                                             measurement_error_mitigation_shots=shots,
-                                            measurement_error_mitigation_cls=CompleteMeasFitter)
+                                            measurement_error_mitigation_cls=CompleteMeasFitter,
+                                            wait=WAIT)
     else:
         _quantum_instance = QuantumInstance(backend,
-                                            shots=shots)
+                                            shots=shots,
+                                            wait=WAIT)
 
     publisher = Publisher(user_messenger)
 
