@@ -311,13 +311,12 @@ class QAOAAnsatz(EvolvedOperatorAnsatz):
         )
 
     def _build(self):
-        if self._is_built:
+        if self._data is not None:
             return
 
-        self._is_built = True
-        self._check_configuration()
-
         # need to check configuration here to ensure the operators are not None
+        self._check_configuration()
+        self._data = []
         num_qubits = self.num_qubits
 
         qr = QuantumRegister(num_qubits, "q")
@@ -1593,7 +1592,9 @@ class HWQAOAAnsatz(QAOAAnsatz):
 
     def _build(self) -> None:
         """Build the circuit."""
-        if self._is_built:
+
+        # If the _data property is set the circuit has already been built
+        if self._data is not None:
             return
 
         # Default to standard QAOAAnsatz if no SWAP strategy has been set
@@ -1601,8 +1602,8 @@ class HWQAOAAnsatz(QAOAAnsatz):
             super()._build()
             return
 
-        self._is_built = True
         self._check_configuration()
+        self._data = []
 
         # Set the registers
         try:

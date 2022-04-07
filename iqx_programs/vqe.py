@@ -15,7 +15,7 @@ import scipy
 
 from qiskit.algorithms.optimizers import Optimizer, OptimizerSupportLevel, SPSA, QNSPSA
 from qiskit import Aer
-from qiskit.algorithms import VQE, VQEResult, eval_observables
+from qiskit.algorithms import VQE, VQEResult
 from qiskit.algorithms.exceptions import AlgorithmError
 from qiskit.algorithms.minimum_eigen_solvers import MinimumEigensolverResult
 from qiskit.circuit import ParameterVector, QuantumCircuit
@@ -940,10 +940,7 @@ class QNSPSAVQE(VQE):
         self._ret = result
 
         if aux_operators is not None:
-            optimal_state = self.ansatz.bind_parameters(opt_params)
-            aux_values = eval_observables(
-                self.quantum_instance, optimal_state, aux_operators, expectation
-            )
+            aux_values = self._eval_aux_ops(opt_params, aux_operators, expectation=expectation)
             result.aux_operator_eigenvalues = aux_values
 
         # return result, None
