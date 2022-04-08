@@ -1,3 +1,4 @@
+import numpy as np
 
 from qiskit.circuit.library import RealAmplitudes
 from qiskit.opflow import PauliSumOp
@@ -62,6 +63,18 @@ class TestEstimator(BaseTestCase):
             "parameter_values": [[0, 1, 1, 2, 3, 5], [1, 1, 2, 3, 5, 8]],
             "circuit_indices": [0, 0],
             "observable_indices": [0, 0],
+        }
+        self._run_job_and_verify(inputs)
+
+    def test_numpy_params(self):
+        """Test with parameters in numpy array."""
+        param = np.random.rand(1, self.ansatz.num_parameters)
+        inputs = {
+            "circuits": [self.ansatz],
+            "observables": self.observable,
+            "circuit_indices": [0],
+            "observable_indices": [0],
+            "parameter_values": param
         }
         self._run_job_and_verify(inputs)
 
