@@ -32,11 +32,11 @@ def main(
 
     """
     if len(circuit_indices) != len(observable_indices):
-        raise ValueError("The length of circuit_indices must "
-                         "match the length of observable_indices.")
-    if parameter_values and len(parameter_values) != len(circuit_indices):
-        raise ValueError("The length of parameter_values must "
-                         "match the length of circuit_indices")
+        raise ValueError(f"The length of circuit_indices {len(circuit_indices)} must "
+                         f"match the length of observable_indices {len(observable_indices)}.")
+    if parameter_values is not None and len(parameter_values) != len(circuit_indices):
+        raise ValueError(f"The length of parameter_values {len(parameter_values)} must "
+                         f"match the length of circuit_indices {len(circuit_indices)}.")
 
     estimator = Estimator(
         backend=backend,

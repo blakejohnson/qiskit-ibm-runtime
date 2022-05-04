@@ -48,8 +48,6 @@ def main(backend, user_messenger,
     Returns:
         Program result.
     """
-    os.environ["NTC_HTTP_ROUTE_ENABLED"] = "false"
-
     if circuits and not isinstance(circuits, list):
         circuits = [circuits]
 
