@@ -1,6 +1,5 @@
 import os
 import numpy as np
-from unittest import skip
 
 from qiskit.algorithms import NumPyMinimumEigensolver
 from qiskit.algorithms.optimizers import SPSA, COBYLA, QNSPSA
@@ -89,7 +88,6 @@ class TestVQE(BaseTestCase):
         if self.backend.configuration().simulator:
             self.assertLess(abs(result["eigenvalue"] - reference.eigenvalue), 1)
 
-    @skip("Test case hangs. Skip until fixed.")
     def test_nature_program(self):
         """Test vqe nature program."""
         reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(
@@ -115,7 +113,6 @@ class TestVQE(BaseTestCase):
         )
         self.log.info("VQE program result: %s", result.eigenvalue)
 
-    @skip("Test case hangs. Skip until fixed.")
     def test_nature_full_workflow(self):
         """Test the ground state search workflow from Qiskit Nature."""
         molecule = Molecule(
