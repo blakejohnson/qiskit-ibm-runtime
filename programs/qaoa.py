@@ -315,9 +315,8 @@ class QAOAAnsatz(EvolvedOperatorAnsatz):
             return
 
         self._is_built = True
-        self._check_configuration()
-
         # need to check configuration here to ensure the operators are not None
+        self._check_configuration()
         num_qubits = self.num_qubits
 
         qr = QuantumRegister(num_qubits, "q")
@@ -2385,7 +2384,7 @@ def pulse_pass_creator(backend) -> PassManager:
 def _parse_optimizer(optimizer, ansatz, backend):
     """Parse the input optimizer.
 
-    Returns the SPSA optimizer with default settings if ``optimizer`` is ``None``. If the 
+    Returns the SPSA optimizer with default settings if ``optimizer`` is ``None``. If the
     the optimizer is QNSPSA, ensure the fidelity is properly set. For all other cases,
     the ``optimizer`` is returned as is.
     """
@@ -2394,7 +2393,7 @@ def _parse_optimizer(optimizer, ansatz, backend):
 
     if isinstance(optimizer, QNSPSA):
         # though the user might specify CVaR for the expectation value calculation,
-        # that algorithm does not make sense to measure the fidelity and we always use 
+        # that algorithm does not make sense to measure the fidelity and we always use
         # the PauliExpectation
         expectation = PauliExpectation()
         fidelity = QNSPSA.get_fidelity(ansatz, backend, expectation)

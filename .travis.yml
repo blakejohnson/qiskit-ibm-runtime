@@ -24,28 +24,24 @@ stages:
 
 jobs:
   include:
-    - stage: staging_test
+    - stage: lint
       <<: *stage_linux
       if: type = pull_request
       script:
-        - make update && make test
-      after_script:
-        - make cleanup
+        # Remove echo and enable lint after fixing lint issues
+        - echo "lint is disabled until issues are fixed"
+        # - make lint
 
     - stage: staging_test
       <<: *stage_linux
       if: branch = master AND type = push
       script:
-        - make update && make test && make publish
-      after_failure:
-        - make cleanup
+        - make staging && make test
 
     - stage: production_test
       <<: *stage_linux
-      if: branch = master AND type = push
+      if: tag IS present
       env:
         - QISKIT_IBM_USE_STAGING_CREDENTIALS=false
       script:
-        - make update && make test && make publish
-      after_failure:
-        - make cleanup
+        - make production && make test

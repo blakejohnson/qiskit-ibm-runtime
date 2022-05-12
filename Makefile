@@ -1,13 +1,13 @@
-.PHONY: test update publish cleanup
+.PHONY: lint test staging production
+
+lint:
+	pylint -rn programs qka test tools
 
 test:
 	python -m unittest discover -v -s test -t .
 
-update:
-	python -m tools.ci_script update
+staging:
+	python -m tools.update $@
 
-publish:
-	python -m tools.ci_script publish
-
-cleanup:
-	python -m tools.ci_script cleanup
+production:
+	python -m tools.update $@

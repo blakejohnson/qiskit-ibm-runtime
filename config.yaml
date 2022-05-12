@@ -1,0 +1,33 @@
+staging:
+  - url: https://us-east.quantum-computing.test.cloud.ibm.com
+    token_key: QE_TOKEN_STAGING
+    programs: &cloud_programs
+      - estimator
+      - hello-world
+      - sampler
+  - url: https://runtime-us-east-dev.quantum-computing.ibm.com
+    token_key: QE_TOKEN_STAGING
+    programs: &iqx_programs
+      - circuit-runner
+      - estimator
+      - hello-world
+      - qaoa
+      - qasm3-runner
+      - quantum-kernel-alignment
+      - sample-expval
+      - sample-program
+      - sampler
+      - torch-infer
+      - torch-train
+      - vqe
+production:
+  - url: https://us-east.quantum-computing.cloud.ibm.com
+    token_key: QE_TOKEN
+    programs: *cloud_programs
+  - url: https://runtime-us-east.quantum-computing.ibm.com
+    token_key: QE_TOKEN
+    programs: *iqx_programs
+  # - url: https://runtime.de.quantum-computing.ibm.com
+  #   token_key: QE_TOKEN_DE
+  #   programs: *iqx_programs
+
