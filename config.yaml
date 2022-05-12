@@ -15,7 +15,6 @@ staging:
       - qasm3-runner
       - quantum-kernel-alignment
       - sample-expval
-      - sample-program
       - sampler
       - torch-infer
       - torch-train
