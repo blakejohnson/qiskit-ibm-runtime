@@ -23,7 +23,7 @@ from qiskit.opflow import (
     StateFn, CircuitSampler, PauliExpectation, ExpectationBase, OperatorBase,
     ListOp, PauliSumOp
 )
-from qiskit.providers import BaseBackend, Backend
+from qiskit.providers import Backend
 from qiskit.utils import QuantumInstance
 
 from qiskit.ignis.mitigation.measurement import CompleteMeasFitter
@@ -777,7 +777,7 @@ class QNSPSAVQE(VQE):
                  initial_point: Optional[np.ndarray] = None,
                  expectation: Optional[ExpectationBase] = None,
                  callback: Optional[Callable[[int, np.ndarray, float, float], None]] = None,
-                 quantum_instance: Optional[Union[QuantumInstance, BaseBackend, Backend]] = None,
+                 quantum_instance: Optional[Union[QuantumInstance, Backend]] = None,
                  natural_spsa: bool = False,
                  maxiter: int = 100,
                  blocking: bool = True,
