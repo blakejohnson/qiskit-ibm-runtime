@@ -89,7 +89,7 @@ class TestQAOARuntime(BaseTestCase):
 
         spsa = SPSA(maxiter, learning_rate=0.01, perturbation=0.1)
         qnspsa = QNSPSA(None, maxiter, learning_rate=0.01, perturbation=0.1)
-        
+
         for optimizer in [spsa, qnspsa]:
             with self.subTest(optimizer=optimizer):
                 counter = {"count": 0}

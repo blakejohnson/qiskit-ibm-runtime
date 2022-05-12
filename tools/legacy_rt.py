@@ -9,13 +9,14 @@ LOG = logging.getLogger(__name__)
 
 
 class LegacyRuntimeClient:
-
     def __init__(self):
         url, token = self._get_url_token()
         self._base_url = url + "/programs"
         self._access_token = token
-        self._header = {'Content-Type': 'application/json',
-                        'Authorization': f"Bearer {self._access_token}"}
+        self._header = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self._access_token}",
+        }
 
     def update_program_id(self, old_id, new_id):
         url = self._base_url + f"/{old_id}"

@@ -284,6 +284,7 @@ class TestSpecializations(QiskitTestCase):
 
             self.assertTrue(strat.reaches_full_connectivity())
 
+
 class TestSwapStrategyCreator(QiskitTestCase):
     """Test the swap strategy creator."""
 

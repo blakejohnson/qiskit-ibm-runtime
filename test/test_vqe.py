@@ -59,8 +59,7 @@ class TestVQE(BaseTestCase):
         optimizer = SPSA(maxiter=300)
 
         # test aux operators as dictionaries
-        aux_operators = {"magn0": self.observables[0],
-                         "magn1": self.observables[1]}
+        aux_operators = {"magn0": self.observables[0], "magn1": self.observables[1]}
 
         inputs = {
             "operator": self.hamiltonian,
@@ -149,7 +148,9 @@ class TestVQE(BaseTestCase):
         reference_result = reference_gse.solve(problem)
 
         if self.backend.configuration().simulator:
-            self.assertLess(abs(result.eigenenergies[0] - reference_result.eigenenergies[0]), 2)
+            self.assertLess(
+                abs(result.eigenenergies[0] - reference_result.eigenenergies[0]), 2
+            )
 
     def test_optimization_program(self):
         """Test vqe optimization program."""

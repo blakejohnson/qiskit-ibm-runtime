@@ -62,7 +62,7 @@ from qiskit.transpiler.passes.optimization.echo_rzx_weyl_decomposition import (
 from qiskit_optimization import QuadraticProgram
 
 
-WAIT=0.2
+WAIT = 0.2
 
 
 class Publisher:
@@ -2381,6 +2381,7 @@ def pulse_pass_creator(backend) -> PassManager:
     ]
     return PassManager(pulse_efficient_passes)
 
+
 def _parse_optimizer(optimizer, ansatz, backend):
     """Parse the input optimizer.
 
@@ -2400,6 +2401,7 @@ def _parse_optimizer(optimizer, ansatz, backend):
         optimizer.fidelity = fidelity
 
     return optimizer
+
 
 def main(backend, user_messenger, **kwargs):
     """Entry function."""

@@ -63,7 +63,7 @@ except ImportError:
         pass
 
 
-WAIT=0.2
+WAIT = 0.2
 
 
 class TorchInferer:

@@ -6,21 +6,23 @@ import os
 
 def get_provider_and_backend(func):
     """Decorator to setup test with provider and backend.
-    
+
     Args:
         func (callable): test function to be decorated.
 
     Returns:
         callable: the decorated function.
     """
+
     def _wrapper(*args, **kwargs):
         qe_token = _get_env_val("QE_TOKEN", "QE_TOKEN_STAGING")
         qe_url = _get_env_val("QE_URL", "QE_URL_STAGING")
         _enable_account(qe_token, qe_url)
 
         backend = _get_backend()
-        kwargs.update({'backend_name': backend.name(), "provider": backend.provider()})
+        kwargs.update({"backend_name": backend.name(), "provider": backend.provider()})
         return func(*args, **kwargs)
+
     return _wrapper
 
 
@@ -33,7 +35,7 @@ def _enable_account(qe_token: str, qe_url: str) -> None:
     """
     active_account = IBMQ.active_account()
     if active_account:
-        if active_account.get('token', '') == qe_token:
+        if active_account.get("token", "") == qe_token:
             return
         IBMQ.disable_account()
     IBMQ.enable_account(qe_token, url=qe_url)
@@ -56,13 +58,17 @@ def _get_backend():
                 _backend = backends[0]
                 break
     else:
-        _backend = least_busy(provider.backends(min_num_qubits=5,
-                                                operational=True,
-                                                simulator=False,
-                                                input_allowed='runtime'))
+        _backend = least_busy(
+            provider.backends(
+                min_num_qubits=5,
+                operational=True,
+                simulator=False,
+                input_allowed="runtime",
+            )
+        )
 
     if not _backend:
-        raise Exception('Unable to find a suitable backend.')
+        raise Exception("Unable to find a suitable backend.")
 
     return _backend
 
@@ -91,6 +97,8 @@ def _get_env_val(prod_var, staging_var):
     Returns:
         Environment variable value.
     """
-    return os.getenv(staging_var, None) \
-        if os.getenv("QISKIT_IBM_USE_STAGING_CREDENTIALS", "").lower() == "true" \
+    return (
+        os.getenv(staging_var, None)
+        if os.getenv("QISKIT_IBM_USE_STAGING_CREDENTIALS", "").lower() == "true"
         else os.getenv(prod_var, None)
+    )

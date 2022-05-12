@@ -74,7 +74,7 @@ class TestEstimator(BaseTestCase):
             "observables": self.observable,
             "circuit_indices": [0],
             "observable_indices": [0],
-            "parameter_values": param
+            "parameter_values": param,
         }
         self._run_job_and_verify(inputs)
 
@@ -87,10 +87,11 @@ class TestEstimator(BaseTestCase):
             "circuit_indices": [0, 1],
             "observable_indices": [0],
         }
-        job = self.service.run(program_id=self.program_id,
-                               options=self.options,
-                               inputs=inputs,
-                               )
+        job = self.service.run(
+            program_id=self.program_id,
+            options=self.options,
+            inputs=inputs,
+        )
         self.log.debug("Job ID: %s", job.job_id())
         with self.assertRaises(RuntimeJobFailureError):
             job.result()
@@ -98,10 +99,11 @@ class TestEstimator(BaseTestCase):
 
     def _run_job_and_verify(self, inputs):
         """Run a job."""
-        job = self.service.run(program_id=self.program_id,
-                               options=self.options,
-                               inputs=inputs,
-                               )
+        job = self.service.run(
+            program_id=self.program_id,
+            options=self.options,
+            inputs=inputs,
+        )
         self.log.debug("Job ID: %s", job.job_id())
         job.result()
         self.assertEqual(job.status(), JobStatus.DONE, job.error_message())

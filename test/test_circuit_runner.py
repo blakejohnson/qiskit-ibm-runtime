@@ -28,20 +28,21 @@ class TestCircuitRunner(BaseTestCase):
     def test_circuit_runner(self):
         """Test circuit_runner program."""
         program_inputs = {
-            'circuits': self.qc,
-            'shots': 2048,
-            'optimization_level': 0,
-            'initial_layout': [0, 1, 4, 7, 10, 12],
-            'measurement_error_mitigation': False
+            "circuits": self.qc,
+            "shots": 2048,
+            "optimization_level": 0,
+            "initial_layout": [0, 1, 4, 7, 10, 12],
+            "measurement_error_mitigation": False,
         }
 
         options = {"backend_name": self.backend_name}
 
-        job = self.provider.runtime.run(program_id="circuit-runner",
-                                        options=options,
-                                        inputs=program_inputs,
-                                        result_decoder=RunnerResult
-                                        )
+        job = self.provider.runtime.run(
+            program_id="circuit-runner",
+            options=options,
+            inputs=program_inputs,
+            result_decoder=RunnerResult,
+        )
         self.log.debug("Job ID: %s", job.job_id())
         job.wait_for_final_state()
         self.assertEqual(job.status(), JobStatus.DONE, job.error_message())

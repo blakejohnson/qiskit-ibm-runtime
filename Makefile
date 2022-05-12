@@ -1,7 +1,13 @@
-.PHONY: lint test staging production
+.PHONY: lint style black test staging production
 
 lint:
 	pylint -rn programs qka test tools
+
+style:
+	black --check .
+
+black:
+	black .
 
 test:
 	python -m unittest discover -v -s test -t .

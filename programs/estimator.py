@@ -2,16 +2,16 @@ from qiskit_primitives.estimator import Estimator
 
 
 def main(
-        backend,
-        user_messenger,
-        circuits,
-        circuit_indices,
-        observables,
-        observable_indices,
-        parameters=None,
-        parameter_values=None,
-        skip_transpilation=False,
-        run_options=None,
+    backend,
+    user_messenger,
+    circuits,
+    circuit_indices,
+    observables,
+    observable_indices,
+    parameters=None,
+    parameter_values=None,
+    skip_transpilation=False,
+    run_options=None,
 ):
     """Estimator primitive.
 
@@ -32,18 +32,22 @@ def main(
 
     """
     if len(circuit_indices) != len(observable_indices):
-        raise ValueError(f"The length of circuit_indices {len(circuit_indices)} must "
-                         f"match the length of observable_indices {len(observable_indices)}.")
+        raise ValueError(
+            f"The length of circuit_indices {len(circuit_indices)} must "
+            f"match the length of observable_indices {len(observable_indices)}."
+        )
     if parameter_values is not None and len(parameter_values) != len(circuit_indices):
-        raise ValueError(f"The length of parameter_values {len(parameter_values)} must "
-                         f"match the length of circuit_indices {len(circuit_indices)}.")
+        raise ValueError(
+            f"The length of parameter_values {len(parameter_values)} must "
+            f"match the length of circuit_indices {len(circuit_indices)}."
+        )
 
     estimator = Estimator(
         backend=backend,
         circuits=circuits,
         observables=observables,
         parameters=parameters,
-        skip_transpilation=skip_transpilation
+        skip_transpilation=skip_transpilation,
     )
     run_options = run_options or {}
     shots = run_options.get("shots") or backend.options.shots
@@ -51,7 +55,8 @@ def main(
         circuit_indices=circuit_indices,
         observable_indices=observable_indices,
         parameter_values=parameter_values,
-        **run_options)
+        **run_options,
+    )
 
     result = raw_result.__dict__
     for metadata in result["metadata"]:

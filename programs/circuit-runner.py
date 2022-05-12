@@ -12,27 +12,41 @@ from qiskit.providers.ibmq.runtime import UserMessenger
 import mthree
 
 
-def main(backend, user_messenger, circuits,
-         initial_layout=None, seed_transpiler=None, optimization_level=None,
-         transpiler_options=None, scheduling_method=None,
-         schedule_circuit=False, inst_map=None, meas_map=None,
-         measurement_error_mitigation=False,
-         **kwargs):
+def main(
+    backend,
+    user_messenger,
+    circuits,
+    initial_layout=None,
+    seed_transpiler=None,
+    optimization_level=None,
+    transpiler_options=None,
+    scheduling_method=None,
+    schedule_circuit=False,
+    inst_map=None,
+    meas_map=None,
+    measurement_error_mitigation=False,
+    **kwargs
+):
 
     # transpiling the circuits using given transpile options
     transpiler_options = transpiler_options or {}
-    circuits = transpile(circuits,
-                         initial_layout=initial_layout,
-                         seed_transpiler=seed_transpiler,
-                         optimization_level=optimization_level,
-                         backend=backend, **transpiler_options)
+    circuits = transpile(
+        circuits,
+        initial_layout=initial_layout,
+        seed_transpiler=seed_transpiler,
+        optimization_level=optimization_level,
+        backend=backend,
+        **transpiler_options
+    )
 
     if schedule_circuit:
-        circuits = schedule(circuits=circuits,
-                            backend=backend,
-                            inst_map=inst_map,
-                            meas_map=meas_map,
-                            method=scheduling_method)
+        circuits = schedule(
+            circuits=circuits,
+            backend=backend,
+            inst_map=inst_map,
+            meas_map=meas_map,
+            method=scheduling_method,
+        )
 
     if not isinstance(circuits, list):
         circuits = [circuits]
@@ -66,20 +80,19 @@ def main(backend, user_messenger, circuits,
             raw_counts = result.get_counts(idx)
             # check if more bits than measured so need to marginalize
             if num_cbits > num_measured_bits:
-                raw_counts = marginal_counts(raw_counts,
-                                             list(mappings[idx].values()))
+                raw_counts = marginal_counts(raw_counts, list(mappings[idx].values()))
             _qubits = list(mappings[idx].keys())
             start_time = perf_counter()
             quasi = mit.apply_correction(raw_counts, _qubits)
             stop_time = perf_counter()
-            mit_times.append(stop_time-start_time)
+            mit_times.append(stop_time - start_time)
             # Convert quasi dist with bitstrings to hex version and append
             quasi_probs.append(quasi_to_hex(quasi))
 
         # Attach to results.
         for idx, res in enumerate(result.results):
             res.data.quasiprobabilities = quasi_probs[idx]
-            res.data._data_attributes.append('quasiprobabilities')
+            res.data._data_attributes.append("quasiprobabilities")
             res.header.final_measurement_mapping = mappings[idx]
             res.header.measurement_mitigation_time = mit_times[idx]
 
@@ -89,10 +102,10 @@ def main(backend, user_messenger, circuits,
 def final_measurement_mapping(qc):
     """Returns the final measurement mapping for a circuit that
     has been transpiled (flattened registers) or has flat registers.
-    
+
     Parameters:
         qc (QuantumCircuit): Input quantum circuit.
-    
+
     Returns:
         dict: Mapping of qubits to classical bits for final measurements.
 
@@ -100,7 +113,9 @@ def final_measurement_mapping(qc):
         ValueError: More than one quantum or classical register.
     """
     if len(qc.qregs) > 1 or len(qc.qregs) > 1:
-        raise ValueError('Number of quantum or classical registers is greater than one.')
+        raise ValueError(
+            "Number of quantum or classical registers is greater than one."
+        )
     num_qubits = qc.num_qubits
     num_clbits = qc.num_clbits
     active_qubits = list(range(num_qubits))
@@ -108,7 +123,7 @@ def final_measurement_mapping(qc):
     qmap = []
     cmap = []
     for item in qc._data[::-1]:
-        if item[0].name == 'measure':
+        if item[0].name == "measure":
             cbit = item[2][0].index
             qbit = item[1][0].index
             if cbit in active_cbits and qbit in active_qubits:
@@ -116,7 +131,7 @@ def final_measurement_mapping(qc):
                 cmap.append(cbit)
                 active_cbits.remove(cbit)
                 active_qubits.remove(qbit)
-        elif item[0].name != 'barrier':
+        elif item[0].name != "barrier":
             for qq in item[1]:
                 if qq.index in active_qubits:
                     active_qubits.remove(qq.index)
@@ -128,10 +143,10 @@ def final_measurement_mapping(qc):
         for idx, qubit in enumerate(qmap):
             mapping[qubit] = cmap[idx]
     else:
-        raise ValueError('Measurement not found in circuits.')
+        raise ValueError("Measurement not found in circuits.")
 
     # Sort so that classical bits are in numeric order low->high.
-    mapping = dict(sorted(mapping.items(), key=lambda item: item[1])) 
+    mapping = dict(sorted(mapping.items(), key=lambda item: item[1]))
     return mapping
 
 
@@ -146,13 +161,13 @@ def quasi_to_hex(qp):
     """
     hex_quasi = {}
     for key, val in qp.items():
-        hex_quasi[hex(int(key, 2))] = val     
-    return hex_quasi  
+        hex_quasi[hex(int(key, 2))] = val
+    return hex_quasi
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Test using Aer
-    backend = Aer.get_backend('qasm_simulator')
+    backend = Aer.get_backend("qasm_simulator")
     user_params = {}
     if len(sys.argv) > 1:
         # If there are user parameters.

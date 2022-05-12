@@ -16,22 +16,23 @@ QASM3_SIM_NAME = "simulator_qasm3"
 
 
 class Qasm3Encoder(RuntimeEncoder):
-
     def default(self, obj):  # pylint: disable=arguments-differ
         if isinstance(obj, np.bool_):
             return bool(obj)
         return super().default(obj)
 
 
-def main(backend, user_messenger,
-         circuits,
-         transpiler_config=None,
-         exporter_config=None,
-         run_config=None,
-         qasm3_args=None,
-         skip_transpilation=False,
-         use_measurement_mitigation=False
-         ):
+def main(
+    backend,
+    user_messenger,
+    circuits,
+    transpiler_config=None,
+    exporter_config=None,
+    run_config=None,
+    qasm3_args=None,
+    skip_transpilation=False,
+    use_measurement_mitigation=False,
+):
     """Execute
 
     Args:
@@ -51,11 +52,14 @@ def main(backend, user_messenger,
     if circuits and not isinstance(circuits, list):
         circuits = [circuits]
 
-    if not circuits or \
-        (not all(isinstance(circ, QuantumCircuit) for circ in circuits) and
-            not all(isinstance(circ, str) for circ in circuits)):
-        raise ValueError('Circuit need to be of type QuantumCircuit or str and \
-            circuit types need to be consistent in a list of circuits.')
+    if not circuits or (
+        not all(isinstance(circ, QuantumCircuit) for circ in circuits)
+        and not all(isinstance(circ, str) for circ in circuits)
+    ):
+        raise ValueError(
+            "Circuit need to be of type QuantumCircuit or str and \
+            circuit types need to be consistent in a list of circuits."
+        )
 
     # TODO Better validation once we can query for input_allowed
     if backend.configuration().simulator and backend.name() != QASM3_SIM_NAME:
@@ -64,8 +68,10 @@ def main(backend, user_messenger,
     is_qc = isinstance(circuits[0], QuantumCircuit)
 
     if use_measurement_mitigation and (not is_qc or backend.name() != QASM3_SIM_NAME):
-        raise NotImplementedError("Measurement error mitigation is only supported for "
-                                  "QuantumCircuit inputs and non-simulator backends.")
+        raise NotImplementedError(
+            "Measurement error mitigation is only supported for "
+            "QuantumCircuit inputs and non-simulator backends."
+        )
 
     run_config = run_config or {}
 
@@ -79,7 +85,9 @@ def main(backend, user_messenger,
         qasm3_strs = []
         qasm3_metadata = []
         exporter_config = exporter_config or {}
-        exporter_config["disable_constants"] = exporter_config.get("disable_constants", True)
+        exporter_config["disable_constants"] = exporter_config.get(
+            "disable_constants", True
+        )
         for circ in circuits:
             qasm3_strs.append(Exporter(**exporter_config).dumps(circ))
             qasm3_metadata.append(get_circuit_metadata(circ))
@@ -108,9 +116,9 @@ def main(backend, user_messenger,
     if backend.name() == QASM3_SIM_NAME:
         if len(payload) > 1:
             raise ValueError("QASM3 simulator only supports a single circuit.")
-        result = backend.run(payload[0],
-                             args=qasm3_args,
-                             shots=run_config.get("shots", None))
+        result = backend.run(
+            payload[0], args=qasm3_args, shots=run_config.get("shots", None)
+        )
         user_messenger.publish(result, final=True, encoder=Qasm3Encoder)
         return
 
@@ -126,20 +134,19 @@ def main(backend, user_messenger,
             raw_counts = result.get_counts(idx)
             # check if more bits than measured so need to marginalize
             if num_cbits > num_measured_bits:
-                raw_counts = marginal_counts(raw_counts,
-                                             list(mappings[idx].values()))
+                raw_counts = marginal_counts(raw_counts, list(mappings[idx].values()))
             _qubits = list(mappings[idx].keys())
             start_time = perf_counter()
             quasi = mit.apply_correction(raw_counts, _qubits)
             stop_time = perf_counter()
-            mit_times.append(stop_time-start_time)
+            mit_times.append(stop_time - start_time)
             # Convert quasi dist with bitstrings to hex version and append
             quasi_probs.append(quasi_to_hex(quasi))
 
         # Attach to results.
         for idx, res in enumerate(result.results):
             res.data.quasiprobabilities = quasi_probs[idx]
-            res.data._data_attributes.append('quasiprobabilities')
+            res.data._data_attributes.append("quasiprobabilities")
             res.header.final_measurement_mapping = mappings[idx]
             res.header.measurement_mitigation_time = mit_times[idx]
 
@@ -177,17 +184,17 @@ def get_circuit_metadata(circuit: QuantumCircuit):
         "creg_sizes": creg_sizes,
         "name": circuit.name,
         "global_phase": float(circuit.global_phase),
-        "metadata": circuit.metadata or {}
+        "metadata": circuit.metadata or {},
     }
 
 
 def final_measurement_mapping(qc):
     """Returns the final measurement mapping for a circuit that
     has been transpiled (flattened registers) or has flat registers.
-    
+
     Parameters:
         qc (QuantumCircuit): Input quantum circuit.
-    
+
     Returns:
         dict: Mapping of qubits to classical bits for final measurements.
 
@@ -195,7 +202,9 @@ def final_measurement_mapping(qc):
         ValueError: More than one quantum or classical register.
     """
     if len(qc.qregs) > 1 or len(qc.qregs) > 1:
-        raise ValueError('Number of quantum or classical registers is greater than one.')
+        raise ValueError(
+            "Number of quantum or classical registers is greater than one."
+        )
     num_qubits = qc.num_qubits
     num_clbits = qc.num_clbits
     active_qubits = list(range(num_qubits))
@@ -203,7 +212,7 @@ def final_measurement_mapping(qc):
     qmap = []
     cmap = []
     for item in qc._data[::-1]:
-        if item[0].name == 'measure':
+        if item[0].name == "measure":
             cbit = item[2][0].index
             qbit = item[1][0].index
             if cbit in active_cbits and qbit in active_qubits:
@@ -211,7 +220,7 @@ def final_measurement_mapping(qc):
                 cmap.append(cbit)
                 active_cbits.remove(cbit)
                 active_qubits.remove(qbit)
-        elif item[0].name != 'barrier':
+        elif item[0].name != "barrier":
             for qq in item[1]:
                 if qq.index in active_qubits:
                     active_qubits.remove(qq.index)
@@ -223,10 +232,10 @@ def final_measurement_mapping(qc):
         for idx, qubit in enumerate(qmap):
             mapping[qubit] = cmap[idx]
     else:
-        raise ValueError('Measurement not found in circuits.')
+        raise ValueError("Measurement not found in circuits.")
 
     # Sort so that classical bits are in numeric order low->high.
-    mapping = dict(sorted(mapping.items(), key=lambda item: item[1])) 
+    mapping = dict(sorted(mapping.items(), key=lambda item: item[1]))
     return mapping
 
 
@@ -241,5 +250,5 @@ def quasi_to_hex(qp):
     """
     hex_quasi = {}
     for key, val in qp.items():
-        hex_quasi[hex(int(key, 2))] = val     
-    return hex_quasi  
+        hex_quasi[hex(int(key, 2))] = val
+    return hex_quasi

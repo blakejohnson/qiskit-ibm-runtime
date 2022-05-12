@@ -16,7 +16,9 @@ class KernelMatrix:
         """
 
         self._feature_map = feature_map
-        self._feature_map_circuit = self._feature_map.construct_circuit # the feature map circuit
+        self._feature_map_circuit = (
+            self._feature_map.construct_circuit
+        )  # the feature map circuit
         self._backend = backend
         self._initial_layout = initial_layout
 
@@ -35,7 +37,7 @@ class KernelMatrix:
 
         Returns:
            mat (numpy.ndarray): the kernel matrix
-       """
+        """
 
         is_identical = False
         if np.array_equal(x1_vec, x2_vec):
@@ -43,31 +45,45 @@ class KernelMatrix:
 
         experiments = []
 
-        measurement_basis = '0' * self._feature_map._num_qubits
+        measurement_basis = "0" * self._feature_map._num_qubits
 
         if is_identical:
 
-            my_product_list = list(itertools.combinations(range(len(x1_vec)), 2)) # all pairwise combos of datapoint indices
+            my_product_list = list(
+                itertools.combinations(range(len(x1_vec)), 2)
+            )  # all pairwise combos of datapoint indices
             for index_1, index_2 in my_product_list:
 
-                circuit_1 = self._feature_map_circuit(x=x1_vec[index_1], parameters=parameters, name='{}_{}'.format(index_1, index_2))
-                circuit_2 = self._feature_map_circuit(x=x1_vec[index_2], parameters=parameters, inverse=True)
+                circuit_1 = self._feature_map_circuit(
+                    x=x1_vec[index_1],
+                    parameters=parameters,
+                    name="{}_{}".format(index_1, index_2),
+                )
+                circuit_2 = self._feature_map_circuit(
+                    x=x1_vec[index_2], parameters=parameters, inverse=True
+                )
                 circuit = circuit_1.compose(circuit_2)
                 circuit.measure_all()
 
                 experiments.append(circuit)
 
             program_data = self._run_circuits(experiments)
-            self.results['program_data'] = program_data
+            self.results["program_data"] = program_data
 
-            mat = np.eye(len(x1_vec), len(x1_vec))  # kernel matrix element on the diagonal is always 1
+            mat = np.eye(
+                len(x1_vec), len(x1_vec)
+            )  # kernel matrix element on the diagonal is always 1
             for experiment, [index_1, index_2] in enumerate(my_product_list):
 
-                counts = program_data.get_counts(experiment = experiment)
+                counts = program_data.get_counts(experiment=experiment)
                 shots = sum(counts.values())
 
-                mat[index_1][index_2] = counts.get(measurement_basis, 0) / shots # kernel matrix element is the probability of measuring all 0s
-                mat[index_2][index_1] = mat[index_1][index_2] # kernel matrix is symmetric
+                mat[index_1][index_2] = (
+                    counts.get(measurement_basis, 0) / shots
+                )  # kernel matrix element is the probability of measuring all 0s
+                mat[index_2][index_1] = mat[index_1][
+                    index_2
+                ]  # kernel matrix is symmetric
 
             return mat
 
@@ -76,22 +92,28 @@ class KernelMatrix:
             for index_1, point_1 in enumerate(x1_vec):
                 for index_2, point_2 in enumerate(x2_vec):
 
-                    circuit_1 = self._feature_map_circuit(x=point_1, parameters=parameters, name='{}_{}'.format(index_1, index_2))
-                    circuit_2 = self._feature_map_circuit(x=point_2, parameters=parameters, inverse=True)
+                    circuit_1 = self._feature_map_circuit(
+                        x=point_1,
+                        parameters=parameters,
+                        name="{}_{}".format(index_1, index_2),
+                    )
+                    circuit_2 = self._feature_map_circuit(
+                        x=point_2, parameters=parameters, inverse=True
+                    )
                     circuit = circuit_1.compose(circuit_2)
                     circuit.measure_all()
 
                     experiments.append(circuit)
 
             program_data = self._run_circuits(experiments)
-            self.results['program_data'] = program_data
+            self.results["program_data"] = program_data
 
             mat = np.zeros((len(x1_vec), len(x2_vec)))
             i = 0
             for index_1, _ in enumerate(x1_vec):
                 for index_2, _ in enumerate(x2_vec):
 
-                    counts = program_data.get_counts(experiment = i)
+                    counts = program_data.get_counts(experiment=i)
                     shots = sum(counts.values())
 
                     mat[index_1][index_2] = counts.get(measurement_basis, 0) / shots
@@ -102,7 +124,9 @@ class KernelMatrix:
     def _run_circuits(self, circuits):
         """Execute the input circuits."""
 
-        transpiled = transpile(circuits, backend=self._backend, initial_layout=self._initial_layout)
+        transpiled = transpile(
+            circuits, backend=self._backend, initial_layout=self._initial_layout
+        )
         return self._backend.run(transpiled, shots=8192).result()
 
         # try:

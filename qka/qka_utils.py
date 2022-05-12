@@ -20,11 +20,11 @@ def SPSA_parameters():
     """
 
     SPSA_params = np.zeros((5))
-    SPSA_params[0] = 0.01              # a
-    SPSA_params[1] = 0.1               # c
-    SPSA_params[2] = 0.602             # alpha  (alpha range [0.5 - 1.0])
-    SPSA_params[3] = 0.101             # gamma  (gamma range [0.0 - 0.5])
-    SPSA_params[4] = 0                 # A
+    SPSA_params[0] = 0.01  # a
+    SPSA_params[1] = 0.1  # c
+    SPSA_params[2] = 0.602  # alpha  (alpha range [0.5 - 1.0])
+    SPSA_params[3] = 0.101  # gamma  (gamma range [0.0 - 0.5])
+    SPSA_params[4] = 0  # A
 
     return SPSA_params
 
@@ -44,8 +44,8 @@ def spsa_step_one(lambdas, spsa_params, count):
 
     prng = RandomState(count)
 
-    c_spsa = float(spsa_params[1])/np.power(count+1, spsa_params[3])
-    delta = 2*prng.randint(0, 2, size=np.shape(lambdas)[0]) - 1
+    c_spsa = float(spsa_params[1]) / np.power(count + 1, spsa_params[3])
+    delta = 2 * prng.randint(0, 2, size=np.shape(lambdas)[0]) - 1
 
     lambda_plus = lambdas + c_spsa * delta
     lambda_minus = lambdas - c_spsa * delta
@@ -72,8 +72,10 @@ def spsa_step_two(cost_plus, cost_minus, lambdas, spsa_params, delta, count):
         lambdas_new (numpy.ndarray): updated values of the kernel parameters after one SPSA optimization step
     """
 
-    a_spsa = float(spsa_params[0])/np.power(count+1+spsa_params[4], spsa_params[2])
-    c_spsa = float(spsa_params[1])/np.power(count+1, spsa_params[3])
+    a_spsa = float(spsa_params[0]) / np.power(
+        count + 1 + spsa_params[4], spsa_params[2]
+    )
+    c_spsa = float(spsa_params[1]) / np.power(count + 1, spsa_params[3])
 
     g_spsa = (cost_plus - cost_minus) * delta / (2.0 * c_spsa)
 

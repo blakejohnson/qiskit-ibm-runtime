@@ -4,3 +4,4 @@ qiskit-nature
 pyyaml
 requests
 pylint==2.13.8
+black==22.3.0

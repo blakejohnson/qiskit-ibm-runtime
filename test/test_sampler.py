@@ -29,17 +29,15 @@ class TestSampler(BaseTestCase):
 
     def test_sampler(self):
         """Test sampler program."""
-        program_inputs = {
-            "circuits": self.qc,
-            "circuit_indices": [0]
-        }
+        program_inputs = {"circuits": self.qc, "circuit_indices": [0]}
 
         options = {"backend_name": self.backend_name}
 
-        job = self.provider.runtime.run(program_id="sampler",
-                                        options=options,
-                                        inputs=program_inputs,
-                                        )
+        job = self.provider.runtime.run(
+            program_id="sampler",
+            options=options,
+            inputs=program_inputs,
+        )
         self.log.debug("Job ID: %s", job.job_id())
         job.wait_for_final_state()
         self.assertEqual(job.status(), JobStatus.DONE, job.error_message())

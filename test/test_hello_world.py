@@ -17,7 +17,7 @@ class TestHelloWorld(BaseTestCase):
     """Test hello_world."""
 
     @classmethod
-    @get_provider_and_backend 
+    @get_provider_and_backend
     def setUpClass(cls, provider, backend_name):
         """Class setup."""
         super().setUpClass()
@@ -31,17 +31,17 @@ class TestHelloWorld(BaseTestCase):
 
     def test_hello_world(self):
         """Test hello_world."""
-        runtime_inputs = {
-            "iterations": 2
-        }
+        runtime_inputs = {"iterations": 2}
         options = {"backend_name": self.backend_name}
-        job = self.provider.runtime.run(program_id=find_program_id(self.provider.runtime, "hello-world"),
-                                        options=options,
-                                        inputs=runtime_inputs,
-                                        callback=self.interim_result_callback
-                                        )
+        job = self.provider.runtime.run(
+            program_id=find_program_id(self.provider.runtime, "hello-world"),
+            options=options,
+            inputs=runtime_inputs,
+            callback=self.interim_result_callback,
+        )
         self.log.debug("Job ID: %s", job.job_id())
         expected_result = "Hello, World!"
         self.assertEqual(job.result(), expected_result)
-        self.assertEqual(self.interim_result_callback.call_count,
-                         runtime_inputs["iterations"] + 1)
+        self.assertEqual(
+            self.interim_result_callback.call_count, runtime_inputs["iterations"] + 1
+        )
