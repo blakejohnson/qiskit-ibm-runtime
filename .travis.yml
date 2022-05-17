@@ -50,10 +50,10 @@ jobs:
         - QISKIT_IBM_USE_STAGING_CREDENTIALS=true
         - QISKIT_IBM_DEVICE_STAGING=ibmq_qasm_simulator
       script:
-        - make deploy-staging && make integration-test
+        - make staging && make integration-test
 
     - stage: "Deploy to production and run integration tests"
       <<: *stage_linux
       if: tag IS present
       script:
-        - make deploy-production && make integration-test
+        - make production && make integration-test

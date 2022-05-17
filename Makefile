@@ -18,8 +18,8 @@ unit-test:
 integration-test:
 	python -m unittest discover -v -s test/integration -t .
 
-deploy-staging:
+staging:
 	python -m tools.update $@
 
-deploy-production:
+production:
 	python -m tools.update $@
