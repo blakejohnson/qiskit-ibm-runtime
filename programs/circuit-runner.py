@@ -25,7 +25,7 @@ def main(
     inst_map=None,
     meas_map=None,
     measurement_error_mitigation=False,
-    **kwargs
+    **kwargs,
 ):
 
     # transpiling the circuits using given transpile options
@@ -36,7 +36,7 @@ def main(
         seed_transpiler=seed_transpiler,
         optimization_level=optimization_level,
         backend=backend,
-        **transpiler_options
+        **transpiler_options,
     )
 
     if schedule_circuit:
@@ -113,9 +113,7 @@ def final_measurement_mapping(qc):
         ValueError: More than one quantum or classical register.
     """
     if len(qc.qregs) > 1 or len(qc.qregs) > 1:
-        raise ValueError(
-            "Number of quantum or classical registers is greater than one."
-        )
+        raise ValueError("Number of quantum or classical registers is greater than one.")
     num_qubits = qc.num_qubits
     num_clbits = qc.num_clbits
     active_qubits = list(range(num_qubits))

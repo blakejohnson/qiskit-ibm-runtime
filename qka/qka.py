@@ -145,9 +145,7 @@ class QKA:
             lambdas_new (numpy.ndarray): updated values of the kernel parameters after one SPSA optimization step
         """
 
-        a_spsa = float(spsa_params[0]) / np.power(
-            count + 1 + spsa_params[4], spsa_params[2]
-        )
+        a_spsa = float(spsa_params[0]) / np.power(count + 1 + spsa_params[4], spsa_params[2])
         c_spsa = float(spsa_params[1]) / np.power(count + 1, spsa_params[3])
 
         g_spsa = (cost_plus - cost_minus) * delta / (2.0 * c_spsa)
@@ -159,9 +157,7 @@ class QKA:
 
         return cost_final, lambdas_new
 
-    def align_kernel(
-        self, data, labels, initial_kernel_parameters=None, maxiters=10, C=1
-    ):
+    def align_kernel(self, data, labels, initial_kernel_parameters=None, maxiters=10, C=1):
         """Align the quantum kernel.
 
         Uses SPSA for minimization over kernel parameters (lambdas) and
@@ -258,9 +254,7 @@ class QKA:
         # Evaluate aligned kernel matrix with optimized set of parameters averaged over last 10% of SPSA steps:
         num_last_lambdas = int(len(lambda_save) * 0.10)
         if num_last_lambdas > 0:
-            last_lambdas = np.array(lambda_save)[
-                -num_last_lambdas:, :
-            ]  # the last 10% of lambdas
+            last_lambdas = np.array(lambda_save)[-num_last_lambdas:, :]  # the last 10% of lambdas
             lambdas = (
                 np.sum(last_lambdas, axis=0) / num_last_lambdas
             )  # average over last 10% lambdas

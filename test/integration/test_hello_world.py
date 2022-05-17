@@ -42,6 +42,4 @@ class TestHelloWorld(BaseTestCase):
         self.log.debug("Job ID: %s", job.job_id())
         expected_result = "Hello, World!"
         self.assertEqual(job.result(), expected_result)
-        self.assertEqual(
-            self.interim_result_callback.call_count, runtime_inputs["iterations"] + 1
-        )
+        self.assertEqual(self.interim_result_callback.call_count, runtime_inputs["iterations"] + 1)

@@ -63,12 +63,8 @@ class TestSwapStrategy(QiskitTestCase):
         """Test the invert permutation of the swap strat."""
         permutation = [0, 2, 3, 4, 1]
         inverse_permutation = [0, 4, 1, 2, 3]
-        self.assertEqual(
-            SwapStrategy.invert_permutation(permutation), inverse_permutation
-        )
-        self.assertEqual(
-            SwapStrategy.invert_permutation(inverse_permutation), permutation
-        )
+        self.assertEqual(SwapStrategy.invert_permutation(permutation), inverse_permutation)
+        self.assertEqual(SwapStrategy.invert_permutation(inverse_permutation), permutation)
         with self.assertRaises(ValueError):
             SwapStrategy.invert_permutation([0, 1, 42])
         with self.assertRaises(ValueError):
@@ -85,24 +81,12 @@ class TestSwapStrategy(QiskitTestCase):
 
     def test_inverse_composed_permutation(self):
         """Test the inverse permutation at several swap layers."""
-        self.assertEqual(
-            self.line_strategy.inverse_composed_permutation(0), [0, 1, 2, 3, 4]
-        )
-        self.assertEqual(
-            self.line_strategy.inverse_composed_permutation(1), [1, 0, 3, 2, 4]
-        )
-        self.assertEqual(
-            self.line_strategy.inverse_composed_permutation(2), [1, 3, 0, 4, 2]
-        )
-        self.assertEqual(
-            self.line_strategy.inverse_composed_permutation(3), [3, 1, 4, 0, 2]
-        )
-        self.assertEqual(
-            self.line_strategy.inverse_composed_permutation(4), [3, 4, 1, 2, 0]
-        )
-        self.assertEqual(
-            self.line_strategy.inverse_composed_permutation(5), [4, 3, 2, 1, 0]
-        )
+        self.assertEqual(self.line_strategy.inverse_composed_permutation(0), [0, 1, 2, 3, 4])
+        self.assertEqual(self.line_strategy.inverse_composed_permutation(1), [1, 0, 3, 2, 4])
+        self.assertEqual(self.line_strategy.inverse_composed_permutation(2), [1, 3, 0, 4, 2])
+        self.assertEqual(self.line_strategy.inverse_composed_permutation(3), [3, 1, 4, 0, 2])
+        self.assertEqual(self.line_strategy.inverse_composed_permutation(4), [3, 4, 1, 2, 0])
+        self.assertEqual(self.line_strategy.inverse_composed_permutation(5), [4, 3, 2, 1, 0])
 
     def test_apply_swap_layer(self):
         """Test the swapping on a list."""

@@ -72,9 +72,7 @@ def spsa_step_two(cost_plus, cost_minus, lambdas, spsa_params, delta, count):
         lambdas_new (numpy.ndarray): updated values of the kernel parameters after one SPSA optimization step
     """
 
-    a_spsa = float(spsa_params[0]) / np.power(
-        count + 1 + spsa_params[4], spsa_params[2]
-    )
+    a_spsa = float(spsa_params[0]) / np.power(count + 1 + spsa_params[4], spsa_params[2])
     c_spsa = float(spsa_params[1]) / np.power(count + 1, spsa_params[3])
 
     g_spsa = (cost_plus - cost_minus) * delta / (2.0 * c_spsa)

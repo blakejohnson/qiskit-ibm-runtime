@@ -22,9 +22,7 @@ class BaseTestCase(TestCase):
             log_level (str): logging level.
         """
         # Set up formatter.
-        log_fmt = "{}.%(funcName)s:%(levelname)s:%(asctime)s:" " %(message)s".format(
-            logger.name
-        )
+        log_fmt = "{}.%(funcName)s:%(levelname)s:%(asctime)s:" " %(message)s".format(logger.name)
         formatter = logging.Formatter(log_fmt)
 
         # Set up the stream handler.

@@ -1,4 +1,4 @@
-.PHONY: lint style black test staging production
+.PHONY: lint style black mypy unit-test integration-test staging production
 
 lint:
 	pylint -rn programs qka test tools
@@ -9,11 +9,17 @@ style:
 black:
 	black .
 
-test:
-	python -m unittest discover -v -s test -t .
+mypy:
+	mypy .
 
-staging:
+unit-test:
+	stestr run
+
+integration-test:
+	python -m unittest discover -v -s test/integration -t .
+
+deploy-staging:
 	python -m tools.update $@
 
-production:
+deploy-production:
 	python -m tools.update $@

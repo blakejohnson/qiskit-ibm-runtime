@@ -18,8 +18,6 @@ def find_changes():
         )
         LOG.debug("Files modified: %s", res.stdout)
     except subprocess.CalledProcessError as e:
-        LOG.exception(
-            "Failed to find changes\nstdout:\n%s\nstderr:\n%s\n" % (e.stdout, e.stderr)
-        )
+        LOG.exception("Failed to find changes\nstdout:\n%s\nstderr:\n%s\n" % (e.stdout, e.stderr))
         return None
     return res.stdout.decode()

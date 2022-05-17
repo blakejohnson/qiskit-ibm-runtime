@@ -85,9 +85,7 @@ def main(
         qasm3_strs = []
         qasm3_metadata = []
         exporter_config = exporter_config or {}
-        exporter_config["disable_constants"] = exporter_config.get(
-            "disable_constants", True
-        )
+        exporter_config["disable_constants"] = exporter_config.get("disable_constants", True)
         for circ in circuits:
             qasm3_strs.append(Exporter(**exporter_config).dumps(circ))
             qasm3_metadata.append(get_circuit_metadata(circ))
@@ -116,9 +114,7 @@ def main(
     if backend.name() == QASM3_SIM_NAME:
         if len(payload) > 1:
             raise ValueError("QASM3 simulator only supports a single circuit.")
-        result = backend.run(
-            payload[0], args=qasm3_args, shots=run_config.get("shots", None)
-        )
+        result = backend.run(payload[0], args=qasm3_args, shots=run_config.get("shots", None))
         user_messenger.publish(result, final=True, encoder=Qasm3Encoder)
         return
 
@@ -202,9 +198,7 @@ def final_measurement_mapping(qc):
         ValueError: More than one quantum or classical register.
     """
     if len(qc.qregs) > 1 or len(qc.qregs) > 1:
-        raise ValueError(
-            "Number of quantum or classical registers is greater than one."
-        )
+        raise ValueError("Number of quantum or classical registers is greater than one.")
     num_qubits = qc.num_qubits
     num_clbits = qc.num_clbits
     active_qubits = list(range(num_qubits))

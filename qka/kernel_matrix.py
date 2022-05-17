@@ -16,9 +16,7 @@ class KernelMatrix:
         """
 
         self._feature_map = feature_map
-        self._feature_map_circuit = (
-            self._feature_map.construct_circuit
-        )  # the feature map circuit
+        self._feature_map_circuit = self._feature_map.construct_circuit  # the feature map circuit
         self._backend = backend
         self._initial_layout = initial_layout
 
@@ -81,9 +79,7 @@ class KernelMatrix:
                 mat[index_1][index_2] = (
                     counts.get(measurement_basis, 0) / shots
                 )  # kernel matrix element is the probability of measuring all 0s
-                mat[index_2][index_1] = mat[index_1][
-                    index_2
-                ]  # kernel matrix is symmetric
+                mat[index_2][index_1] = mat[index_1][index_2]  # kernel matrix is symmetric
 
             return mat
 
@@ -124,9 +120,7 @@ class KernelMatrix:
     def _run_circuits(self, circuits):
         """Execute the input circuits."""
 
-        transpiled = transpile(
-            circuits, backend=self._backend, initial_layout=self._initial_layout
-        )
+        transpiled = transpile(circuits, backend=self._backend, initial_layout=self._initial_layout)
         return self._backend.run(transpiled, shots=8192).result()
 
         # try:

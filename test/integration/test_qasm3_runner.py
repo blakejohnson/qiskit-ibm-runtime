@@ -116,9 +116,7 @@ class TestQASM3Runner(BaseTestCase):
             for shot_result in arg_result:
                 self.assertEqual(expected, list(shot_result.values())[0])
 
-    def _run_program(
-        self, circuits=None, qasm3_args=None, run_config=None, block_for_result=True
-    ):
+    def _run_program(self, circuits=None, qasm3_args=None, run_config=None, block_for_result=True):
         """Run the circuit-runner-qasm3 program.
 
         Args:
@@ -138,9 +136,7 @@ class TestQASM3Runner(BaseTestCase):
             program_inputs["run_config"] = run_config
         options = {"backend_name": self.backend_name}
 
-        job = self.runtime.run(
-            program_id=self.program_id, options=options, inputs=program_inputs
-        )
+        job = self.runtime.run(program_id=self.program_id, options=options, inputs=program_inputs)
         self.log.debug("Job ID: %s", job.job_id())
         if block_for_result:
             return job.result()

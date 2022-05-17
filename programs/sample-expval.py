@@ -77,9 +77,7 @@ def main(
         )
 
         if duplicate_results:
-            quasi_dists = mthree.classes.QuasiCollection(
-                [quasi_dists] * len(expectation_operators)
-            )
+            quasi_dists = mthree.classes.QuasiCollection([quasi_dists] * len(expectation_operators))
         # There are two different calls depending on what we want returned.
         if return_stddev:
             return quasi_dists.expval_and_stddev(expectation_operators)

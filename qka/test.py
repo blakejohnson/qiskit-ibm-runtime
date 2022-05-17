@@ -31,9 +31,7 @@ octave.addpath("/Users/jen/Q/code/quantum_kernel_data")
 # load data from csv:
 import pandas as pd
 
-df = pd.read_csv(
-    "/Users/jen/Q/code/quantum_kernel_data/dataset_graph7.csv", sep=",", header=None
-)
+df = pd.read_csv("/Users/jen/Q/code/quantum_kernel_data/dataset_graph7.csv", sep=",", header=None)
 dat = df.values
 
 num_features = np.shape(dat)[1] - 1  # feature dimension determined by dataset

@@ -70,9 +70,7 @@ def update(envs=None):
 
                 # update public
                 del headers["Content-Type"]
-                make_request(
-                    program_url + "/public", requests.put, headers=headers.copy()
-                )
+                make_request(program_url + "/public", requests.put, headers=headers.copy())
 
 
 if __name__ == "__main__":

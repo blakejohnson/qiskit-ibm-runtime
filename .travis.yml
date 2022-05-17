@@ -5,44 +5,55 @@ sudo: false
 stage_generic: &stage_linux
   os: linux
   language: python
-  python: 3.8
-  env:
-    - QISKIT_IBM_USE_STAGING_CREDENTIALS=true
-    - QISKIT_IBM_DEVICE_STAGING=ibmq_qasm_simulator
+  python: 3.9
   install:
     - pip install -U -r requirements.txt
     - pip install -U -r requirements-dev.txt
 
-###############################################################################
-# Stage-related definitions
-###############################################################################
-
-# Define the order of the stages.
-stages:
-  - staging_test
-  - production_test
-
 jobs:
   include:
-    - stage: lint
+    - stage: "Run code quality checks"
       <<: *stage_linux
-      if: type = pull_request
-      script:
-        # Remove echo and enable lint after fixing lint issues
-        - echo "lint is disabled until issues are fixed"
-        # - make lint
-        - make style
-
-    - stage: staging_test
+      name: "Run black"
+      env:
+        - NAME=Run black
+      script: make style
+    - name: "Run lint"
       <<: *stage_linux
-      if: branch = master AND type = push
-      script:
-        - make staging && make test
+      env:
+        - NAME=Run lint
+      script: echo "disable lint until issues are fixed" # make lint
+    - name: "Run mypy"
+      <<: *stage_linux
+      env:
+        - NAME=Run mypy
+      script: echo "disable mypy until issues are fixed" # make mypy
 
-    - stage: production_test
+    - stage: "Run unit tests"
+      <<: *stage_linux
+      python: 3.7
+      script: make unit-test
+    - <<: *stage_linux
+      python: 3.8
+      script: make unit-test
+    - <<: *stage_linux
+      python: 3.9
+      script: make unit-test
+    - <<: *stage_linux
+      python: "3.10"
+      script: make unit-test
+
+    - stage: "Deploy to staging and run integration tests"
+      <<: *stage_linux
+      if: branch = master AND type = push AND tag IS blank
+      env:
+        - QISKIT_IBM_USE_STAGING_CREDENTIALS=true
+        - QISKIT_IBM_DEVICE_STAGING=ibmq_qasm_simulator
+      script:
+        - make deploy-staging && make integration-test
+
+    - stage: "Deploy to production and run integration tests"
       <<: *stage_linux
       if: tag IS present
-      env:
-        - QISKIT_IBM_USE_STAGING_CREDENTIALS=false
       script:
-        - make production && make test
+        - make deploy-production && make integration-test

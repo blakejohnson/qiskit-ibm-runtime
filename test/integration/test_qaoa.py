@@ -25,9 +25,7 @@ class TestQAOA(BaseTestCase):
         cls.provider = provider
         cls.backend = cls.provider.get_backend(backend_name)
         # Use callback if on real device to avoid CI timeout
-        cls.callback_func = (
-            None if cls.backend.configuration().simulator else cls.simple_callback
-        )
+        cls.callback_func = None if cls.backend.configuration().simulator else cls.simple_callback
 
     def test_program(self):
         """Test qaqo program."""
@@ -74,9 +72,7 @@ class TestQAOARuntime(BaseTestCase):
         cls.provider = provider
         cls.backend = cls.provider.get_backend(backend_name)
         # Use callback if on real device to avoid CI timeout
-        cls.callback_func = (
-            None if cls.backend.configuration().simulator else cls.simple_callback
-        )
+        cls.callback_func = None if cls.backend.configuration().simulator else cls.simple_callback
 
     def test_qaoa_runtime(self):
         """Test that the program runs."""

@@ -138,9 +138,7 @@ def _batch_update(programs, func, runtime, program_dir):
             program_ids.append(program_id)
         else:
             program_id = find_program_id(pgm, runtime, program_dir)
-            runtime.update_program(
-                program_id=program_id, data=data_file, metadata=metadata_file
-            )
+            runtime.update_program(program_id=program_id, data=data_file, metadata=metadata_file)
             LOG.debug("Updated program %s using %s", program_id, runtime)
 
     return program_ids
@@ -185,9 +183,7 @@ def _batch_publish(cur_ids, new_ids, runtime):
         runtime.set_program_visibility(program_id=pid, public=True)
         LOG.debug("Made program %s public using %s", pid, runtime)
         runtime.update_program_id(pid, new_ids[idx])
-        LOG.debug(
-            "Updated ID for program %s to %s using %s", pid, new_ids[idx], runtime
-        )
+        LOG.debug("Updated ID for program %s to %s using %s", pid, new_ids[idx], runtime)
 
 
 def _gather_new_ids(program_ids, runtime):
@@ -198,9 +194,7 @@ def _gather_new_ids(program_ids, runtime):
             # Try a small fix
             new_pid = new_id.replace("_", "-")
             if not re.match(VALID_PROGRAM_ID_PATTERN, new_pid):
-                raise ValueError(
-                    f"Name of program {pid} cannot be used as new program ID."
-                )
+                raise ValueError(f"Name of program {pid} cannot be used as new program ID.")
         new_ids.append(new_id)
     return new_ids
 

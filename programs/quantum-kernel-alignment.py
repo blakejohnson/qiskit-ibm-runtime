@@ -59,9 +59,7 @@ class FeatureMap:
 
         self._num_parameters = self._num_qubits
 
-    def construct_circuit(
-        self, x=None, parameters=None, q=None, inverse=False, name=None
-    ):
+    def construct_circuit(self, x=None, parameters=None, q=None, inverse=False, name=None):
         """Construct the feature map circuit.
 
         Args:
@@ -226,9 +224,7 @@ class KernelMatrix:
                 mat[index_1][index_2] = (
                     counts.get(measurement_basis, 0) / shots
                 )  # kernel matrix element is the probability of measuring all 0s
-                mat[index_2][index_1] = mat[index_1][
-                    index_2
-                ]  # kernel matrix is symmetric
+                mat[index_2][index_1] = mat[index_1][index_2]  # kernel matrix is symmetric
 
             return mat
 
@@ -402,9 +398,7 @@ class QKA:
                            after one SPSA optimization step
         """
 
-        a_spsa = float(spsa_params[0]) / np.power(
-            count + 1 + spsa_params[4], spsa_params[2]
-        )
+        a_spsa = float(spsa_params[0]) / np.power(count + 1 + spsa_params[4], spsa_params[2])
         c_spsa = float(spsa_params[1]) / np.power(count + 1, spsa_params[3])
 
         g_spsa = (cost_plus - cost_minus) * delta / (2.0 * c_spsa)
@@ -416,9 +410,7 @@ class QKA:
 
         return cost_final, lambdas_new
 
-    def align_kernel(
-        self, data, labels, initial_kernel_parameters=None, maxiters=1, C=1
-    ):
+    def align_kernel(self, data, labels, initial_kernel_parameters=None, maxiters=1, C=1):
         """Align the quantum kernel.
 
         Uses SPSA for minimization over kernel parameters (lambdas) and

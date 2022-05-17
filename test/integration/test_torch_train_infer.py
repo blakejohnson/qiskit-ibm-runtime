@@ -55,9 +55,7 @@ class TestTorchTrainInfer(BaseTestCase):
         cls.backend_name = backend_name
         cls.backend = cls.provider.get_backend(backend_name)
         # Use callback if on real device to avoid CI timeout
-        cls.callback_func = (
-            None if cls.backend.configuration().simulator else cls.simple_callback
-        )
+        cls.callback_func = None if cls.backend.configuration().simulator else cls.simple_callback
 
     def setUp(self) -> None:
         """Test case setup."""
@@ -89,16 +87,12 @@ class TestTorchTrainInfer(BaseTestCase):
         }
         options = {"backend_name": self.backend_name}
         program_id = find_program_id(self.provider.runtime, "torch-train")
-        job = self.provider.runtime.run(
-            program_id=program_id, inputs=inputs, options=options
-        )
+        job = self.provider.runtime.run(program_id=program_id, inputs=inputs, options=options)
         result = job.result()
 
         self.assertEqual(len(result["train_history"]["train"]), 1)
         self.assertEqual(len(result["train_history"]["validation"]), 0)
-        self.assertTrue(
-            isinstance(str_to_obj(result["model_state_dict"])["weight"], Tensor)
-        )
+        self.assertTrue(isinstance(str_to_obj(result["model_state_dict"])["weight"], Tensor))
         self.assertTrue(isinstance(result["execution_time"], float))
         if self.backend.configuration().simulator:
             self.assertTrue(result["train_history"]["train"][0]["loss"] <= 1)
@@ -115,16 +109,12 @@ class TestTorchTrainInfer(BaseTestCase):
 
         options = {"backend_name": self.backend_name}
 
-        job = self.provider.runtime.run(
-            program_id=program_id, inputs=inputs, options=options
-        )
+        job = self.provider.runtime.run(program_id=program_id, inputs=inputs, options=options)
         result = job.result()
 
         self.assertEqual(len(result["train_history"]["train"]), 1)
         self.assertEqual(len(result["train_history"]["validation"]), 1)
-        self.assertTrue(
-            isinstance(str_to_obj(result["model_state_dict"])["weight"], Tensor)
-        )
+        self.assertTrue(isinstance(str_to_obj(result["model_state_dict"])["weight"], Tensor))
         self.assertTrue(isinstance(result["execution_time"], float))
         if self.backend.configuration().simulator:
             self.assertTrue(result["train_history"]["train"][0]["loss"] <= 1)
@@ -140,9 +130,7 @@ class TestTorchTrainInfer(BaseTestCase):
 
         options = {"backend_name": self.backend_name}
         program_id = find_program_id(self.provider.runtime, "torch-infer")
-        job = self.provider.runtime.run(
-            program_id=program_id, inputs=inputs, options=options
-        )
+        job = self.provider.runtime.run(program_id=program_id, inputs=inputs, options=options)
         result = job.result()
         self.assertEqual(len(result["prediction"]), 20)
         self.assertTrue(isinstance(result["execution_time"], float))
@@ -155,9 +143,7 @@ class TestTorchTrainInfer(BaseTestCase):
 
         options = {"backend_name": self.backend_name}
 
-        job = self.provider.runtime.run(
-            program_id=program_id, inputs=inputs, options=options
-        )
+        job = self.provider.runtime.run(program_id=program_id, inputs=inputs, options=options)
         result = job.result()
         self.assertEqual(len(result["prediction"]), 20)
         self.assertTrue(isinstance(result["execution_time"], float))

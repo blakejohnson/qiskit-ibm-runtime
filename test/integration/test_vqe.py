@@ -36,9 +36,7 @@ class TestVQE(BaseTestCase):
         cls.backend_name = backend_name
         cls.backend = cls.provider.get_backend(backend_name)
         # Use callback if on real device to avoid CI timeout
-        cls.callback_func = (
-            None if cls.backend.configuration().simulator else cls.simple_callback
-        )
+        cls.callback_func = None if cls.backend.configuration().simulator else cls.simple_callback
 
     def setUp(self) -> None:
         """Test case setup."""
@@ -50,9 +48,7 @@ class TestVQE(BaseTestCase):
 
     def test_vqe_direct(self):
         """Test vqe script."""
-        reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(
-            self.hamiltonian
-        )
+        reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(self.hamiltonian)
         self.log.info("Exact result: %s", reference.eigenvalue)
         ansatz = EfficientSU2(3, entanglement="linear", reps=3)
         initial_point = np.random.random(ansatz.num_parameters)
@@ -89,9 +85,7 @@ class TestVQE(BaseTestCase):
 
     def test_nature_program(self):
         """Test vqe nature program."""
-        reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(
-            self.hamiltonian
-        )
+        reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(self.hamiltonian)
         self.log.info("Exact result: %s", reference.eigenvalue)
         ansatz = EfficientSU2(3, entanglement="linear", reps=3)
         initial_point = np.zeros(ansatz.num_parameters)
@@ -107,9 +101,7 @@ class TestVQE(BaseTestCase):
             callback=self.callback_func,
             shots=2048,
         )
-        result = vqe.compute_minimum_eigenvalue(
-            self.hamiltonian, aux_operators=self.observables
-        )
+        result = vqe.compute_minimum_eigenvalue(self.hamiltonian, aux_operators=self.observables)
         self.log.info("VQE program result: %s", result.eigenvalue)
 
     def test_nature_full_workflow(self):
@@ -135,9 +127,7 @@ class TestVQE(BaseTestCase):
         ansatz = EfficientSU2(4, reps=1, entanglement="linear")
 
         optimizer = QNSPSA(None, maxiter=300, learning_rate=0.01, perturbation=0.1)
-        solver = VQEClient(
-            ansatz, optimizer, provider=self.provider, backend=self.backend
-        )
+        solver = VQEClient(ansatz, optimizer, provider=self.provider, backend=self.backend)
 
         reference_solver = NumPyMinimumEigensolver()
 
@@ -148,17 +138,13 @@ class TestVQE(BaseTestCase):
         reference_result = reference_gse.solve(problem)
 
         if self.backend.configuration().simulator:
-            self.assertLess(
-                abs(result.eigenenergies[0] - reference_result.eigenenergies[0]), 2
-            )
+            self.assertLess(abs(result.eigenenergies[0] - reference_result.eigenenergies[0]), 2)
 
     def test_optimization_program(self):
         """Test vqe optimization program."""
         self.hamiltonian = (Z ^ Z ^ I ^ I) + (I ^ Z ^ Z ^ I) + (Z ^ I ^ I ^ Z)
 
-        reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(
-            self.hamiltonian
-        )
+        reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(self.hamiltonian)
         self.log.info("Exact result: %s", reference.eigenvalue)
         ansatz = RealAmplitudes(4, entanglement="linear", reps=3)
         initial_point = np.random.random(ansatz.num_parameters)
@@ -172,9 +158,7 @@ class TestVQE(BaseTestCase):
             backend=self.backend,
             callback=self.callback_func,
         )
-        result = vqe.compute_minimum_eigenvalue(
-            self.hamiltonian, aux_operators=self.observables
-        )
+        result = vqe.compute_minimum_eigenvalue(self.hamiltonian, aux_operators=self.observables)
         self.log.info("VQE program result: %s", result.eigenvalue)
 
         self.assertIsNotNone(result.eigenvalue)
