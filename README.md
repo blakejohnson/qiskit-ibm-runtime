@@ -27,10 +27,6 @@ a PR in this repo. But note that
     - Python module names cannot have hyphens, and runtime program IDs cannot have underscores. Therefore,
     we have been using `program_name.py` to name the source file and `program-name` as the program name.
 
-- If the program is for cloud runtime, put the files in the `cloud_programs` directory. If it's for
-IQX runtime, put it in the `iqx_programs` directory. Put them in both if it's for both. If you don't know
-where it should go, contact @jessieyu or @tmittal.
-
 - Remember to add test cases for your program. Qiskit Runtime always updates to the latest Qiskit, and
 the nightly CI run for this repo will hopefully catch any incompatibilities early.
 
