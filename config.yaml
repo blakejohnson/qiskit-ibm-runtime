@@ -26,7 +26,7 @@ production:
   - url: https://runtime-us-east.quantum-computing.ibm.com
     token_key: QE_TOKEN
     programs: *iqx_programs
-  # - url: https://runtime.de.quantum-computing.ibm.com
-  #   token_key: QE_TOKEN_DE
-  #   programs: *iqx_programs
+  - url: https://runtime.de.quantum-computing.ibm.com
+    token_key: QE_TOKEN_DE
+    programs: *iqx_programs
 
