@@ -71,14 +71,14 @@ class TestSampler(QiskitTestCase):
             raise ValueError(f"invalid index {indices}")
         return params, target
 
-    def _compare_probs(self, prob, target):
+    def _compare_probs(self, probabilities, target):
         if not isinstance(target, list):
             target = [target]
-        self.assertEqual(len(prob), len(target))
-        for p, targ in zip(prob, target):
+        self.assertEqual(len(probabilities), len(target))
+        for prob, targ in zip(probabilities, target):
             for key, t_val in targ.items():
-                if key in p:
-                    self.assertAlmostEqual(p[key], t_val, places=1)
+                if key in prob:
+                    self.assertAlmostEqual(prob[key], t_val, places=1)
                 else:
                     self.assertAlmostEqual(t_val, 0, places=1)
 
@@ -194,10 +194,12 @@ class TestSampler(QiskitTestCase):
 
     def test_empty_parameter(self):
         """Test for empty parameter"""
-        n = 5
-        qc = QuantumCircuit(n, n - 1)
-        qc.measure(range(n - 1), range(n - 1))
-        with Sampler(backend=BasicAer.get_backend("qasm_simulator"), circuits=[qc] * 10) as sampler:
+        num_qubits = 5
+        qc1 = QuantumCircuit(num_qubits, num_qubits - 1)
+        qc1.measure(range(num_qubits - 1), range(num_qubits - 1))
+        with Sampler(
+            backend=BasicAer.get_backend("qasm_simulator"), circuits=[qc1] * 10
+        ) as sampler:
             with self.subTest("one circuit"):
                 result = sampler(circuit_indices=[0], shots=1000)
                 self.assertEqual(len(result.metadata), 1)

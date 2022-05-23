@@ -1,7 +1,24 @@
+# This code is part of Qiskit.
+#
+# (C) Copyright IBM 2022.
+#
+# This code is licensed under the Apache License, Version 2.0. You may
+# obtain a copy of this license in the LICENSE.txt file in the root directory
+# of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Any modifications or derivative works of this code must retain this
+# copyright notice, and modified files need to carry a notice indicating
+# that they have been altered from the originals.
+
+"""The quantum kernel alignment algorithm."""
+
 import numpy as np
 from numpy.random import RandomState
-from kernel_matrix import KernelMatrix
 from cvxopt import matrix, solvers
+
+from .kernel_matrix import KernelMatrix
+
+# pylint: disable=invalid-name
 
 
 class QKA:
@@ -13,7 +30,8 @@ class QKA:
         Args:
             feature_map (partial obj): the quantum feature map object
             backend (Backend): the backend instance
-            initial_layout (list or dict): initial position of virtual qubits on the physical qubits of the quantum device
+            initial_layout (list or dict): initial position of virtual qubits
+                on the physical qubits of the quantum device
             verbose (bool): print output during course of algorithm
         """
 
@@ -36,11 +54,11 @@ class QKA:
             initial_layout=self.initial_layout,
         )
 
-    def SPSA_parameters(self):
+    def spsa_parameters(self):
         """Return array of precomputed SPSA parameters.
 
         Returns:
-            SPSA_params (numpy.ndarray): [a, c, alpha, gamma, A]
+            spsa_params (numpy.ndarray): [a, c, alpha, gamma, A]
 
         The i-th optimization step, i>=0, the parameters evolve as
 
@@ -50,17 +68,17 @@ class QKA:
         for fixed coefficents a, c, alpha, gamma, A.
 
         Default Qiskit values are:
-        SPSA_params = [2*np.pi*0.1, 0.1, 0.602, 0.101, 0]
+        spsa_params = [2*np.pi*0.1, 0.1, 0.602, 0.101, 0]
         """
 
-        SPSA_params = np.zeros((5))
-        SPSA_params[0] = 0.05  # a
-        SPSA_params[1] = 0.1  # c
-        SPSA_params[2] = 0.602  # alpha  (alpha range [0.5 - 1.0])
-        SPSA_params[3] = 0.101  # gamma  (gamma range [0.0 - 0.5])
-        SPSA_params[4] = 0  # A
+        spsa_params = np.zeros((5))
+        spsa_params[0] = 0.05  # a
+        spsa_params[1] = 0.1  # c
+        spsa_params[2] = 0.602  # alpha  (alpha range [0.5 - 1.0])
+        spsa_params[3] = 0.101  # gamma  (gamma range [0.0 - 0.5])
+        spsa_params[4] = 0  # A
 
-        return SPSA_params
+        return spsa_params
 
     def cvxopt_solver(self, K, y, C, max_iters=10000, show_progress=False):
         """Convex optimization of SVM objective using cvxopt.
@@ -141,8 +159,10 @@ class QKA:
             count(int): the current step in the SPSA optimization loop
 
         Returns:
-            cost_final (float): estimate of updated SVM objective function F using average of F(alpha_+, lambda_+) and F(alpha_-, lambda_-)
-            lambdas_new (numpy.ndarray): updated values of the kernel parameters after one SPSA optimization step
+            cost_final (float): estimate of updated SVM objective function F using average of
+                F(alpha_+, lambda_+) and F(alpha_-, lambda_-)
+            lambdas_new (numpy.ndarray): updated values of the kernel parameters after one SPSA
+                optimization step
         """
 
         a_spsa = float(spsa_params[0]) / np.power(count + 1 + spsa_params[4], spsa_params[2])
@@ -166,7 +186,8 @@ class QKA:
         min_lambda max_alpha 1^T * alpha - (1/2) * alpha^T * Y * K_lambda * Y * alpha
 
         Args:
-            data (numpy.ndarray): NxD array of training data, where N is the number of samples and D is the feature dimension
+            data (numpy.ndarray): NxD array of training data, where N is the number of samples
+                and D is the feature dimension
             labels (numpy.ndarray): Nx1 array of +/-1 labels of the N training samples
             initial_kernel_parameters (numpy.ndarray): Initial parameters of the quantum kernel
             maxiters (int): number of SPSA optimization steps
@@ -182,7 +203,7 @@ class QKA:
             lambdas = np.random.uniform(-1.0, 1.0, size=(self.num_parameters))
 
         # Pre-computed spsa parameters:
-        spsa_params = self.SPSA_parameters()
+        spsa_params = self.spsa_parameters()
 
         lambda_save = []  # updated kernel parameters after each spsa step
         cost_final_save = []  # avgerage cost at each spsa step
@@ -251,7 +272,8 @@ class QKA:
 
             program_data.append(self.kernel_matrix.results)
 
-        # Evaluate aligned kernel matrix with optimized set of parameters averaged over last 10% of SPSA steps:
+        # Evaluate aligned kernel matrix with optimized set of parameters averaged
+        # over last 10% of SPSA steps:
         num_last_lambdas = int(len(lambda_save) * 0.10)
         if num_last_lambdas > 0:
             last_lambdas = np.array(lambda_save)[-num_last_lambdas:, :]  # the last 10% of lambdas

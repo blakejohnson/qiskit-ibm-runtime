@@ -1,5 +1,19 @@
-import numpy as np
+# This code is part of Qiskit.
+#
+# (C) Copyright IBM 2022.
+#
+# This code is licensed under the Apache License, Version 2.0. You may
+# obtain a copy of this license in the LICENSE.txt file in the root directory
+# of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Any modifications or derivative works of this code must retain this
+# copyright notice, and modified files need to carry a notice indicating
+# that they have been altered from the originals.
+
+"""Mapping data with the feature map."""
+
 import json
+import numpy as np
 
 from qiskit import QuantumCircuit, QuantumRegister
 
@@ -11,8 +25,9 @@ class FeatureMap:
         """
         Args:
             feature_dimension (int): number of features (twice the number of qubits for this encoding)
-            entangler_map (list[list]): connectivity of qubits with a list of [source, target], or None for full entanglement.
-                                        Note that the order in the list is the order of applying the two-qubit gate.
+            entangler_map (list[list]): connectivity of qubits with a list of [source, target], or
+                None for full entanglement. Note that the order in the list is the order of applying
+                the two-qubit gate.
         """
 
         if isinstance(feature_dimension, int):
@@ -34,6 +49,7 @@ class FeatureMap:
 
         self._num_parameters = self._num_qubits
 
+    # pylint: disable=invalid-name
     def construct_circuit(self, x=None, parameters=None, q=None, inverse=False, name=None):
         """Construct the feature map circuit.
 
@@ -48,9 +64,9 @@ class FeatureMap:
         """
 
         if parameters is not None:
-            if isinstance(parameters, int) or isinstance(parameters, float):
+            if isinstance(parameters, (int, float)):
                 raise ValueError("Parameters must be a list.")
-            elif len(parameters) == 1:
+            if len(parameters) == 1:
                 parameters = parameters * np.ones(self._num_qubits)
             else:
                 if len(parameters) != self._num_parameters:

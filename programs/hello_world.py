@@ -43,9 +43,9 @@ def main(backend, user_messenger, **kwargs):
         kwargs: User inputs.
     """
     iterations = kwargs.get("iterations", 1)
-    for it in range(iterations):
-        qc = prepare_circuits(backend)
-        result = backend.run(qc).result()
-        user_messenger.publish({"iteration": it, "counts": result.get_counts()})
+    for iteration in range(iterations):
+        circuit = prepare_circuits(backend)
+        result = backend.run(circuit).result()
+        user_messenger.publish({"iteration": iteration, "counts": result.get_counts()})
 
     return "Hello, World!"

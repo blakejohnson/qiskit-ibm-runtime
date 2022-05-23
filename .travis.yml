@@ -22,12 +22,12 @@ jobs:
       <<: *stage_linux
       env:
         - NAME=Run lint
-      script: echo "disable lint until issues are fixed" # make lint
+      script: make lint
     - name: "Run mypy"
       <<: *stage_linux
       env:
         - NAME=Run mypy
-      script: echo "disable mypy until issues are fixed" # make mypy
+      script: make mypy
 
     - stage: "Run unit tests"
       <<: *stage_linux

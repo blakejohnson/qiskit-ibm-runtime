@@ -1,4 +1,18 @@
-# Circuit runner runtime program
+# This code is part of Qiskit.
+#
+# (C) Copyright IBM 2022.
+#
+# This code is licensed under the Apache License, Version 2.0. You may
+# obtain a copy of this license in the LICENSE.txt file in the root directory
+# of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Any modifications or derivative works of this code must retain this
+# copyright notice, and modified files need to carry a notice indicating
+# that they have been altered from the originals.
+"""
+A runtime program that takes one or more circuits, compiles them, executes them,
+and optionally applies measurement error mitigation.
+"""
 
 import json
 import sys
@@ -7,14 +21,14 @@ from time import perf_counter
 from qiskit import Aer
 from qiskit.compiler import transpile, schedule
 from qiskit.result import marginal_counts
-from qiskit.providers.ibmq.runtime.utils import RuntimeEncoder, RuntimeDecoder
+from qiskit.providers.ibmq.runtime.utils import RuntimeDecoder
 from qiskit.providers.ibmq.runtime import UserMessenger
 import mthree
 
 
 def main(
     backend,
-    user_messenger,
+    user_messenger,  # pylint: disable=unused-argument
     circuits,
     initial_layout=None,
     seed_transpiler=None,
@@ -27,6 +41,7 @@ def main(
     measurement_error_mitigation=False,
     **kwargs,
 ):
+    """Circuit runner program"""
 
     # transpiling the circuits using given transpile options
     transpiler_options = transpiler_options or {}
@@ -99,12 +114,12 @@ def main(
     return result.to_dict()
 
 
-def final_measurement_mapping(qc):
+def final_measurement_mapping(circuit):
     """Returns the final measurement mapping for a circuit that
     has been transpiled (flattened registers) or has flat registers.
 
     Parameters:
-        qc (QuantumCircuit): Input quantum circuit.
+        circuit (QuantumCircuit): Input quantum circuit.
 
     Returns:
         dict: Mapping of qubits to classical bits for final measurements.
@@ -112,15 +127,15 @@ def final_measurement_mapping(qc):
     Raises:
         ValueError: More than one quantum or classical register.
     """
-    if len(qc.qregs) > 1 or len(qc.qregs) > 1:
+    if len(circuit.qregs) > 1 or len(circuit.qregs) > 1:
         raise ValueError("Number of quantum or classical registers is greater than one.")
-    num_qubits = qc.num_qubits
-    num_clbits = qc.num_clbits
+    num_qubits = circuit.num_qubits
+    num_clbits = circuit.num_clbits
     active_qubits = list(range(num_qubits))
     active_cbits = list(range(num_clbits))
     qmap = []
     cmap = []
-    for item in qc._data[::-1]:
+    for item in circuit._data[::-1]:
         if item[0].name == "measure":
             cbit = item[2][0].index
             qbit = item[1][0].index
@@ -130,11 +145,11 @@ def final_measurement_mapping(qc):
                 active_cbits.remove(cbit)
                 active_qubits.remove(qbit)
         elif item[0].name != "barrier":
-            for qq in item[1]:
-                if qq.index in active_qubits:
-                    active_qubits.remove(qq.index)
+            for q_q in item[1]:
+                if q_q.index in active_qubits:
+                    active_qubits.remove(q_q.index)
 
-        if not len(active_cbits) or not len(active_qubits):
+        if len(active_cbits) == 0 or len(active_qubits) == 0:
             break
     if cmap and qmap:
         mapping = {}
@@ -148,26 +163,26 @@ def final_measurement_mapping(qc):
     return mapping
 
 
-def quasi_to_hex(qp):
+def quasi_to_hex(quasi_dict):
     """Converts a quasi-prob dict with bitstrings to hex
 
     Parameters:
-        qp (QuasiDistribution): Input quasi dict
+        quasi_dict (QuasiDistribution): Input quasi dict
 
     Returns:
         dict: hex dict.
     """
     hex_quasi = {}
-    for key, val in qp.items():
+    for key, val in quasi_dict.items():
         hex_quasi[hex(int(key, 2))] = val
     return hex_quasi
 
 
 if __name__ == "__main__":
     # Test using Aer
-    backend = Aer.get_backend("qasm_simulator")
+    simulator = Aer.get_backend("qasm_simulator")
     user_params = {}
     if len(sys.argv) > 1:
         # If there are user parameters.
         user_params = json.loads(sys.argv[1], cls=RuntimeDecoder)
-    main(backend, UserMessenger(), **user_params)
+    main(simulator, UserMessenger(), **user_params)

@@ -1,3 +1,5 @@
+# type: ignore
+
 # This code is part of qiskit-runtime.
 #
 # (C) Copyright IBM 2021.
@@ -11,8 +13,8 @@
 # that they have been altered from the originals.
 
 """Runtime program for (Hybrid) QNN training using PyTorch."""
+
 import base64
-import dill
 import json
 import sys
 import traceback
@@ -20,6 +22,7 @@ from collections import OrderedDict
 from math import fsum
 from time import time
 from typing import Callable, Dict, List, Optional, Tuple, Union, Any
+import dill
 
 from qiskit import Aer
 from qiskit.ignis.mitigation.measurement import CompleteMeasFitter
@@ -34,39 +37,39 @@ try:
     from torch.nn import Module
     from torch.nn.modules.loss import _Loss
     from torch.optim import LBFGS, Optimizer
-    from torch.utils.data import DataLoader, Dataset
-    from qiskit_machine_learning.runtime import HookBase
+    from torch.utils.data import DataLoader
+    from qiskit_machine_learning.runtime import HookBase  # pylint: disable=ungrouped-imports
 except ImportError:
 
-    class DataLoader:  # type: ignore
+    class DataLoader:
         """Empty DataLoader class
         Replacement if torch.utils.data.DataLoader is not present.
         """
 
         pass
 
-    class Tensor:  # type: ignore
+    class Tensor:
         """Empty Tensor class
         Replacement if torch.Tensor is not present.
         """
 
         pass
 
-    class _Loss:  # type: ignore
+    class _Loss:
         """Empty _Loss class
         Replacement if torch.nn.modules.loss._Loss is not present.
         """
 
         pass
 
-    class Optimizer:  # type: ignore
+    class Optimizer:
         """Empty Optimizer
         Replacement if torch.optim.Optimizer is not present.
         """
 
         pass
 
-    class Module:  # type: ignore
+    class Module:
         """Empty Module class
         Replacement if torch.nn.Module is not present.
         Always fails to initialize
@@ -74,7 +77,7 @@ except ImportError:
 
         pass
 
-    class HookBase:  # type: ignore
+    class HookBase:
         """Empty HookBase class
         Replacement if qiskit_machine_learning.runtime.HookBase is not present.
         Always fails to initialize
@@ -540,5 +543,5 @@ if __name__ == "__main__":
         user_params = json.loads(sys.argv[1], cls=RuntimeDecoder)
     try:
         main(_backend, **user_params)
-    except Exception:
+    except Exception:  # pylint: disable=broad-except
         print(traceback.format_exc())

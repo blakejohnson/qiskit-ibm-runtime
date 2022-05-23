@@ -1,3 +1,17 @@
+# This code is part of Qiskit.
+#
+# (C) Copyright IBM 2022.
+#
+# This code is licensed under the Apache License, Version 2.0. You may
+# obtain a copy of this license in the LICENSE.txt file in the root directory
+# of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Any modifications or derivative works of this code must retain this
+# copyright notice, and modified files need to carry a notice indicating
+# that they have been altered from the originals.
+
+"""Tests sampler."""
+
 from qiskit import QuantumCircuit
 from qiskit.providers.jobstatus import JobStatus
 
@@ -10,7 +24,7 @@ class TestSampler(BaseTestCase):
 
     @classmethod
     @get_provider_and_backend
-    def setUpClass(cls, provider, backend_name):
+    def setUpClass(cls, provider, backend_name):  # pylint: disable=arguments-differ
         """Class setup."""
         super().setUpClass()
         cls.provider = provider
@@ -18,18 +32,18 @@ class TestSampler(BaseTestCase):
 
     def setUp(self) -> None:
         """Test case setup."""
-        qc = QuantumCircuit(5)
-        qc.h(2)
-        qc.cx(2, 1)
-        qc.cx(1, 0)
-        qc.cx(2, 3)
-        qc.cx(3, 4)
-        qc.measure_all()
-        self.qc = qc
+        qc1 = QuantumCircuit(5)
+        qc1.h(2)
+        qc1.cx(2, 1)
+        qc1.cx(1, 0)
+        qc1.cx(2, 3)
+        qc1.cx(3, 4)
+        qc1.measure_all()
+        self.qc1 = qc1
 
     def test_sampler(self):
         """Test sampler program."""
-        program_inputs = {"circuits": self.qc, "circuit_indices": [0]}
+        program_inputs = {"circuits": self.qc1, "circuit_indices": [0]}
 
         options = {"backend_name": self.backend_name}
 

@@ -16,6 +16,8 @@ import os
 
 from setuptools import find_packages, setup
 
+# pylint: disable=unspecified-encoding
+
 with open("requirements.txt") as f:
     REQUIREMENTS = f.read().splitlines()
 

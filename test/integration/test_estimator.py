@@ -1,3 +1,17 @@
+# This code is part of Qiskit.
+#
+# (C) Copyright IBM 2022.
+#
+# This code is licensed under the Apache License, Version 2.0. You may
+# obtain a copy of this license in the LICENSE.txt file in the root directory
+# of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Any modifications or derivative works of this code must retain this
+# copyright notice, and modified files need to carry a notice indicating
+# that they have been altered from the originals.
+
+"""Test estimator."""
+
 import numpy as np
 
 from qiskit.circuit.library import RealAmplitudes
@@ -10,11 +24,11 @@ from .base_testcase import BaseTestCase
 
 
 class TestEstimator(BaseTestCase):
-    """Test hello_world."""
+    """Test estimator."""
 
     @classmethod
     @get_provider_and_backend
-    def setUpClass(cls, provider, backend_name):
+    def setUpClass(cls, provider, backend_name):  # pylint: disable=arguments-differ
         """Class setup."""
         super().setUpClass()
         cls.service = provider.runtime

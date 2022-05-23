@@ -119,7 +119,7 @@ class TestSwapStrategy(QiskitTestCase):
             swap_layers=[[(0, 1), (1, 2)], [(1, 3), (2, 4)]],
         )
         with self.assertRaises(RuntimeError):
-            distance_matrix = strategy.distance_matrix
+            distance_matrix = strategy.distance_matrix  # pylint: disable=unused-variable
 
     def test_raises_embed_in_smaller_graph(self):
         """Test embedding."""
@@ -128,6 +128,7 @@ class TestSwapStrategy(QiskitTestCase):
             self.line_strategy.embed_in(coupling_map=small_line)
 
     def test_distance_matrix(self):
+        """Test distance matrix."""
         line_distance_matrix = [
             [0, 0, 3, 1, 2],
             [0, 0, 0, 2, 3],
@@ -172,12 +173,12 @@ class TestSwapStrategy(QiskitTestCase):
         layer1 = [(ll27[idx], ll27[idx + 1]) for idx in range(0, len(ll27) - 1, 2)]
         layer2 = [(ll27[idx], ll27[idx + 1]) for idx in range(1, len(ll27), 2)]
 
-        n = len(ll27)
+        num = len(ll27)
         for n_layers, result in [
-            (n - 4, False),
-            (n - 3, False),
-            (n - 2, True),
-            (n - 1, True),
+            (num - 4, False),
+            (num - 3, False),
+            (num - 2, True),
+            (num - 1, True),
         ]:
             swap_strat_ll = []
             for idx in range(n_layers):

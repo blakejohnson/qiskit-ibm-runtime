@@ -1,3 +1,17 @@
+# This code is part of Qiskit.
+#
+# (C) Copyright IBM 2022.
+#
+# This code is licensed under the Apache License, Version 2.0. You may
+# obtain a copy of this license in the LICENSE.txt file in the root directory
+# of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Any modifications or derivative works of this code must retain this
+# copyright notice, and modified files need to carry a notice indicating
+# that they have been altered from the originals.
+
+"""Test circuit runner."""
+
 from qiskit import QuantumCircuit
 from qiskit.providers.ibmq import RunnerResult
 from qiskit.providers.jobstatus import JobStatus
@@ -7,11 +21,11 @@ from .base_testcase import BaseTestCase
 
 
 class TestCircuitRunner(BaseTestCase):
-    """Test circuit_runner."""
+    """Test circuit runner."""
 
     @classmethod
     @get_provider_and_backend
-    def setUpClass(cls, provider, backend_name):
+    def setUpClass(cls, provider, backend_name):  # pylint: disable=arguments-differ
         """Class setup."""
         super().setUpClass()
         cls.provider = provider
@@ -19,16 +33,16 @@ class TestCircuitRunner(BaseTestCase):
 
     def setUp(self) -> None:
         """Test case setup."""
-        N = 6
-        qc = QuantumCircuit(N)
-        qc.x(range(0, N))
-        qc.h(range(0, N))
-        self.qc = qc
+        num_qubits = 6
+        qc1 = QuantumCircuit(num_qubits)
+        qc1.x(range(0, num_qubits))
+        qc1.h(range(0, num_qubits))
+        self.qc1 = qc1
 
     def test_circuit_runner(self):
         """Test circuit_runner program."""
         program_inputs = {
-            "circuits": self.qc,
+            "circuits": self.qc1,
             "shots": 2048,
             "optimization_level": 0,
             "initial_layout": [0, 1, 4, 7, 10, 12],

@@ -1,3 +1,17 @@
+# type: ignore
+
+# This code is part of Qiskit.
+#
+# (C) Copyright IBM 2022.
+#
+# This code is licensed under the Apache License, Version 2.0. You may
+# obtain a copy of this license in the LICENSE.txt file in the root directory
+# of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Any modifications or derivative works of this code must retain this
+# copyright notice, and modified files need to carry a notice indicating
+# that they have been altered from the originals.
+
 """A generalized SPSA optimizer including support for Hessians."""
 
 from abc import ABC, abstractmethod
@@ -188,7 +202,7 @@ class Concatenated(It):
             while True:
                 if i < len(breakpoints) and n >= breakpoints[i]:
                     i += 1
-                yield next(iterators[i])
+                yield next(iterators[i])  # pylint: disable=stop-iteration-return
                 n += 1
 
         return concat
@@ -818,6 +832,8 @@ class _QNSPSA(_SPSA):
 
 
 class QNSPSAVQE(VQE):
+    """QNSPSAVQE"""
+
     def __init__(
         self,
         ansatz: Optional[QuantumCircuit] = None,
@@ -960,6 +976,7 @@ class QNSPSAVQE(VQE):
         #     operator, return_expectation=True
         # )
 
+        # pylint: disable=invalid-character-zero-width-space
         theta = ParameterVector("θ​", self.ansatz.num_parameters)
         energy_expectation, expectation = self.construct_expectation(
             theta, operator, return_expectation=True
@@ -1069,6 +1086,7 @@ class Publisher:
         self._messenger = messenger
 
     def callback(self, *args, **kwargs):
+        """Publisher callback"""
         text = list(args)
         for k, v in kwargs.items():
             text.append({k: v})
@@ -1201,5 +1219,5 @@ if __name__ == "__main__":
         user_params = json.loads(sys.argv[1], cls=RuntimeDecoder)
     try:
         main(_backend, **user_params)
-    except Exception:
+    except Exception:  # pylint: disable=broad-except
         print(traceback.format_exc())

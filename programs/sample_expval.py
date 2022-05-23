@@ -1,15 +1,29 @@
+# This code is part of qiskit-runtime.
+#
+# (C) Copyright IBM 2022.
+#
+# This code is licensed under the Apache License, Version 2.0. You may
+# obtain a copy of this license in the LICENSE.txt file in the root directory
+# of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Any modifications or derivative works of this code must retain this
+# copyright notice, and modified files need to carry a notice indicating
+# that they have been altered from the originals.
+
+"""A sample expectation value program."""
+
 import mthree
 from qiskit import transpile
 
 # The entrypoint for our Runtime Program
 def main(
     backend,
-    user_messenger,
+    user_messenger,  # pylint: disable=unused-argument
     circuits,
     expectation_operators="",
     shots=8192,
-    transpiler_config={},
-    run_config={},
+    transpiler_config=None,
+    run_config=None,
     skip_transpilation=False,
     return_stddev=False,
     use_measurement_mitigation=False,
@@ -39,6 +53,7 @@ def main(
 
     # transpiling the circuits using given transpile options
     if not skip_transpilation:
+        transpiler_config = transpiler_config or {}
         trans_circuits = transpile(circuits, backend=backend, **transpiler_config)
 
         if not isinstance(trans_circuits, list):
@@ -54,7 +69,7 @@ def main(
     # Then set flag to make multiple pointers to same result.
     duplicate_results = False
     if isinstance(expectation_operators, list):
-        if len(expectation_operators) and len(trans_circuits) == 1:
+        if len(expectation_operators) > 0 and len(trans_circuits) == 1:
             duplicate_results = True
 
     if use_measurement_mitigation:
@@ -66,6 +81,7 @@ def main(
         mit.cals_from_system(meas_maps)
 
     # Compute raw results
+    run_config = run_config or {}
     result = backend.run(trans_circuits, shots=shots, **run_config).result()
     raw_counts = result.get_counts()
 

@@ -11,10 +11,11 @@
 # that they have been altered from the originals.
 
 """Test for TorchTrainer and TorchInferer."""
+
 import base64
-import dill
 from typing import Any
 
+import dill
 import numpy as np
 
 from qiskit import QuantumCircuit
@@ -29,10 +30,9 @@ try:
     from torch import Tensor
     from torch.nn import MSELoss
     from torch.optim import Adam
-    from torch.utils.data import DataLoader, Dataset
 except ImportError:
 
-    class Dataset:  # type: ignore
+    class Dataset:
         """Empty Dataset class
         Replacement if torch.utils.data.Dataset is not present.
         """
@@ -40,6 +40,7 @@ except ImportError:
         pass
 
 
+# pylint: disable=line-too-long
 LOADER = "gASVnggAAAAAAACMG3RvcmNoLnV0aWxzLmRhdGEuZGF0YWxvYWRlcpSMCkRhdGFMb2FkZXKUk5QpgZR9lCiMB2RhdGFzZXSUjApkaWxsLl9kaWxslIwMX2NyZWF0ZV90eXBllJOUKGgGjApfbG9hZF90eXBllJOUjAR0eXBllIWUUpSMDFRvcmNoRGF0YXNldJSMGHRvcmNoLnV0aWxzLmRhdGEuZGF0YXNldJSMB0RhdGFzZXSUk5SFlH2UKIwKX19tb2R1bGVfX5SMCF9fbWFpbl9flIwHX19kb2NfX5SMEU1hcC1zdHlsZSBkYXRhc2V0lIwIX19pbml0X1+UaAaMEF9jcmVhdGVfZnVuY3Rpb26Uk5QoaAaMDF9jcmVhdGVfY29kZZSTlChLA0sASwBLA0sCS0NDIHQAfAGDAaABoQB8AF8CdAB8AoMBoAGhAHwAXwNkAFMAlE6FlCiMBlRlbnNvcpSMBWZsb2F0lIwBWJSMAXmUdJSMBHNlbGaUaCFoIoeUjE0vdmFyL2ZvbGRlcnMvdnovYjFmeXBocmQxMDMxZGRmZDF4ZGhqcV9tMDAwMGduL1QvaXB5a2VybmVsXzQ4MTAvMzEzNDA0MzM4My5weZRoGEsKQwQAAQ4BlCkpdJRSlGNfX2J1aWx0aW5fXwpfX21haW5fXwpoGE5OfZROdJRSlIwHX19sZW5fX5RoGihoHChLAUsASwBLAUsCS0NDCnQAfABqAYMBUwCUaB6MA2xlbpRoIYaUaCSFlGgmaC1LDkMCAAGUKSl0lFKUY19fYnVpbHRpbl9fCl9fbWFpbl9fCmgtTk59lE50lFKUjAtfX2dldGl0ZW1fX5RoGihoHChLAksASwBLBUsDS0NDNmQBZABsAH0CfAKgAXwBoQFyGnwBoAKhAH0BfABqA3wBGQB9A3wAagR8ARkAfQR8A3wEZgJTAJROSwCGlCiMBXRvcmNolIwJaXNfdGVuc29ylIwGdG9saXN0lGghaCJ0lChoJIwDaWR4lGg7jANYX2mUjAN5X2mUdJRoJmg4SxFDDAABCAEKAQgCCgEKA5QpKXSUUpRjX19idWlsdGluX18KX19tYWluX18KaDhOTn2UTnSUUpSMDl9fcGFyYW1ldGVyc19flCmMDV9fc2xvdG5hbWVzX1+UXZR1dJRSlCmBlH2UKGghjAx0b3JjaC5fdXRpbHOUjBJfcmVidWlsZF90ZW5zb3JfdjKUk5QojA10b3JjaC5zdG9yYWdllIwQX2xvYWRfZnJvbV9ieXRlc5STlEJNAQAAgAKKCmz8nEb5IGqoUBkugAJN6QMugAJ9cQAoWBAAAABwcm90b2NvbF92ZXJzaW9ucQFN6QNYDQAAAGxpdHRsZV9lbmRpYW5xAohYCgAAAHR5cGVfc2l6ZXNxA31xBChYBQAAAHNob3J0cQVLAlgDAAAAaW50cQZLBFgEAAAAbG9uZ3EHSwR1dS6AAihYBwAAAHN0b3JhZ2VxAGN0b3JjaApGbG9hdFN0b3JhZ2UKcQFYDwAAADE0MDIxNTQ2NDA2MzE1MnECWAMAAABjcHVxA0sUTnRxBFEugAJdcQBYDwAAADE0MDIxNTQ2NDA2MzE1MnEBYS4UAAAAAAAAAFgInT7IEK0/X0slP4hjkD4QmvW+hqtqPwjIyL6Rih1AKnM6QNl7O7+Enuo/zug5PhPm2j5/JCtAJH8swHEGJsB/7kDAH8EFQPq03z9syhRAlIWUUpRLAEsUSwGGlEsBSwGGlImMC2NvbGxlY3Rpb25zlIwLT3JkZXJlZERpY3SUk5QpUpR0lFKUaCJoUihoVUJNAQAAgAKKCmz8nEb5IGqoUBkugAJN6QMugAJ9cQAoWBAAAABwcm90b2NvbF92ZXJzaW9ucQFN6QNYDQAAAGxpdHRsZV9lbmRpYW5xAohYCgAAAHR5cGVfc2l6ZXNxA31xBChYBQAAAHNob3J0cQVLAlgDAAAAaW50cQZLBFgEAAAAbG9uZ3EHSwR1dS6AAihYBwAAAHN0b3JhZ2VxAGN0b3JjaApGbG9hdFN0b3JhZ2UKcQFYDwAAADE0MDIxNTQ1MTc5MDI4OHECWAMAAABjcHVxA0sUTnRxBFEugAJdcQBYDwAAADE0MDIxNTQ1MTc5MDI4OHEBYS4UAAAAAAAAAG6a/D50RIw/BRoWP1bvxz7oOx2/YnxZP6RbBr/VgU4/YrdwPh3oM7+oJF8/opuUPnNPyz4hv/Q+78cfv/Vo8r4+pKe9hj9qP9a4lD+TOE0/lIWUUpRLAEsUSwGGlEsBSwGGlIloXSlSlHSUUpR1YowLbnVtX3dvcmtlcnOUSwCMD3ByZWZldGNoX2ZhY3RvcpRLAowKcGluX21lbW9yeZSJjAd0aW1lb3V0lEsAjA53b3JrZXJfaW5pdF9mbpROjCRfRGF0YUxvYWRlcl9fbXVsdGlwcm9jZXNzaW5nX2NvbnRleHSUTowNX2RhdGFzZXRfa2luZJRLAIwKYmF0Y2hfc2l6ZZRLAYwJZHJvcF9sYXN0lImMB3NhbXBsZXKUjBh0b3JjaC51dGlscy5kYXRhLnNhbXBsZXKUjBFTZXF1ZW50aWFsU2FtcGxlcpSTlCmBlH2UjAtkYXRhX3NvdXJjZZRoTnNijA1iYXRjaF9zYW1wbGVylGhzjAxCYXRjaFNhbXBsZXKUk5QpgZR9lChocmh2aHBLAWhxiXVijAlnZW5lcmF0b3KUTowKY29sbGF0ZV9mbpSMH3RvcmNoLnV0aWxzLmRhdGEuX3V0aWxzLmNvbGxhdGWUjA9kZWZhdWx0X2NvbGxhdGWUk5SMEnBlcnNpc3RlbnRfd29ya2Vyc5SJjBhfRGF0YUxvYWRlcl9faW5pdGlhbGl6ZWSUiIwbX0l0ZXJhYmxlRGF0YXNldF9sZW5fY2FsbGVklE6MCV9pdGVyYXRvcpROdWIu"
 
 
@@ -48,7 +49,7 @@ class TestTorchTrainInfer(BaseTestCase):
 
     @classmethod
     @get_provider_and_backend
-    def setUpClass(cls, provider, backend_name):
+    def setUpClass(cls, provider, backend_name):  # pylint: disable=arguments-differ
         """Class setup."""
         super().setUpClass()
         cls.provider = provider
@@ -60,7 +61,6 @@ class TestTorchTrainInfer(BaseTestCase):
     def setUp(self) -> None:
         """Test case setup."""
         # Construct simple feature map
-        import torch
 
         param_x = Parameter("x")
         feature_map = QuantumCircuit(1, name="fm")

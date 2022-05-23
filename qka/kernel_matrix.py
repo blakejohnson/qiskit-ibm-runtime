@@ -1,5 +1,20 @@
-import numpy as np
+# This code is part of Qiskit.
+#
+# (C) Copyright IBM 2022.
+#
+# This code is licensed under the Apache License, Version 2.0. You may
+# obtain a copy of this license in the LICENSE.txt file in the root directory
+# of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Any modifications or derivative works of this code must retain this
+# copyright notice, and modified files need to carry a notice indicating
+# that they have been altered from the originals.
+
+"""Build the kernel matrix from a quantum feature map."""
+
 import itertools
+
+import numpy as np
 
 from qiskit.compiler import transpile
 
@@ -12,7 +27,8 @@ class KernelMatrix:
         Args:
             feature_map (int): the feature map object
             backend (Backend): the backend instance
-            initial layout (list or dict): initial position of virtual qubits on the physical qubits of the quantum device
+            initial layout (list or dict): initial position of virtual qubits on the physical
+                qubits of the quantum device
         """
 
         self._feature_map = feature_map
@@ -29,8 +45,10 @@ class KernelMatrix:
         states Phi^dag(y)Phi(x)|0> for input vectors x and y.
 
         Args:
-            x1_vec (numpy.ndarray): NxD array of training data or test data, where N is the number of samples and D is the feature dimension
-            x2_vec (numpy.ndarray): MxD array of training data or support vectors, where M is the number of samples and D is the feature dimension
+            x1_vec (numpy.ndarray): NxD array of training data or test data,
+                where N is the number of samples and D is the feature dimension
+            x2_vec (numpy.ndarray): MxD array of training data or support vectors,
+                where M is the number of samples and D is the feature dimension
             parameters (numpy.ndarray): optional parameters in feature map
 
         Returns:
@@ -125,7 +143,11 @@ class KernelMatrix:
 
         # try:
         #     provider = self._backend.provider()
-        #     runtime_params = {'circuits': circuits, 'shots': 8192, 'initial_layout': self._initial_layout}
+        #     runtime_params = {
+        #       'circuits': circuits,
+        #       'shots': 8192,
+        #       'initial_layout': self._initial_layout
+        #     }
         #     options = {'backend_name': self._backend.name()}
         #     job = provider.runtime.run(program_id="circuit-runner",
         #                                 options=options,
@@ -135,5 +157,6 @@ class KernelMatrix:
         #
         # except Exception:
         #     # Fall back to run without runtime.
-        #     transpiled = transpile(circuits, backend=self._backend, initial_layout=self._initial_layout)
+        #     transpiled = transpile(circuits, backend=self._backend,
+        #                            initial_layout=self._initial_layout)
         #     return self._backend.run(transpiled, shots=8192).result()

@@ -350,10 +350,10 @@ class Estimator(BaseEstimator):
             observable = self._observables[group[1]]
             diff_circuits: list[QuantumCircuit] = []
             if self._abelian_grouping:
-                for op in observable.grouping():
+                for o_p in observable.grouping():
                     coeff_dict = {
                         key: val.real.item() if np.isreal(val) else val.item()
-                        for key, val in op.label_iter()
+                        for key, val in o_p.label_iter()
                     }
                     lst = []
                     for paulis in zip(*coeff_dict.keys()):
@@ -486,7 +486,7 @@ def _expval_with_variance(
 
 def main(
     backend,
-    user_messenger,
+    user_messenger,  # pylint: disable=unused-argument
     circuits,
     circuit_indices,
     observables,

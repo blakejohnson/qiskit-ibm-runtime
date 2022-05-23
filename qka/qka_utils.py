@@ -1,12 +1,26 @@
+# This code is part of Qiskit.
+#
+# (C) Copyright IBM 2022.
+#
+# This code is licensed under the Apache License, Version 2.0. You may
+# obtain a copy of this license in the LICENSE.txt file in the root directory
+# of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Any modifications or derivative works of this code must retain this
+# copyright notice, and modified files need to carry a notice indicating
+# that they have been altered from the originals.
+
+"""QKA Utilities."""
+
 import numpy as np
 from numpy.random import RandomState
 
 
-def SPSA_parameters():
+def spsa_parameters():
     """Return array of precomputed SPSA parameters.
 
     Returns:
-        SPSA_params (numpy.ndarray): [a, c, alpha, gamma, A]
+        spsa_params (numpy.ndarray): [a, c, alpha, gamma, A]
 
     The i-th optimization step, i>=0, the parameters evolve as
 
@@ -16,17 +30,17 @@ def SPSA_parameters():
     for fixed coefficents a, c, alpha, gamma, A.
 
     Default Qiskit values are:
-    SPSA_params = [2*np.pi*0.1, 0.1, 0.602, 0.101, 0]
+    spsa_params = [2*np.pi*0.1, 0.1, 0.602, 0.101, 0]
     """
 
-    SPSA_params = np.zeros((5))
-    SPSA_params[0] = 0.01  # a
-    SPSA_params[1] = 0.1  # c
-    SPSA_params[2] = 0.602  # alpha  (alpha range [0.5 - 1.0])
-    SPSA_params[3] = 0.101  # gamma  (gamma range [0.0 - 0.5])
-    SPSA_params[4] = 0  # A
+    spsa_params = np.zeros((5))
+    spsa_params[0] = 0.01  # a
+    spsa_params[1] = 0.1  # c
+    spsa_params[2] = 0.602  # alpha  (alpha range [0.5 - 1.0])
+    spsa_params[3] = 0.101  # gamma  (gamma range [0.0 - 0.5])
+    spsa_params[4] = 0  # A
 
-    return SPSA_params
+    return spsa_params
 
 
 def spsa_step_one(lambdas, spsa_params, count):
@@ -68,8 +82,10 @@ def spsa_step_two(cost_plus, cost_minus, lambdas, spsa_params, delta, count):
         count(int): the current step in the SPSA optimization loop
 
     Returns:
-        cost_final (float): estimate of updated SVM objective function F using average of F(alpha_+, lambda_+) and F(alpha_-, lambda_-)
-        lambdas_new (numpy.ndarray): updated values of the kernel parameters after one SPSA optimization step
+        cost_final (float): estimate of updated SVM objective function F using average
+            of F(alpha_+, lambda_+) and F(alpha_-, lambda_-)
+        lambdas_new (numpy.ndarray): updated values of the kernel parameters after one SPSA
+            optimization step
     """
 
     a_spsa = float(spsa_params[0]) / np.power(count + 1 + spsa_params[4], spsa_params[2])

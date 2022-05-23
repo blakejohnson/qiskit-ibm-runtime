@@ -1,9 +1,25 @@
+# This code is part of Qiskit.
+#
+# (C) Copyright IBM 2022.
+#
+# This code is licensed under the Apache License, Version 2.0. You may
+# obtain a copy of this license in the LICENSE.txt file in the root directory
+# of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Any modifications or derivative works of this code must retain this
+# copyright notice, and modified files need to carry a notice indicating
+# that they have been altered from the originals.
+
+"""Test hello world."""
+
 from .decorator import get_provider_and_backend
 from .base_testcase import BaseTestCase
 from .utils import find_program_id
 
 
 class MethodCallLogger:
+    """Logger."""
+
     def __init__(self, func):
         self.func = func
         self.call_count = 0
@@ -14,11 +30,11 @@ class MethodCallLogger:
 
 
 class TestHelloWorld(BaseTestCase):
-    """Test hello_world."""
+    """Test hello world."""
 
     @classmethod
     @get_provider_and_backend
-    def setUpClass(cls, provider, backend_name):
+    def setUpClass(cls, provider, backend_name):  # pylint: disable=arguments-differ
         """Class setup."""
         super().setUpClass()
         cls.provider = provider

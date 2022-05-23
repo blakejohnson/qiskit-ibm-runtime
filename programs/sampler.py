@@ -208,11 +208,11 @@ class Sampler(BaseSampler):
         shots = sum(counts[0].values())
 
         quasis = []
-        for c in counts:
+        for count in counts:
             if self._readout_mitigator is None:
-                quasis.append(QuasiDistribution({k: v / shots for k, v in c.items()}))
+                quasis.append(QuasiDistribution({k: v / shots for k, v in count.items()}))
             else:
-                quasis.append(self._readout_mitigator.quasi_probabilities(c))
+                quasis.append(self._readout_mitigator.quasi_probabilities(count))
 
         metadata = [
             {"header_metadata": res.header.metadata, "shots": shots} for res in result.results
@@ -243,7 +243,7 @@ class Sampler(BaseSampler):
 
 def main(
     backend,
-    user_messenger,
+    user_messenger,  # pylint: disable=unused-argument
     circuits,
     circuit_indices,
     parameters=None,

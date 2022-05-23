@@ -8,3 +8,4 @@ jupyter
 matplotlib
 numpy
 dill>=0.3.4
+mthree

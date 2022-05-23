@@ -152,7 +152,31 @@ disable=print-statement,
         xreadlines-attribute,
         deprecated-sys-function,
         exception-escape,
-        comprehension-escape
+        comprehension-escape,
+        arguments-renamed,              # more readable and clear
+        bad-continuation, bad-whitespace, # differences of opinion with black
+        consider-using-f-string,        # unnecesary to convert all str.format() to f strings
+        consider-using-with,            # too verbose, not all resource-allocating operations should have `with`
+        docstring-first-line-empty,     # docstrings are more readable
+        duplicate-code,                 # too verbose
+        fixme,                          # avoid that to do annotations show up as warnings
+        missing-param-doc,              # false positives when docs contain ":"
+        no-else-return,                 # relax "elif" after a clause with a return
+        no-member,                      # false positives when variable from external function
+        no-self-use,                    # too verbose
+        protected-access,               # we don't strictly follow the public vs. private convention
+        raise-missing-from,             # not every exception needs `from`, adding `from None` is too verbose
+        too-few-public-methods,         # too verbose
+        too-many-ancestors,             # too verbose
+        too-many-arguments,             # too verbose
+        too-many-branches,              # too verbose
+        too-many-instance-attributes,   # too verbose
+        too-many-lines,                 # too verbose
+        too-many-locals,                # too verbose
+        too-many-nested-blocks,         # too verbose
+        too-many-public-methods,        # too verbose
+        too-many-statements,            # too verbose
+        unnecessary-pass,               # allow for methods with just "pass", for clarity
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option
@@ -348,7 +372,7 @@ indent-after-paren=4
 indent-string='    '
 
 # Maximum number of characters on a single line.
-max-line-length=100
+max-line-length=105
 
 # Maximum number of lines in a module.
 max-module-lines=1000

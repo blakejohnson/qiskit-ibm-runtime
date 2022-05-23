@@ -1,3 +1,17 @@
+# This code is part of Qiskit.
+#
+# (C) Copyright IBM 2022.
+#
+# This code is licensed under the Apache License, Version 2.0. You may
+# obtain a copy of this license in the LICENSE.txt file in the root directory
+# of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Any modifications or derivative works of this code must retain this
+# copyright notice, and modified files need to carry a notice indicating
+# that they have been altered from the originals.
+
+"""Test circuit_runner_qasm3."""
+
 from unittest import skip, SkipTest
 
 from qiskit.providers.ibmq import RunnerResult
@@ -16,7 +30,7 @@ qubit[2] qr;
 h qr[0];
 cx qr[0], qr[1];
 qc[0] = measure qr[0];
-qc[1] = measure qr[1];   
+qc[1] = measure qr[1];
 """
 
 QASM3_STR_WITH_ARGS = """
@@ -37,13 +51,13 @@ class TestQASM3Runner(BaseTestCase):
 
     @classmethod
     @get_provider_and_backend
-    def setUpClass(cls, provider, backend_name):
+    def setUpClass(cls, provider):  # pylint: disable=arguments-differ
         """Class setup."""
         super().setUpClass()
 
         _backend = None
-        for provider in IBMQ.providers():
-            backends = provider.backends(name="simulator_qasm3", operational=True)
+        for hgp in IBMQ.providers():
+            backends = hgp.backends(name="simulator_qasm3", operational=True)
 
             if backends:
                 _backend = backends[0]
@@ -103,6 +117,7 @@ class TestQASM3Runner(BaseTestCase):
         self.assertFalse(list(result[1][0].values())[0], result)
 
     def test_sim_single_str_multi_args_shot(self):
+        """Test the program on a simulator with multiple args and shots."""
         num_shots = 3
         result = self._run_program(
             circuits=QASM3_STR_WITH_ARGS,
@@ -148,4 +163,4 @@ class TestQASM3Runner(BaseTestCase):
         for pgm in cls.runtime.programs(refresh=True, limit=None):
             if pgm.name == program_name:
                 return pgm.program_id
-        raise ValueError("Unable to find ID for program %s", program_name)
+        raise ValueError(f"Unable to find ID for program {program_name}")

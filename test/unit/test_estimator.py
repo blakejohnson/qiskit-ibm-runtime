@@ -142,14 +142,14 @@ class TestEstimator(QiskitTestCase):
 
     def test_call_validation(self):
         """Test for validations"""
-        qc = QuantumCircuit(1)
+        qc1 = QuantumCircuit(1)
         qc2 = QuantumCircuit(2)
 
-        op = SparsePauliOp.from_list([("I", 1)])
+        op1 = SparsePauliOp.from_list([("I", 1)])
         op2 = SparsePauliOp.from_list([("II", 1)])
 
         with Estimator(
-            BasicAer.get_backend("qasm_simulator"), [qc, qc2], [op, op2], [[]] * 2
+            BasicAer.get_backend("qasm_simulator"), [qc1, qc2], [op1, op2], [[]] * 2
         ) as est:
             with self.assertRaises(QiskitError):
                 est([0], [1], [[]])

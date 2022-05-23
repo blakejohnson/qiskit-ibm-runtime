@@ -1,3 +1,5 @@
+# type: ignore
+
 # This code is part of Qiskit.
 #
 # (C) Copyright IBM 2018, 2021.
@@ -72,9 +74,10 @@ class Publisher:
         self._messenger = messenger
 
     def callback(self, *args, **kwargs):
+        """Publisher callback"""
         text = list(args)
-        for k, v in kwargs.items():
-            text.append({k: v})
+        for key, value in kwargs.items():
+            text.append({key: value})
         self._messenger.publish(text)
 
 
@@ -313,11 +316,11 @@ class QAOAAnsatz(EvolvedOperatorAnsatz):
         self._check_configuration()
         num_qubits = self.num_qubits
 
-        qr = QuantumRegister(num_qubits, "q")
-        if qr.name not in [qreg.name for qreg in self.qregs]:
+        q_r = QuantumRegister(num_qubits, "q")
+        if q_r.name not in [qreg.name for qreg in self.qregs]:
             # if the register already exists, probably because of a previous composition.
             # Otherwise, add it.
-            self.add_register(qr)
+            self.add_register(q_r)
 
         self._append(
             self._build_gate(),
@@ -381,7 +384,7 @@ class QAOAGate(Gate):
         Raises:
             AttributeError: when cost_operator and initial_state are not compatible
         """
-        # pylint: disable=cyclic-import
+        # pylint: disable=cyclic-import,import-outside-toplevel
         from qiskit.opflow import PauliOp, PauliTrotterEvolution
 
         self.cost_operator = cost_operator
@@ -405,13 +408,13 @@ class QAOAGate(Gate):
 
         # determine how many parameters the circuit will contain
         num_parameters = 0
-        for op in self.operators:
-            if isinstance(op, QuantumCircuit):
-                num_parameters += op.num_parameters
+        for o_p in self.operators:
+            if isinstance(o_p, QuantumCircuit):
+                num_parameters += o_p.num_parameters
             else:
                 # check if the operator is just the identity, if yes, skip it
-                if isinstance(op, PauliOp):
-                    sig_qubits = np.logical_or(op.primitive.x, op.primitive.z)
+                if isinstance(o_p, PauliOp):
+                    sig_qubits = np.logical_or(o_p.primitive.x, o_p.primitive.z)
                     if sum(sig_qubits) == 0:
                         continue
                 num_parameters += 1
@@ -428,13 +431,13 @@ class QAOAGate(Gate):
         coeff = Parameter("c")
         circuits = []
         bind_parameter = []
-        for op in self.operators:
+        for o_p in self.operators:
             # if the operator is already the evolved circuit just append it
-            if isinstance(op, QuantumCircuit):
-                circuits.append(op)
+            if isinstance(o_p, QuantumCircuit):
+                circuits.append(o_p)
                 bind_parameter.append(False)
             else:
-                evolved_op = self.evolution.convert((coeff * op).exp_i()).reduce()
+                evolved_op = self.evolution.convert((coeff * o_p).exp_i()).reduce()
                 circuit = evolved_op.to_circuit()
                 # if the operator was the identity it is amounts only to a global phase and no
                 # parameter is added
@@ -476,6 +479,7 @@ def _validate_prefix(parameter_prefix, operators):
 
 
 def _is_pauli_identity(operator):
+    # pylint: disable=import-outside-toplevel
     from qiskit.opflow import PauliOp
 
     if isinstance(operator, PauliOp):
@@ -485,6 +489,7 @@ def _is_pauli_identity(operator):
 
 def _get_default_mixer(cost_operator):
     # local imports to avoid circular imports
+    # pylint: disable=import-outside-toplevel
     from qiskit.opflow import I, X
 
     num_qubits = cost_operator.num_qubits
@@ -513,6 +518,7 @@ def _get_default_initial_state(cost_operator):
 
 
 def _active_qubits(operator):
+    # pylint: disable=redefined-outer-name, reimported, import-outside-toplevel
     from qiskit.opflow import PauliSumOp, PauliOp
 
     # active qubit selection only supported for PauliSumOps
@@ -551,11 +557,11 @@ def line_coloring(num_vertices) -> Dict:
     Returns:
         Graph coloring as a dictionary of edge lists
     """
-    line_coloring = {}
+    line_coloring_dict = {}
     for i in range(num_vertices - 1):
-        line_coloring[(i, i + 1)] = i % 2
-        line_coloring[(i + 1, i)] = i % 2
-    return line_coloring
+        line_coloring_dict[(i, i + 1)] = i % 2
+        line_coloring_dict[(i + 1, i)] = i % 2
+    return line_coloring_dict
 
 
 class SwapStrategy:
@@ -613,7 +619,6 @@ class SwapStrategy:
         self._swap_layers = swap_layers
         self._invalidate()
 
-    @property
     def max_distance(self, qubits: Optional[List] = None) -> Optional[int]:
         """
         Return the maximum distance in the SWAP strategy between a list of specified qubits or
@@ -631,7 +636,7 @@ class SwapStrategy:
 
         max_distance = 0
 
-        for i in range(len(qubits)):
+        for i, _ in enumerate(qubits):
             for j in range(i):
                 qubit1 = qubits[i]
                 qubit2 = qubits[j]
@@ -686,6 +691,7 @@ class SwapStrategy:
 
         return self._distance_matrix
 
+    # pylint: disable=inconsistent-return-statements
     def permute_labels(self, permutation: List[int], inplace: bool = True):
         """
         Permute the labels of the underlying coupling map of the SWAP strategy
@@ -744,7 +750,7 @@ class SwapStrategy:
         """Returns the set of couplings that cannot be reached."""
         physical_qubits = list(set(sum(self._coupling_map.get_edges(), ())))
         missed_edges = set()
-        for i in range(len(physical_qubits)):
+        for i, _ in enumerate(physical_qubits):
             for j in range(i + 1, len(physical_qubits)):
                 missed_edges.add((physical_qubits[i], physical_qubits[j]))
                 missed_edges.add((physical_qubits[j], physical_qubits[i]))
@@ -793,13 +799,13 @@ class SwapStrategy:
         Returns:
             The list with swapped elements
         """
-        x = copy.copy(list_to_swap)
+        list_to_swap_copy = copy.copy(list_to_swap)
 
         for edge in self.swap_layers[idx]:
             (i, j) = tuple(edge)
-            x[i], x[j] = x[j], x[i]
+            list_to_swap_copy[i], list_to_swap_copy[j] = list_to_swap_copy[j], list_to_swap_copy[i]
 
-        return x
+        return list_to_swap_copy
 
     def composed_permutation(self, idx) -> List[int]:
         """
@@ -1261,7 +1267,7 @@ class DoubleRingSwapStrategy(SwapStrategy):
         """Make the coupling map that we will use."""
 
         # Add the extra edges to a copy of the longest line coupling map.
-        coupling_map = [edge for edge in self._longest_line_map]
+        coupling_map = list(self._longest_line_map)
         for qubit in self._qubits_to_add[n_qubits]:
             for edge in self._dangling_qubits_edges[qubit]:
                 coupling_map.append(edge)
@@ -1528,6 +1534,7 @@ class HWQAOAAnsatz(QAOAAnsatz):
         # 3) Convert the strings to edges.
         required_edges = set()
         for pauli_str in pauli_strings:
+            # pylint: disable=consider-using-generator
             edge = tuple([i for i, p in enumerate(pauli_str[::-1]) if p != "I"])
 
             if len(edge) == 2:
@@ -1569,8 +1576,8 @@ class HWQAOAAnsatz(QAOAAnsatz):
 
         # Set the registers
         try:
-            qr = QuantumRegister(self.num_qubits, "q")
-            self.add_register(qr)
+            q_r = QuantumRegister(self.num_qubits, "q")
+            self.add_register(q_r)
         except CircuitError:
             # The register already exists, probably because of a previous composition
             pass
@@ -1596,7 +1603,7 @@ class HWQAOAAnsatz(QAOAAnsatz):
                     self.initial_layout.get_virtual_bits()[self.qubits[j]]
                 ]
 
-                if distance not in gate_layers.keys():
+                if distance not in gate_layers:
                     gate_layers[distance] = {(i, j): rotation_angle}
                 else:
                     gate_layers[distance][(i, j)] = rotation_angle
@@ -1733,7 +1740,9 @@ class HWQAOAAnsatz(QAOAAnsatz):
                     remaining_gates = {}
                     blocked_vertices = set()
                     for edge, rotation_angle in rzz_layer.items():
-                        if all([j not in blocked_vertices for j in edge]):
+                        if all(  # pylint: disable=use-a-generator
+                            [j not in blocked_vertices for j in edge]
+                        ):
                             current_layer[edge] = rotation_angle
                             blocked_vertices = blocked_vertices.union(edge)
                         else:
@@ -1817,24 +1826,24 @@ class QAOASwapPass(TransformationPass):
             return dag
 
         for node in dag.op_nodes():
-            op = node.op
-            if isinstance(op, QAOAGate):
+            operator = node.op
+            if isinstance(operator, QAOAGate):
                 # Generate initial layout for the qubits the QAOA is run on
                 qaoa_layout = Layout()
                 qaoa_layout.from_dict({qubit: current_layout[qubit] for qubit in node.qargs})
 
                 # Create and insert the hardware efficient QAOA in the DAG
                 qaoa = HWQAOAAnsatz(
-                    cost_operator=op.cost_operator,
-                    reps=op.reps,
-                    initial_state=op.initial_state,
-                    mixer_operator=op.mixer_operator,
+                    cost_operator=operator.cost_operator,
+                    reps=operator.reps,
+                    initial_state=operator.initial_state,
+                    mixer_operator=operator.mixer_operator,
                     swap_strategy=swap_strategy,
                     initial_layout=qaoa_layout,
                 )
 
                 # Reassign the parameters to those of the original circuit.
-                rebound = qaoa.assign_parameters(op.params)
+                rebound = qaoa.assign_parameters(operator.params)
 
                 dag.substitute_node_with_dag(node, circuit_to_dag(rebound.decompose()))
 
@@ -2053,7 +2062,7 @@ class InitialQubitMapper(TransformationPass):
         rotation_angles = self._map_rotation_angles(cost_op)
 
         # A mapping with the logical qubit as key and the physical qubit as value.
-        physical_mapping = dict()
+        physical_mapping = {}
 
         # The distance matrix between the qubits in the swap strategy.
         distance_mat = swap_strategy.distance_matrix
@@ -2124,7 +2133,6 @@ class InitialQubitMapper(TransformationPass):
             The index of the physical qubit to which the decision variable (i.e. the qubit)
             argument will be mapped.
         """
-        smallest_cost, smallest_idx = np.Inf, None
 
         def calculate_cost(pos):
             # Compute the sum in the cost function to minimize
@@ -2151,9 +2159,10 @@ class InitialQubitMapper(TransformationPass):
             to the same rotation angle since the RZZGate is symmetric.
         """
 
-        rotation_angles = dict()
+        rotation_angles = {}
 
         for pauli, coeff in zip(cost_op.primitive.paulis, cost_op.primitive.coeffs):
+            # pylint: disable=consider-using-generator
             indices = tuple([idx for idx, char in enumerate(pauli) if str(char) == "Z"])
 
             rotation_angles[indices] = coeff
@@ -2189,7 +2198,7 @@ class InitialQubitMapper(TransformationPass):
             for idx1, qb1 in enumerate(unmapped):
 
                 rotation_count = 0
-                for idx2, qb2 in enumerate(unmapped[idx1 + 1 :]):
+                for idx2, _ in enumerate(unmapped[idx1 + 1 :]):
                     if (idx1, idx2) in rotation_angles:
                         rotation_count += 1
 
@@ -2242,8 +2251,8 @@ class InitialQubitMapper(TransformationPass):
             return dag
 
         for node in dag.op_nodes(QAOAGate):
-            op = node.op
-            op.cost_operator = self.permute_operator(op.cost_operator, swap_strategy)
+            operator = node.op
+            operator.cost_operator = self.permute_operator(operator.cost_operator, swap_strategy)
 
         return dag
 
@@ -2375,16 +2384,16 @@ def main(backend, user_messenger, **kwargs):
     aux_operators = kwargs.get("aux_operators", None)
     if aux_operators is not None:
         serialized_inputs["aux_operators"] = []
-        for op in aux_operators:
-            if not isinstance(op, PauliSumOp):
+        for o_p in aux_operators:
+            if not isinstance(o_p, PauliSumOp):
                 try:
-                    op = PauliSumOp.from_list([(str(op), 1)])
+                    o_p = PauliSumOp.from_list([(str(o_p), 1)])
                 except QiskitError as err:
                     raise QiskitError(
-                        f"Cannot convert {op} of type {type(op)} to a PauliSumOp"
+                        f"Cannot convert {o_p} of type {type(o_p)} to a PauliSumOp"
                     ) from err
 
-            serialized_inputs["aux_operators"].append(op.primitive.to_list())
+            serialized_inputs["aux_operators"].append(o_p.primitive.to_list())
 
     initial_point = kwargs.get("initial_point", None)
     if initial_point is not None:
