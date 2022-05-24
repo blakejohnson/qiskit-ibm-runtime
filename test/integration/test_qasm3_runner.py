@@ -51,7 +51,7 @@ class TestQASM3Runner(BaseTestCase):
 
     @classmethod
     @get_provider_and_backend
-    def setUpClass(cls, provider):  # pylint: disable=arguments-differ
+    def setUpClass(cls, provider, backend_name):  # pylint: disable=arguments-differ,unused-argument
         """Class setup."""
         super().setUpClass()
 
