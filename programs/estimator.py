@@ -23,7 +23,7 @@ import logging
 from typing import cast
 
 import numpy as np
-from qiskit.circuit import Parameter, QuantumCircuit, ParameterExpression
+from qiskit.circuit import Parameter, ParameterExpression, QuantumCircuit
 from qiskit.compiler import transpile
 from qiskit.exceptions import QiskitError
 from qiskit.opflow import PauliSumOp
@@ -444,6 +444,23 @@ class Estimator(BaseEstimator):
         else:
             return cast("list[QuantumCircuit]", self._bound_pass_manager.run(circuits))
 
+    @staticmethod
+    def result_to_dict(result: EstimatorResult, shots: int):
+        """Convert ``EstimatorResult`` to a dictionary
+
+        Args:
+            result: The result of ``Sampler``
+            shots: The number of shots
+
+        Returns:
+            A dictionary representing the result.
+
+        """
+        ret = result.__dict__
+        for metadata in ret["metadata"]:
+            metadata["shots"] = shots
+        return ret
+
 
 def _expval_with_variance(
     counts: Counts,
@@ -534,15 +551,13 @@ def main(
     )
     run_options = run_options or {}
     shots = run_options.get("shots") or backend.options.shots
-    raw_result = estimator(
+    result = estimator(
         circuit_indices=circuit_indices,
         observable_indices=observable_indices,
         parameter_values=parameter_values,
         **run_options,
     )
 
-    result = raw_result.__dict__
-    for metadata in result["metadata"]:
-        metadata["shots"] = shots
+    result_dict = estimator.result_to_dict(result, shots)
 
-    return result
+    return result_dict

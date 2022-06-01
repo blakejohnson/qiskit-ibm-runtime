@@ -16,13 +16,13 @@ from test.unit import combine
 
 from ddt import ddt
 import numpy as np
-from qiskit import BasicAer, QuantumCircuit
+from qiskit import Aer, QuantumCircuit
 from qiskit.circuit.library import RealAmplitudes
 from qiskit.exceptions import QiskitError
 from qiskit.primitives import SamplerResult
 from qiskit.test import QiskitTestCase
 
-from programs.sampler import Sampler
+from programs.sampler import Sampler, main
 
 
 @ddt
@@ -85,7 +85,7 @@ class TestSampler(QiskitTestCase):
     @combine(indices=[[0], [1], [0, 1]], shots=[1000, 2000])
     def test_sample(self, indices, shots):
         """test to sample"""
-        backend = BasicAer.get_backend("qasm_simulator")
+        backend = Aer.get_backend("aer_simulator")
         circuits, target = self._generate_circuits_target(indices)
         with self.subTest("with-guard"):
             with Sampler(circuits=circuits, backend=backend) as sampler:
@@ -111,7 +111,7 @@ class TestSampler(QiskitTestCase):
     )
     def test_sample_pqc(self, indices, shots):
         """test to sample a parametrized circuit"""
-        backend = BasicAer.get_backend("qasm_simulator")
+        backend = Aer.get_backend("aer_simulator")
         params, target = self._generate_params_target(indices)
         with self.subTest("with-guard"):
             with Sampler(circuits=self._pqc, backend=backend) as sampler:
@@ -133,7 +133,7 @@ class TestSampler(QiskitTestCase):
     )
     def test_sample_with_ndarray(self, indices, shots):
         """test to sample a parametrized circuit"""
-        backend = BasicAer.get_backend("qasm_simulator")
+        backend = Aer.get_backend("aer_simulator")
         params, target = self._generate_params_target(indices)
         params = np.asarray(params)
         with self.subTest("with-guard"):
@@ -156,7 +156,7 @@ class TestSampler(QiskitTestCase):
     )
     def test_sample_two_pqcs(self, indices, shots):
         """test to sample two parametrized circuits"""
-        backend = BasicAer.get_backend("qasm_simulator")
+        backend = Aer.get_backend("aer_simulator")
         circs = [self._pqc, self._pqc]
         params, target = self._generate_params_target(indices)
         with self.subTest("with-guard"):
@@ -181,7 +181,7 @@ class TestSampler(QiskitTestCase):
         qc2.measure_all()
 
         with Sampler(
-            BasicAer.get_backend("qasm_simulator"),
+            Aer.get_backend("aer_simulator"),
             [qc1, qc2],
             [qc1.parameters, qc2.parameters],
         ) as sampler:
@@ -197,9 +197,7 @@ class TestSampler(QiskitTestCase):
         num_qubits = 5
         qc1 = QuantumCircuit(num_qubits, num_qubits - 1)
         qc1.measure(range(num_qubits - 1), range(num_qubits - 1))
-        with Sampler(
-            backend=BasicAer.get_backend("qasm_simulator"), circuits=[qc1] * 10
-        ) as sampler:
+        with Sampler(backend=Aer.get_backend("aer_simulator"), circuits=[qc1] * 10) as sampler:
             with self.subTest("one circuit"):
                 result = sampler(circuit_indices=[0], shots=1000)
                 self.assertEqual(len(result.metadata), 1)
@@ -218,3 +216,110 @@ class TestSampler(QiskitTestCase):
                 for q_d in result.quasi_dists:
                     quasi_dist = {k: v for k, v in q_d.items() if v != 0.0}
                     self.assertDictEqual(quasi_dist, {0: 1.0})
+
+
+@ddt
+class TestSamplerMain(QiskitTestCase):
+    """Test Sampler main"""
+
+    def setUp(self):
+        super().setUp()
+        hadamard = QuantumCircuit(1, 1)
+        hadamard.h(0)
+        hadamard.measure(0, 0)
+        bell = QuantumCircuit(2, 2)
+        bell.h(0)
+        bell.cx(0, 1)
+        bell.measure([0, 1], [0, 1])
+        hadamard2 = QuantumCircuit(2, 2)
+        hadamard2.h(0)
+        hadamard2.x(1)
+        hadamard2.measure([0, 1], [1, 0])
+        self._circuits = [hadamard, bell, hadamard2]
+        self._targets = [
+            {"0": 0.5, "1": 0.5},
+            {"00": 0.5, "11": 0.5, "01": 0, "10": 0},
+            {"01": 0.5, "11": 0.5, "00": 0, "10": 0},
+        ]
+        self._pqc = QuantumCircuit(2, 2)
+        self._pqc.compose(RealAmplitudes(num_qubits=2, reps=2), inplace=True)
+        self._pqc.measure(0, 0)
+        self._pqc.measure(1, 1)
+        self._pqc_params = [
+            [0, 0, 0, 0, 0, 0],
+            [1, 1, 1, 1, 1, 1],
+        ]
+        self._pqc_targets = [
+            {"00": 1},
+            {"00": 0.0148, "01": 0.3449, "10": 0.0531, "11": 0.5872},
+        ]
+
+    def _compare_probs(self, probabilities, target):
+        if not isinstance(target, list):
+            target = [target]
+        self.assertEqual(len(probabilities), len(target))
+        for prob, targ in zip(probabilities, target):
+            for key, t_val in targ.items():
+                if key in prob:
+                    self.assertAlmostEqual(prob[key], t_val, places=1)
+                else:
+                    self.assertAlmostEqual(t_val, 0, places=1)
+
+    def test_smaller_bitstring_length(self):
+        """Test for smaller bitstring length than qubit size"""
+        num_qubits = 4
+        qc1 = QuantumCircuit(num_qubits, num_qubits - 1)
+        qc1.x(num_qubits - 1)
+        qc1.h(range(num_qubits))
+        qc1.cx(range(num_qubits - 1), num_qubits - 1)
+        qc1.h(range(num_qubits - 1))
+        qc1.barrier()
+        qc1.measure(range(num_qubits - 1), range(num_qubits - 1))
+
+        qc2 = QuantumCircuit(num_qubits, num_qubits - 1)
+        qc2.x(num_qubits - 1)
+        qc2.h(range(num_qubits))
+        qc2.h(range(num_qubits - 1))
+        qc2.barrier()
+        qc2.measure(range(num_qubits - 1), range(num_qubits - 1))
+
+        qc3 = QuantumCircuit(num_qubits, num_qubits - 1)
+        qc3.h(range(num_qubits))
+        qc3.measure(0, 1)
+
+        backend = Aer.get_backend("aer_simulator")
+        results = main(
+            backend=backend,
+            user_messenger=None,
+            circuits=[qc1, qc2, qc3],
+            circuit_indices=[0, 1, 2],
+            run_options={"shots": 1000, "seed_simulator": 123},
+        )
+        self._compare_probs(
+            results["quasi_dists"], [{"111": 1.0}, {"000": 1.0}, {"000": 0.5, "010": 0.5}]
+        )
+
+    def test_sampler(self):
+        """test sampler"""
+        backend = Aer.get_backend("aer_simulator")
+        result = main(
+            backend=backend,
+            user_messenger=None,
+            circuits=self._circuits,
+            circuit_indices=[0, 1, 2],
+            run_options={"shots": 1000, "seed_simulator": 123},
+        )
+        self._compare_probs(result["quasi_dists"], self._targets)
+
+    def test_sampler_pqc(self):
+        """test sampler with a parametrized circuit"""
+        backend = Aer.get_backend("aer_simulator")
+        result = main(
+            backend=backend,
+            user_messenger=None,
+            circuits=[self._pqc],
+            circuit_indices=[0, 0],
+            parameter_values=self._pqc_params,
+            run_options={"shots": 1000, "seed_simulator": 123},
+        )
+        self._compare_probs(result["quasi_dists"], self._pqc_targets)
