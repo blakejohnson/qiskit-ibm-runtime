@@ -301,6 +301,6 @@ def main(
         **run_options,
     )
 
-    result_dict = sampler.result_to_dict(result, circuits, circuit_indices)
+    result_dict = sampler.result_to_dict(result, sampler.circuits, circuit_indices)
 
     return result_dict
