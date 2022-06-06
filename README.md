@@ -27,24 +27,9 @@ a PR in this repo. But note that
     - Python module names cannot have hyphens, and runtime program IDs cannot have underscores. Therefore,
     we have been using `program_name.py` to name the source file and `program-name` as the program name.
 
-- Remember to add test cases for your program. Qiskit Runtime always updates to the latest Qiskit, and
-the nightly CI run for this repo will hopefully catch any incompatibilities early.
-
-    - Runtime now appends a random suffix to the program name to make the program ID. For example, if
-    you create a program named `hello-world`, the program ID will be something like `hello-world-ro3PBBMNB9`.
-    Therefore your test case will fail if you try to do `runtime.run(program_id="hello-world")`.
-
-        Instead, you can use the [find_program_id](https://github.ibm.com/IBM-Q-Software/ntc-ibm-programs/blob/master/test/integration/utils.py#L4)
-        utility function to find the correct ID:
-
-        ```python
-        from .utils import find_program_id
-        program_id = find_program_id(self.provider.runtime, "hello-world")
-        job = self.provider.runtime.run(program_id, ...)
-        ```
+- Remember to add test cases for your program.
 
 - Once the PR is merged, the program is uploaded and made public on staging.
-The CI will also fix the program ID to make it pretty (e.g. changing `hello-world-ro3PBBMNB9` to `hello-world`).
 
 - In order to deploy the changes to production a release tag has to be created.
 

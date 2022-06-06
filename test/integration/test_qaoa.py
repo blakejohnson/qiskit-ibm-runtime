@@ -24,7 +24,6 @@ import numpy as np
 
 from .decorator import get_provider_and_backend
 from .base_testcase import BaseTestCase
-from .utils import find_program_id
 
 
 @skip("Skip until decompose and qpy issues are fixed")
@@ -121,7 +120,7 @@ class TestQAOARuntime(BaseTestCase):
                 }
 
                 job = self.provider.runtime.run(
-                    program_id=find_program_id(self.provider.runtime, "qaoa"),
+                    program_id="qaoa",
                     options={"backend_name": self.backend.name()},
                     inputs=runtime_inputs,
                     callback=callback,

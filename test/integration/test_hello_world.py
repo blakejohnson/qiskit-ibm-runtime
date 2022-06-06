@@ -14,7 +14,6 @@
 
 from .decorator import get_provider_and_backend
 from .base_testcase import BaseTestCase
-from .utils import find_program_id
 
 
 class MethodCallLogger:
@@ -50,7 +49,7 @@ class TestHelloWorld(BaseTestCase):
         runtime_inputs = {"iterations": 2}
         options = {"backend_name": self.backend_name}
         job = self.provider.runtime.run(
-            program_id=find_program_id(self.provider.runtime, "hello-world"),
+            program_id="hello-world",
             options=options,
             inputs=runtime_inputs,
             callback=self.interim_result_callback,

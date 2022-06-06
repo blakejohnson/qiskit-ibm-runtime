@@ -24,7 +24,6 @@ from qiskit_machine_learning.connectors import TorchConnector
 from qiskit_machine_learning.neural_networks import TwoLayerQNN
 from .base_testcase import BaseTestCase
 from .decorator import get_provider_and_backend
-from .utils import find_program_id
 
 try:
     from torch import Tensor
@@ -86,7 +85,7 @@ class TestTorchTrainInfer(BaseTestCase):
             "seed": 42,
         }
         options = {"backend_name": self.backend_name}
-        program_id = find_program_id(self.provider.runtime, "torch-train")
+        program_id = "torch-train"
         job = self.provider.runtime.run(program_id=program_id, inputs=inputs, options=options)
         result = job.result()
 
@@ -129,7 +128,7 @@ class TestTorchTrainInfer(BaseTestCase):
         }
 
         options = {"backend_name": self.backend_name}
-        program_id = find_program_id(self.provider.runtime, "torch-infer")
+        program_id = "torch-infer"
         job = self.provider.runtime.run(program_id=program_id, inputs=inputs, options=options)
         result = job.result()
         self.assertEqual(len(result["prediction"]), 20)

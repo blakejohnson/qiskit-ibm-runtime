@@ -69,7 +69,7 @@ class TestQASM3Runner(BaseTestCase):
         cls.provider = _backend.provider()
         cls.runtime = provider.runtime
         cls.backend_name = _backend.name()
-        cls.program_id = cls._find_program_id("qasm3-runner")
+        cls.program_id = "qasm3-runner"
 
     @skip("Skip until backend supports qasm3")
     def test_circuit_runner_qasm3_real(self):
@@ -156,11 +156,3 @@ class TestQASM3Runner(BaseTestCase):
         if block_for_result:
             return job.result()
         return job
-
-    @classmethod
-    def _find_program_id(cls, program_name):
-        """Find ID of the program."""
-        for pgm in cls.runtime.programs(refresh=True, limit=None):
-            if pgm.name == program_name:
-                return pgm.program_id
-        raise ValueError(f"Unable to find ID for program {program_name}")
