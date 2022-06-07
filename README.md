@@ -1,5 +1,9 @@
 # ntc-ibm-programs
 
+[![Build Status](https://travis.ibm.com/IBM-Q-Software/ntc-ibm-programs.svg?token=8dqGmj27qC4oXr7b7MPS&branch=master)](https://travis.ibm.com/IBM-Q-Software/ntc-ibm-programs)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
+
 This repo is now used to store runtime programs (primitives and non-primitives).
 
 The `programs` directory contains the source code and metadata files for all **public** Qiskit Runtime
