@@ -14,6 +14,9 @@
 
 from unittest import skip, SkipTest
 
+from test.unit.test_circuit_merger import _create_test_circuits
+
+from qiskit import QuantumCircuit
 from qiskit.providers.ibmq import RunnerResult
 from qiskit.providers.jobstatus import JobStatus
 
@@ -70,6 +73,7 @@ class TestQASM3Runner(BaseTestCase):
         cls.runtime = provider.runtime
         cls.backend_name = _backend.name()
         cls.program_id = "qasm3-runner"
+        cls.n_qubits = _backend.configuration().n_qubits
 
     @skip("Skip until backend supports qasm3")
     def test_circuit_runner_qasm3_real(self):
@@ -131,7 +135,62 @@ class TestQASM3Runner(BaseTestCase):
             for shot_result in arg_result:
                 self.assertEqual(expected, list(shot_result.values())[0])
 
-    def _run_program(self, circuits=None, qasm3_args=None, run_config=None, block_for_result=True):
+    def test_sim_circuit_merging(self):
+        """Test multiple circuits to be merged on a simulator."""
+        qc1, qc2 = _create_test_circuits()
+        job = self._run_program(circuits=[qc1, qc2], block_for_result=False)
+        self._check_job_completes(job)
+
+    def test_sim_circuit_merging_many(self):
+        """Test that many circuits can be merged and run."""
+        qc1, _ = _create_test_circuits()
+        circuits = [qc1 for i in range(10)]
+        job = self._run_program(circuits=circuits, block_for_result=False, run_config={"shots": 10})
+        self._check_job_completes(job)
+
+    def test_sim_circuit_no_merging(self):
+        """Test parameter for submitting circuits without merging."""
+        qc1, qc2 = _create_test_circuits()
+        job = self._run_program(circuits=[qc1, qc2], block_for_result=False, merge_circuits=False)
+        self._check_job_completes(job)
+
+    def test_sim_circuit_merging_reset(self):
+        """Test that the number of resets can be influenced when merging
+        multiple circuits."""
+        qc1, qc2 = _create_test_circuits()
+        job = self._run_program(circuits=[qc1, qc2], init_num_resets=2, block_for_result=False)
+        self._check_job_completes(job)
+
+    @skip("Skip until deployed qasm3 exporter can handle delays")
+    def test_sim_circuit_merging_delays(self):
+        """Test that the delay between circuits can be influenced when merging
+        multiple circuits."""
+        qc1, qc2 = _create_test_circuits()
+        job = self._run_program(circuits=[qc1, qc2], init_delay=100, block_for_result=False)
+        self._check_job_completes(job)
+
+    def test_sim_circuit_merging_custom_init(self):
+        """Test passing a custom circuit for initializing qubits."""
+        qc1, qc2 = _create_test_circuits()
+        custom_init = QuantumCircuit(self.n_qubits)
+        custom_init.sx(range(self.n_qubits))
+        custom_init.barrier(range(self.n_qubits))
+        job = self._run_program(
+            circuits=[qc1, qc2], init_circuit=custom_init, block_for_result=False
+        )
+        self._check_job_completes(job)
+
+    def _run_program(
+        self,
+        circuits=None,
+        qasm3_args=None,
+        run_config=None,
+        block_for_result=True,
+        merge_circuits=None,
+        init_num_resets=None,
+        init_delay=None,
+        init_circuit=None,
+    ):
         """Run the circuit-runner-qasm3 program.
 
         Args:
@@ -139,7 +198,12 @@ class TestQASM3Runner(BaseTestCase):
             qasm3_args: Args to pass to the QASM3 program.
             run_config: Execution time configuration.
             block_for_result: Whether to block for result.
-
+            merge_circuits: Whether to merge multiple submitted circuits into
+                            one before execution (default is yes).
+            init_num_resets: The number of reset to insert before each circuit
+                         execution (default is 3).
+            init_delay: The number of microseconds of delay to insert
+                                 before each circuit execution.
         Returns:
             Job result if `block_for_result` is ``True``. Otherwise the job.
         """
@@ -149,6 +213,14 @@ class TestQASM3Runner(BaseTestCase):
             program_inputs["qasm3_args"] = qasm3_args
         if run_config:
             program_inputs["run_config"] = run_config
+        if merge_circuits is not None:
+            program_inputs["merge_circuits"] = merge_circuits
+        if init_num_resets is not None:
+            program_inputs["init_num_resets"] = init_num_resets
+        if init_delay is not None:
+            program_inputs["init_delay"] = init_delay
+        if init_circuit is not None:
+            program_inputs["init_circuit"] = init_circuit
         options = {"backend_name": self.backend_name}
 
         job = self.runtime.run(program_id=self.program_id, options=options, inputs=program_inputs)
@@ -156,3 +228,9 @@ class TestQASM3Runner(BaseTestCase):
         if block_for_result:
             return job.result()
         return job
+
+    def _check_job_completes(self, job):
+        job.wait_for_final_state()
+        self.assertEqual(job.status(), JobStatus.DONE, job.error_message())
+        result = job.result()
+        self.assertIsInstance(result, dict)

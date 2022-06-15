@@ -9,23 +9,235 @@
 # Any modifications or derivative works of this code must retain this
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
-
 """A runtime program that takes one or more circuits, converts them to OpenQASM3,
 compiles them, executes them, and optionally applies measurement error mitigation.
+By default, multiple circuits will be merge into one before converting the
+combined circuit into OpenQASM3.
 This program can also take and execute one or more OpenQASM3 strings. Note that this
 program can only run on a backend that supports OpenQASM3."""
 
 from time import perf_counter
+from typing import Dict, Iterable, List, Optional, Set, Union
 
-from qiskit.circuit.quantumcircuit import QuantumCircuit
+from qiskit.circuit.quantumcircuit import ClassicalRegister, QuantumCircuit, QuantumRegister
 from qiskit.compiler import transpile
 from qiskit.qasm3 import Exporter
-from qiskit.result import marginal_counts
+from qiskit.result import marginal_counts, Result
 from qiskit.providers.ibmq.runtime.utils import RuntimeEncoder
 import mthree
 import numpy as np
 
+
 QASM3_SIM_NAME = "simulator_qasm3"
+
+
+class CircuitMerger:
+    """Utility class for submitting multiple QuantumCircuits for execution as
+    a single circuit, and splitting the results from the joint execution.
+    """
+
+    def __init__(
+        self,
+        circuits: List[QuantumCircuit],
+        backend,
+    ):
+        self.circuits = circuits
+        self.backend = backend
+
+    def _create_init_circuit(
+        self,
+        used_qubits: Iterable[int],
+        init_num_resets: int,
+        init_delay: int,
+        init_delay_unit: str,
+    ) -> QuantumCircuit:
+        """Create a parameterized initialization circuit or return the
+        user-provided initialization circuit.
+        """
+        # reset circuit must span all qubits
+        n_qubits = self.backend.configuration().n_qubits
+        circuit = QuantumCircuit(n_qubits)
+
+        # Only reset qubits that are used in the experiment to reduce
+        # initialization time and replicate current backend behaviour
+        circuit.barrier(used_qubits)
+        for _ in range(0, init_num_resets):
+            circuit.reset(used_qubits)
+            circuit.barrier(used_qubits)
+        if init_delay:
+            circuit.delay(init_delay, range(n_qubits), unit=init_delay_unit)
+        circuit.barrier(used_qubits)
+
+        if init_delay:
+            # need to schedule circuit
+            return transpile(
+                circuit,
+                backend=self.backend,
+                scheduling_method="as_late_as_possible",
+                optimization_level=0,
+            )
+        else:
+            return circuit
+
+    def _used_qubits(self, circuits: List[QuantumCircuit]) -> Union[Set[int], range]:
+        """Find all qubits used across the circuits to be merged."""
+        qubits: Set[int] = set()
+        for circuit in circuits:
+            if len(circuit.qregs) > 1:
+                # circuit is not working on physical qubits, fallback to resetting all qubits
+                return range(self.backend.configuration().n_qubits)
+            for data in circuit.data:
+                qubits.update(qubit.index for qubit in data[1])
+        return qubits
+
+    def _compose_circuits(
+        self, merged_circuit: QuantumCircuit, init_circuit: QuantumCircuit, init: bool
+    ):
+        """Compose merged circuit."""
+        bit_offset = 0
+        for circuit in self.circuits:
+            if init:
+                merged_circuit.compose(init_circuit, inplace=True)
+
+            # assign the circuits classical bits in sequence, tracking the latest offset
+            merged_circuit.compose(
+                circuit,
+                clbits=merged_circuit.clbits[bit_offset : (bit_offset + circuit.num_clbits)],
+                inplace=True,
+            )
+            bit_offset += circuit.num_clbits
+        return merged_circuit
+
+    def merge_circuits(
+        self,
+        init: bool = True,
+        init_num_resets: int = 3,
+        init_delay: int = 0,
+        init_delay_unit: str = "us",
+        init_circuit: Optional[QuantumCircuit] = None,
+    ) -> QuantumCircuit:
+        """Merge circuits into one and return the result.
+
+        Merge all the circuits in this instance into a single circuit. Between
+        the circuits, initialize qubits with init_num_resets times a qubit reset
+        operation and a delay of duration init_delay (unit in parameter
+        init_delay_unit). If a custom circuit init_circuit is provided, use
+        that as an alternative.
+
+        Args:
+            init: Enable initialization of qubits
+            init_num_resets: Number of qubit initializations (resets) to
+                perform in a row.
+            init_delay: Delay to insert between circuits.
+            init_delay_unit: Unit of the delay.
+            init_circuit: Custom circuit for initializing qubits.
+
+        Returns: All circuits in this instance merged into one and separated
+        by qubit initialization circuits.
+        """
+        # Collect all classical registers and mangle their names (to handle potential duplicates)
+        def mangle_register_name(idx, register):
+            return "qc" + str(idx) + "_" + register.name
+
+        regs = [
+            ClassicalRegister(creg.size, mangle_register_name(idx, creg))
+            for idx, circuit in enumerate(self.circuits)
+            for creg in circuit.cregs
+        ]
+        regs.insert(0, QuantumRegister(self.backend.configuration().n_qubits))
+
+        # create empty circuit into which to merge all others;
+        # use transpile for mapping to physical qubits
+        merged_circuit = transpile(
+            QuantumCircuit(*regs), backend=self.backend, optimization_level=0
+        )
+
+        used_qubits = self._used_qubits(self.circuits)
+        if not init_circuit and init:
+            init_circuit = self._create_init_circuit(
+                used_qubits, init_num_resets, init_delay, init_delay_unit
+            )
+
+        return self._compose_circuits(merged_circuit, init_circuit, init)
+
+    def unwrap_results(self, result: Result):
+        """Unwrap results from executing a merged circuit.
+
+        Postprocess the result of executing the merged circuit and separate
+        the result data per circuit. Create a corresponding result object
+        that allows retrieving counts and memory individually, such as if the
+        circuits in this instance had been executed separately.
+
+        Args:
+            result: Result of the execution of the merged circuit.
+
+        Returns: Result object that behaves as if the circuits in this
+            instance had been executed separately.
+        """
+        combined_res = result.results[0].to_dict()
+        combined_data = combined_res["data"]
+        unwrapped_results = []
+        bit_offset = 0
+
+        def extract_bits(bitstring: str, bit_position: int, num_bits: int) -> str:
+            assert bitstring.startswith("0x") or bitstring.startswith("0b")
+            bitstring_as_int = int(bitstring, 0)
+            bitstring_as_int >>= bit_position
+            mask = (1 << num_bits) - 1
+            return hex(bitstring_as_int & mask)
+
+        def extract_counts(
+            combined_counts: Dict[str, int], bit_offset: int, num_clbits: int
+        ) -> Dict[str, int]:
+            extracted_counts: Dict[str, int] = {}
+            for bitstring, count in combined_counts.items():
+                extracted_hex = extract_bits(bitstring, bit_offset, num_clbits)
+                if extracted_hex in extracted_counts:
+                    extracted_counts[extracted_hex] += count
+                else:
+                    extracted_counts[extracted_hex] = count
+            return extracted_counts
+
+        for circuit in self.circuits:
+            res = combined_res.copy()
+            assert "header" in res
+            assert "data" in res
+
+            res["header"] = res["header"].copy()
+            res["data"] = res["data"].copy()
+
+            header = res["header"]
+            header["name"] = res["name"] = circuit.name
+
+            # see qiskit/assembler/assemble_circuits.py for how Qiskit builds
+            # the information about classical bits and registers in a
+            # result's header.
+            header["creg_sizes"] = [[creg.name, creg.size] for creg in circuit.cregs]
+            num_clbits = sum([creg.size for creg in circuit.cregs])
+            header["memory_slots"] = num_clbits
+
+            header["clbit_labels"] = [
+                [creg.name, i] for creg in circuit.cregs for i in range(creg.size)
+            ]
+
+            if "counts" in combined_data:
+                res["data"]["counts"] = extract_counts(
+                    combined_data["counts"], bit_offset, num_clbits
+                )
+
+            if "memory" in combined_data:
+                extracted_memory = [
+                    extract_bits(bitstring, bit_offset, num_clbits)
+                    for bitstring in combined_data["memory"]
+                ]
+                res["data"]["memory"] = extracted_memory
+
+            bit_offset += num_clbits
+            unwrapped_results.append(res)
+
+        res_dict = result.to_dict()
+        res_dict["results"] = unwrapped_results
+        return Result.from_dict(res_dict)
 
 
 class Qasm3Encoder(RuntimeEncoder):
@@ -47,6 +259,10 @@ def main(
     qasm3_args=None,
     skip_transpilation=False,
     use_measurement_mitigation=False,
+    merge_circuits=True,
+    init_num_resets=3,
+    init_delay=0,
+    init_circuit=None,
 ):
     """Execute
 
@@ -59,7 +275,16 @@ def main(
         run_config: Execution time configurations.
         qasm3_args: Arguments to pass to the QASM3 program loop.
         skip_transpilation: Skip transpiling of circuits.
-        use_measurement_mitigation: Whether to perform measurement error mitigation.
+        use_measurement_mitigation: Whether to perform measurement error
+            mitigation.
+        merge_circuits: whether to merge submitted QuantumCircuits into one
+            before execution.
+        init_num_resets: The number of qubit resets to insert before each
+            circuit execution.
+        init_delay: The number of microseconds of delay to insert before each
+            circuit execution.
+        init_circuit: Custom circuit for initializing qubits between merged
+            circuits.
 
     Returns:
         Program result.
@@ -89,8 +314,33 @@ def main(
         )
 
     run_config = run_config or {}
+    use_merging = False
 
     if is_qc:
+        if merge_circuits and use_measurement_mitigation:
+            raise NotImplementedError(
+                "Measurement error mitigation cannot be used together with circuit merging."
+            )
+
+        if merge_circuits:
+            if init_circuit is not None and not isinstance(init_circuit, QuantumCircuit):
+                raise ValueError(
+                    f"init_circuit must be of type QuantumCircuit but is {init_circuit.__class__}."
+                )
+            merger = CircuitMerger(
+                circuits,
+                backend=backend,
+            )
+            use_merging = True
+            circuits = [
+                merger.merge_circuits(
+                    init_num_resets=init_num_resets,
+                    init_delay=init_delay,
+                    init_delay_unit="us",
+                    init_circuit=init_circuit,
+                )
+            ]
+
         if not skip_transpilation:
             # Transpile the circuits using given transpile options
             transpiler_config = transpiler_config or {}
@@ -130,10 +380,15 @@ def main(
         if len(payload) > 1:
             raise ValueError("QASM3 simulator only supports a single circuit.")
         result = backend.run(payload[0], args=qasm3_args, shots=run_config.get("shots", None))
+        if use_merging:
+            result = merger.unwrap_results(result)
         user_messenger.publish(result, final=True, encoder=Qasm3Encoder)
-        return False
+        return result.to_dict()
 
     result = backend.run(payload, **run_config).result()
+
+    if use_merging:
+        result = merger.unwrap_results(result)
 
     # Do the actual mitigation here
     if use_measurement_mitigation:

@@ -45,6 +45,27 @@
           "description": "Whether to apply measurement error mitigation. Currently, error mitigation only applies to QuantumCircuit.",
           "type": "boolean",
           "default": false
+        },
+        "merge_circuits": {
+          "description": "Whether to merge multiple QuantumCircuits into one single QuantumCircuit containing each individual circuit separated by an initialization circuit. This will greatly improve the performance of your runtime program and should almost always be used. The default initialization circuit is a series of qubit resets (the number of which may be configured with \"init_num_resets\" ) on qubits used in your experiment followed by a relaxation delay (Which may be specified with \"init_delay\". You may also provide your own initialization circuit through \"init_circuit\".",
+          "type": "boolean",
+          "default": true
+        },
+        "init_num_resets": {
+          "description": "The number of qubit resets to insert before each circuit execution.",
+          "type": "int",
+          "default": 3
+        },
+        "init_delay": {
+          "description": "The number of microseconds of delay to insert before each circuit execution.",
+          "type": "int",
+          "default": 0
+        },
+        "init_circuit": {
+          "description": "A quantum circuit to execute for initializing qubits before each circuit. If specified, parameters \"init_num_resets\" and \"init_delay\" are ignored.",
+          "type": [
+            "object"
+          ]
         }
       },
       "required": [
