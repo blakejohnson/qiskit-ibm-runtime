@@ -92,5 +92,6 @@
       "description": "Circuit execution results in a RunnerResult object.",
       "type": "object"
     }
-  }
+  },
+  "tags": ["prototype"]
 }

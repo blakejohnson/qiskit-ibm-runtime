@@ -59,5 +59,6 @@
       "description": "A list of expectation values and optionally standard deviations.",
       "type": "array"
     }
-  }
+  },
+  "tags": ["prototype"]
 }

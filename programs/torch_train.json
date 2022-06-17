@@ -1,75 +1,76 @@
 {
-    "name": "torch-train",
-    "description": "A runtime program to train hybrid QNN models with Pytorch.",
-    "max_execution_time": 28800,
-    "spec": {
-        "parameters": {
-            "$schema": "https://json-schema.org/draft/2019-09/schema",
-            "properties": {
-                "model": {"description": "A hybrid QNN model to be trained.", "type": "object"},
-                "optimizer": {
-                    "description": "A PyTorch optimizer to tune the model parameters.",
-                    "type": "object"
-                },
-                "loss_func": {
-                    "description": "A PyTorch-compatible loss function. Can be one of the official PyTorch loss functions from ``torch.nn.loss`` or a custom function defined by the user.",
-                    "type": ["object", "object"]
-                },
-                "train_data": {
-                    "description": "A PyTorch data loader object containing the training dataset.",
-                    "type": "object"
-                },
-                "val_data": {
-                    "description": "A PyTorch data loader object containing the validation dataset.",
-                    "type": "object",
-                    "default": "null"
-                },
-                "shots": {
-                    "description": "The number of shots used for each circuit evaluation. Defaults to 1024.",
-                    "type": "integer",
-                    "default": "1024"
-                },
-                "measurement_error_mitigation": {
-                    "description": "Whether to apply measurement error mitigation in form of a complete measurement fitter to the measurements. Defaults to False.",
-                    "type": "boolean",
-                    "default": false
-                },
-                "epochs": {
-                    "description": "The number of total epochs. Default is 10.",
-                    "type": "integer",
-                    "default": "10"
-                },
-                "start_epoch": {
-                    "description": "The initial epoch number for warm-start training. ",
-                    "type": "integer",
-                    "default": "0"
-                },
-                "hooks": {
-                    "description": "List of hook classes to interact with the training loop.",
-                    "type": ["array", "object"],
-                    "default": "null"
-                },
-                "seed": {
-                    "description": "The random seed for `torch.manual_seed(seed). Default is None.",
-                    "type": "integer",
-                    "default": "null"
-                }
-            },
-            "required": ["model", "optimizer", "loss_func", "train_data"]
+  "name": "torch-train",
+  "description": "A runtime program to train hybrid QNN models with Pytorch.",
+  "max_execution_time": 28800,
+  "spec": {
+    "parameters": {
+      "$schema": "https://json-schema.org/draft/2019-09/schema",
+      "properties": {
+        "model": {"description": "A hybrid QNN model to be trained.", "type": "object"},
+        "optimizer": {
+          "description": "A PyTorch optimizer to tune the model parameters.",
+          "type": "object"
         },
-        "return_values": {
-            "$schema": "https://json-schema.org/draft/2019-09/schema",
-            "properties": {
-                "model_state_dict": {
-                    "description": "A serialized dictionary that can be used to retrieve the torch module's state.",
-                    "type": "object"
-                },
-                "train_history": {
-                    "description": "A dictionary with the train and validation history (if val_data provided)",
-                    "type": "object"
-                },
-                "train_time": {"description": "The execution time.", "type": "number"}
-            }
+        "loss_func": {
+          "description": "A PyTorch-compatible loss function. Can be one of the official PyTorch loss functions from ``torch.nn.loss`` or a custom function defined by the user.",
+          "type": ["object", "object"]
+        },
+        "train_data": {
+          "description": "A PyTorch data loader object containing the training dataset.",
+          "type": "object"
+        },
+        "val_data": {
+          "description": "A PyTorch data loader object containing the validation dataset.",
+          "type": "object",
+          "default": "null"
+        },
+        "shots": {
+          "description": "The number of shots used for each circuit evaluation. Defaults to 1024.",
+          "type": "integer",
+          "default": "1024"
+        },
+        "measurement_error_mitigation": {
+          "description": "Whether to apply measurement error mitigation in form of a complete measurement fitter to the measurements. Defaults to False.",
+          "type": "boolean",
+          "default": false
+        },
+        "epochs": {
+          "description": "The number of total epochs. Default is 10.",
+          "type": "integer",
+          "default": "10"
+        },
+        "start_epoch": {
+          "description": "The initial epoch number for warm-start training. ",
+          "type": "integer",
+          "default": "0"
+        },
+        "hooks": {
+          "description": "List of hook classes to interact with the training loop.",
+          "type": ["array", "object"],
+          "default": "null"
+        },
+        "seed": {
+          "description": "The random seed for `torch.manual_seed(seed). Default is None.",
+          "type": "integer",
+          "default": "null"
         }
+      },
+      "required": ["model", "optimizer", "loss_func", "train_data"]
+    },
+    "return_values": {
+      "$schema": "https://json-schema.org/draft/2019-09/schema",
+      "properties": {
+        "model_state_dict": {
+          "description": "A serialized dictionary that can be used to retrieve the torch module's state.",
+          "type": "object"
+        },
+        "train_history": {
+          "description": "A dictionary with the train and validation history (if val_data provided)",
+          "type": "object"
+        },
+        "train_time": {"description": "The execution time.", "type": "number"}
+      }
     }
+  },
+  "tags": ["prototype"]
 }
