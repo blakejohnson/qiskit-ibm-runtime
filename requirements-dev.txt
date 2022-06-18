@@ -1,6 +1,6 @@
 qiskit-optimization
 qiskit-ibmq-provider>=0.18
-qiskit-nature
+qiskit-nature==0.3.2
 pyyaml
 requests
 pylint==2.13.8
