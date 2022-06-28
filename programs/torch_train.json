@@ -1,6 +1,6 @@
 {
   "name": "torch-train",
-  "description": "A runtime program to train hybrid QNN models with Pytorch.",
+  "description": "(DEPRECATED, will be removed in 7 days) A runtime program to train hybrid QNN models with Pytorch.",
   "max_execution_time": 28800,
   "spec": {
     "parameters": {

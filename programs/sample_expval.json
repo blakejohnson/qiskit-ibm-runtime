@@ -1,6 +1,6 @@
 {
   "name": "sample-expval",
-  "description": "A sample expectation value program.",
+  "description": "(DEPRECATED, will be removed in 7 days) A sample expectation value program.",
   "max_execution_time": 1000,
   "spec": {
     "parameters": {
