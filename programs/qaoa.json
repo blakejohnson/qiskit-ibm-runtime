@@ -1,6 +1,6 @@
 {
   "name": "qaoa",
-  "description": "Qiskit Runtime QAOA program",
+  "description": "Qiskit Runtime QAOA program.",
   "max_execution_time": 18000,
   "spec": {
     "parameters": {
