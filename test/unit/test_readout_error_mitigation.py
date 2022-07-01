@@ -12,6 +12,7 @@
 
 """Unit tests for ReadoutErrorMitigation."""
 
+import unittest
 
 from ddt import ddt
 import numpy as np
@@ -20,14 +21,13 @@ from qiskit.opflow import PauliSumOp
 from qiskit.result.mitigation.local_readout_mitigator import (
     LocalReadoutMitigator,
 )
-from qiskit.test import QiskitTestCase
-from qiskit.test.mock import FakeBogota
+from qiskit.providers.fake_provider import FakeBogota
 
 from programs.estimator import Estimator
 
 
 @ddt
-class TestReadoutErrorMitigation(QiskitTestCase):
+class TestReadoutErrorMitigation(unittest.TestCase):
     """Test ReadoutErrorMitigation"""
 
     def setUp(self):
@@ -57,7 +57,7 @@ class TestReadoutErrorMitigation(QiskitTestCase):
             ) as est:
                 est.set_transpile_options(seed_transpiler=15)
                 est.set_run_options(seed_simulator=15, shots=10000)
-                result = est(parameter_values=theta1)
+                result = est(circuits=[0], observables=[0], parameter_values=[theta1])
             self.assertAlmostEqual(result.values[0], exp1, places=2)
 
         theta2 = [1, 2, 3, 4, 5, 6]
@@ -68,7 +68,7 @@ class TestReadoutErrorMitigation(QiskitTestCase):
             ) as est:
                 est.set_transpile_options(seed_transpiler=15)
                 est.set_run_options(seed_simulator=15, shots=10000)
-                result = est(parameter_values=theta2)
+                result = est(circuits=[0], observables=[0], parameter_values=[theta2])
             self.assertAlmostEqual(result.values[0], exp2, places=2)
 
         with self.subTest("theta1 and theta2"):
@@ -77,5 +77,5 @@ class TestReadoutErrorMitigation(QiskitTestCase):
             ) as est:
                 est.set_transpile_options(seed_transpiler=15)
                 est.set_run_options(seed_simulator=15, shots=10000)
-                result = est(parameter_values=[theta1, theta2])
+                result = est(circuits=[0, 0], observables=[0, 0], parameter_values=[theta1, theta2])
             np.testing.assert_almost_equal(result.values, [exp1, exp2], decimal=2)

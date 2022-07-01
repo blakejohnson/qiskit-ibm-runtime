@@ -12,6 +12,8 @@
 
 """Unit tests for Estimator."""
 
+import unittest
+
 from ddt import ddt
 import numpy as np
 from qiskit import Aer, QuantumCircuit
@@ -20,12 +22,12 @@ from qiskit.exceptions import QiskitError
 from qiskit.opflow import PauliSumOp
 from qiskit.primitives import EstimatorResult
 from qiskit.quantum_info import Operator, SparsePauliOp
-from qiskit.test import QiskitTestCase
 
 from programs.estimator import Estimator, main
 
 
-class TestEstimator(QiskitTestCase):
+@ddt
+class TestEstimator(unittest.TestCase):
     """Test Estimator"""
 
     def setUp(self):
@@ -54,7 +56,7 @@ class TestEstimator(QiskitTestCase):
         )
         with Estimator(Aer.get_backend("aer_simulator"), [circuit], [matrix]) as est:
             est.set_run_options(seed_simulator=15, shots=10000)
-            result = est()
+            result = est(circuits=[0], observables=[0])
         self.assertIsInstance(result, EstimatorResult)
         self.assertIsInstance(result.values[0], float)
         self.assertAlmostEqual(result.values[0], -1.283, places=2)
@@ -65,7 +67,7 @@ class TestEstimator(QiskitTestCase):
         with Estimator(backend, [self.ansatz], [self.observable]) as est:
             est.set_transpile_options(seed_transpiler=15)
             est.set_run_options(seed_simulator=15, shots=10000)
-            result = est(parameter_values=[0, 1, 1, 2, 3, 5])
+            result = est(circuits=[0], observables=[0], parameter_values=[[0, 1, 1, 2, 3, 5]])
         self.assertIsInstance(result, EstimatorResult)
         self.assertIsInstance(result.values[0], float)
         self.assertAlmostEqual(result.values[0], -1.283, places=2)
@@ -76,7 +78,7 @@ class TestEstimator(QiskitTestCase):
         with Estimator(backend, [self.ansatz], [self.observable], abelian_grouping=False) as est:
             est.set_transpile_options(seed_transpiler=15)
             est.set_run_options(seed_simulator=15, shots=10000)
-            result = est(parameter_values=[0, 1, 1, 2, 3, 5])
+            result = est(circuits=[0], observables=[0], parameter_values=[[0, 1, 1, 2, 3, 5]])
             self.assertEqual(len(est.transpiled_circuits), 5)
         self.assertIsInstance(result, EstimatorResult)
         self.assertIsInstance(result.values[0], float)
@@ -88,7 +90,11 @@ class TestEstimator(QiskitTestCase):
         with Estimator(backend, [self.ansatz], [self.observable]) as est:
             est.set_transpile_options(seed_transpiler=15)
             est.set_run_options(seed_simulator=15, shots=10000)
-            result = est(parameter_values=[[0, 1, 1, 2, 3, 5], [1, 1, 2, 3, 5, 8]])
+            result = est(
+                circuits=[0, 0],
+                observables=[0, 0],
+                parameter_values=[[0, 1, 1, 2, 3, 5], [1, 1, 2, 3, 5, 8]],
+            )
         self.assertIsInstance(result, EstimatorResult)
         self.assertEqual(result.values.dtype, np.float64)
         np.testing.assert_allclose(result.values, [-1.283, -1.315], rtol=1e-03)
@@ -100,7 +106,7 @@ class TestEstimator(QiskitTestCase):
         with Estimator(backend, [circuit], [self.observable]) as est:
             est.set_transpile_options(seed_transpiler=15)
             est.set_run_options(seed_simulator=15, shots=10000)
-            result = est()
+            result = est(circuits=[0], observables=[0])
         self.assertIsInstance(result, EstimatorResult)
         self.assertIsInstance(result.values[0], float)
         self.assertAlmostEqual(result.values[0], -1.283, places=2)
@@ -115,7 +121,7 @@ class TestEstimator(QiskitTestCase):
         with Estimator(backend, circuit, ["ZZZ", "III"]) as est:
             est.set_transpile_options(seed_transpiler=15)
             est.set_run_options(seed_simulator=15, shots=10000)
-            result = est(circuit_indices=[0, 0])
+            result = est(circuits=[0, 0], observables=[0, 1])
         self.assertIsInstance(result, EstimatorResult)
         self.assertEqual(result.values.dtype, np.float64)
         np.testing.assert_allclose(result.values, [0.0044, 1.0], rtol=1e-03)
@@ -127,7 +133,7 @@ class TestEstimator(QiskitTestCase):
         with Estimator(backend, [self.ansatz], [self.observable]) as est:
             est.set_transpile_options(seed_transpiler=15)
             est.set_run_options(seed_simulator=15, shots=10000)
-            result = est(parameter_values=param)
+            result = est(circuits=[0], observables=[0], parameter_values=param)
         self.assertIsInstance(result, EstimatorResult)
         self.assertIsInstance(result.values[0], float)
         self.assertAlmostEqual(result.values[0], -1.283, places=2)
@@ -161,7 +167,7 @@ class TestEstimator(QiskitTestCase):
 
 
 @ddt
-class TestEstimatorMain(QiskitTestCase):
+class TestEstimatorMain(unittest.TestCase):
     """Test Estimator main"""
 
     def setUp(self):

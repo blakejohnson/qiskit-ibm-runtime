@@ -48,7 +48,7 @@ def _grouping(sparse_pauli_operator: SparsePauliOp):
         List[SparsePauliOp]: List of SparsePauliOp where each SparsePauliOp contains commutable
             Pauli operators.
     """
-    edges = sparse_pauli_operator.paulis._noncommutation_graph()
+    edges = sparse_pauli_operator.paulis._noncommutation_graph(True)
     graph = rx.PyGraph()
     graph.add_nodes_from(range(sparse_pauli_operator.size))
     graph.add_edges_from_no_data(edges)
@@ -110,12 +110,9 @@ class Estimator(BaseEstimator):
         if not isinstance(backend, Backend):
             raise TypeError(f"backend should be BackendV1, not {type(backend)}.")
 
-        if isinstance(circuits, QuantumCircuit):
-            circuits = [circuits]
-
         if isinstance(observables, (PauliSumOp, BaseOperator)):
-            observables = [observables]
-        observables = [init_observable(observable) for observable in observables]
+            observables = (observables,)
+        observables = tuple(init_observable(observable) for observable in observables)
 
         super().__init__(
             circuits=circuits,
@@ -137,7 +134,7 @@ class Estimator(BaseEstimator):
         self._preprocessed_circuits: list[tuple[QuantumCircuit, list[QuantumCircuit]]] | None = None
         self._transpiled_circuits: list[QuantumCircuit] | None = None
 
-        self._grouping = list(zip(range(len(self._circuits)), range(len(observables))))
+        self._grouping = list(zip(range(len(self._circuits)), range(len(self._observables))))
         self._skip_transpilation = skip_transpilation
 
     @property
@@ -249,78 +246,24 @@ class Estimator(BaseEstimator):
                 transpiled_circuits.append(transpiled_circuit)
             self._transpiled_circuits += transpiled_circuits
 
-    def __call__(
+    def _call(
         self,
-        circuit_indices: Sequence[int] | None = None,
-        observable_indices: Sequence[int] | None = None,
-        parameter_values: Sequence[Sequence[float]] | Sequence[float] | None = None,
+        circuits: Sequence[int],
+        observables: Sequence[int],
+        parameter_values: Sequence[Sequence[float]],
         **run_options,
     ) -> EstimatorResult:
         self._check_is_closed()
-        if isinstance(parameter_values, np.ndarray):
-            parameter_values = parameter_values.tolist()
-
-        if parameter_values and not isinstance(parameter_values[0], (np.ndarray, Sequence)):
-            parameter_values = cast("Sequence[float]", parameter_values)
-            parameter_values = [parameter_values]
-        if (
-            circuit_indices is None
-            and len(self.circuits) == 1
-            and observable_indices is None
-            and len(self.observables) == 1
-            and parameter_values is not None
-        ):
-            circuit_indices = [0] * len(parameter_values)
-            observable_indices = [0] * len(parameter_values)
-        if circuit_indices is None:
-            circuit_indices = list(range(len(self.circuits)))
-        if observable_indices is None:
-            observable_indices = list(range(len(self.observables)))
-        if parameter_values is None:
-            for i in circuit_indices:
-                if len(self.circuits[i].parameters) != 0:
-                    raise QiskitError(
-                        f"The {i}-th circuit ({len(circuit_indices)}) is parametrised,"
-                        "but parameter values are not given."
-                    )
-
-            parameter_values = [[]] * len(circuit_indices)
-        parameter_values = cast("Sequence[Sequence[float]]", parameter_values)
-
-        # Validation
-        if len(circuit_indices) != len(parameter_values):
-            raise QiskitError(
-                f"The number of circuits ({len(circuit_indices)}) does not match "
-                f"the number of parameter sets ({len(parameter_values)})."
-            )
-
-        for i, value in zip(circuit_indices, parameter_values):
-            if len(value) != len(self.parameters[i]):
-                raise QiskitError(
-                    f"The number of values ({len(value)}) does not match "
-                    f"the number of parameters ({len(self.parameters[i])}) for the {i}-th circuit."
-                )
-
-        for circ_i, obs_i in zip(circuit_indices, observable_indices):
-            circuit_num_qubits = self.circuits[circ_i].num_qubits
-            observable_num_qubits = self.observables[obs_i].num_qubits
-            if circuit_num_qubits != observable_num_qubits:
-                raise QiskitError(
-                    f"The number of qubits of the {circ_i}-th circuit ({circuit_num_qubits}) does "
-                    f"not match the number of qubits of the {obs_i}-th observable "
-                    f"({observable_num_qubits})."
-                )
 
         # Transpile
-        self._grouping = list(zip(circuit_indices, observable_indices))
+        self._grouping = list(zip(circuits, observables))
         transpiled_circuits = self.transpiled_circuits
         num_observables = [len(m) for (_, m) in self.preprocessed_circuits]
         accum = [0] + list(accumulate(num_observables))
 
         # Bind parameters
         parameter_dicts = [
-            dict(zip(self._parameters[i], value))
-            for i, value in zip(circuit_indices, parameter_values)
+            dict(zip(self._parameters[i], value)) for i, value in zip(circuits, parameter_values)
         ]
         bound_circuits = [
             transpiled_circuits[circuit_index].bind_parameters(p)
@@ -531,17 +474,6 @@ def main(
     Returns: Expectation values and metadata.
 
     """
-    if len(circuit_indices) != len(observable_indices):
-        raise ValueError(
-            f"The length of circuit_indices {len(circuit_indices)} must "
-            f"match the length of observable_indices {len(observable_indices)}."
-        )
-    if parameter_values is not None and len(parameter_values) != len(circuit_indices):
-        raise ValueError(
-            f"The length of parameter_values {len(parameter_values)} must "
-            f"match the length of circuit_indices {len(circuit_indices)}."
-        )
-
     estimator = Estimator(
         backend=backend,
         circuits=circuits,
@@ -552,8 +484,8 @@ def main(
     run_options = run_options or {}
     shots = run_options.get("shots") or backend.options.shots
     result = estimator(
-        circuit_indices=circuit_indices,
-        observable_indices=observable_indices,
+        circuits=circuit_indices,
+        observables=observable_indices,
         parameter_values=parameter_values,
         **run_options,
     )

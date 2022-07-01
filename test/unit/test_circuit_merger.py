@@ -12,10 +12,11 @@
 
 """Unit tests for Circuit Merger (in qasm3-runner)."""
 
+import unittest
+
 from typing import Tuple
 
 from qiskit import BasicAer, QuantumCircuit, QuantumRegister, ClassicalRegister, execute
-from qiskit.test import QiskitTestCase
 
 from programs.qasm3_runner import CircuitMerger
 
@@ -43,7 +44,7 @@ def _create_test_circuits() -> Tuple[QuantumCircuit, QuantumCircuit]:
     return qc1, qc2
 
 
-class TestCircuitMerger(QiskitTestCase):
+class TestCircuitMerger(unittest.TestCase):
     """Test the Circuit Merger"""
 
     def setUp(self):

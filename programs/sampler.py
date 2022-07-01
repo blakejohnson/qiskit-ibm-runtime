@@ -18,7 +18,6 @@ from collections.abc import Iterable, Sequence
 import copy
 from typing import cast
 
-import numpy as np
 from qiskit.circuit import Parameter, QuantumCircuit
 from qiskit.compiler import transpile
 from qiskit.exceptions import QiskitError
@@ -52,8 +51,6 @@ class Sampler(BaseSampler):
         if not isinstance(backend, Backend):
             raise TypeError(f"backend should be BackendV1, not {type(backend)}.")
 
-        if isinstance(circuits, QuantumCircuit):
-            circuits = [circuits]
         super().__init__(circuits, parameters)
 
         self._backend = backend
@@ -145,45 +142,18 @@ class Sampler(BaseSampler):
         self._transpile_options.update_options(**fields)
         return self
 
-    def __call__(
+    def _call(
         self,
-        circuit_indices: Sequence[int] | None = None,
-        parameter_values: Sequence[float] | Sequence[Sequence[float]] | None = None,
+        circuits: Sequence[int],
+        parameter_values: Sequence[Sequence[float]],
         **run_options,
     ) -> SamplerResult:
         self._check_is_closed()
-        if isinstance(parameter_values, np.ndarray):
-            parameter_values = parameter_values.tolist()
-
-        if parameter_values and not isinstance(parameter_values[0], (np.ndarray, Sequence)):
-            parameter_values = cast("Sequence[float]", parameter_values)
-            parameter_values = [parameter_values]
-        if circuit_indices is None and parameter_values is not None and len(self.circuits) == 1:
-            circuit_indices = [0] * len(parameter_values)
-        if circuit_indices is None:
-            circuit_indices = list(range(len(self.circuits)))
-        if parameter_values is None:
-            parameter_values = [[]] * len(circuit_indices)
-        parameter_values = cast("Sequence[Sequence[float]]", parameter_values)
-
-        # Validation
-        if len(circuit_indices) != len(parameter_values):
-            raise QiskitError(
-                f"The number of circuits ({len(circuit_indices)}) does not match "
-                f"the number of parameter sets ({len(parameter_values)})."
-            )
-
-        for i, value in zip(circuit_indices, parameter_values):
-            if len(value) != len(self.parameters[i]):
-                raise QiskitError(
-                    f"The number of values ({len(value)}) does not match "
-                    f"the number of parameters ({len(self.parameters[i])}) for the {i}-th circuit."
-                )
 
         transpiled_circuits = self.transpiled_circuits
         bound_circuits = [
             transpiled_circuits[i].bind_parameters((dict(zip(self._parameters[i], value))))
-            for i, value in zip(circuit_indices, parameter_values)
+            for i, value in zip(circuits, parameter_values)
         ]
         bound_circuits = self._bound_pass_manager_run(bound_circuits)
 
@@ -296,7 +266,7 @@ def main(
 
     run_options = run_options or {}
     result = sampler(
-        circuit_indices=circuit_indices,
+        circuits=circuit_indices,
         parameter_values=parameter_values,
         **run_options,
     )

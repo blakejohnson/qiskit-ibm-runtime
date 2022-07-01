@@ -12,6 +12,8 @@
 
 """Unit tests for Sampler."""
 
+import unittest
+
 from test.unit import combine
 
 from ddt import ddt
@@ -20,13 +22,12 @@ from qiskit import Aer, QuantumCircuit
 from qiskit.circuit.library import RealAmplitudes
 from qiskit.exceptions import QiskitError
 from qiskit.primitives import SamplerResult
-from qiskit.test import QiskitTestCase
 
 from programs.sampler import Sampler, main
 
 
 @ddt
-class TestSampler(QiskitTestCase):
+class TestSampler(unittest.TestCase):
     """Test Sampler"""
 
     def setUp(self):
@@ -90,7 +91,7 @@ class TestSampler(QiskitTestCase):
         with self.subTest("with-guard"):
             with Sampler(circuits=circuits, backend=backend) as sampler:
                 result = sampler(
-                    parameter_values=[[] for _ in indices],
+                    circuits=circuits,
                     shots=shots,
                     **self._run_config,
                 )
@@ -100,7 +101,9 @@ class TestSampler(QiskitTestCase):
         with self.subTest("direct call"):
             sampler = Sampler(circuits=circuits, backend=backend)
             result = sampler(
-                parameter_values=[[] for _ in indices], shots=shots, **self._run_config
+                circuits=circuits,
+                shots=shots,
+                **self._run_config,
             )
             self.assertEqual(result.metadata[0]["shots"], shots)
             self._compare_probs(result.quasi_dists, target)
@@ -116,14 +119,16 @@ class TestSampler(QiskitTestCase):
         with self.subTest("with-guard"):
             with Sampler(circuits=self._pqc, backend=backend) as sampler:
                 sampler.set_run_options(shots=shots, **self._run_config)
-                result: SamplerResult = sampler(parameter_values=params)
+                result: SamplerResult = sampler(
+                    circuits=[0] * len(indices), parameter_values=params
+                )
                 self.assertEqual(result.metadata[0]["shots"], shots)
                 self._compare_probs(result.quasi_dists, target)
 
         with self.subTest("direct call"):
             sampler = Sampler(circuits=self._pqc, backend=backend)
             sampler.set_run_options(shots=shots, **self._run_config)
-            result = sampler(parameter_values=params)
+            result = sampler(circuits=[0] * len(indices), parameter_values=params)
             self.assertEqual(result.metadata[0]["shots"], shots)
             self._compare_probs(result.quasi_dists, target)
 
@@ -139,14 +144,16 @@ class TestSampler(QiskitTestCase):
         with self.subTest("with-guard"):
             with Sampler(circuits=self._pqc, backend=backend) as sampler:
                 sampler.set_run_options(shots=shots, **self._run_config)
-                result: SamplerResult = sampler(parameter_values=params)
+                result: SamplerResult = sampler(
+                    circuits=[0] * len(indices), parameter_values=params
+                )
                 self.assertEqual(result.metadata[0]["shots"], shots)
                 self._compare_probs(result.quasi_dists, target)
 
         with self.subTest("direct call"):
             sampler = Sampler(circuits=self._pqc, backend=backend)
             sampler.set_run_options(shots=shots, **self._run_config)
-            result = sampler(parameter_values=params)
+            result = sampler(circuits=[0] * len(indices), parameter_values=params)
             self.assertEqual(result.metadata[0]["shots"], shots)
             self._compare_probs(result.quasi_dists, target)
 
@@ -162,14 +169,16 @@ class TestSampler(QiskitTestCase):
         with self.subTest("with-guard"):
             with Sampler(circuits=circs, backend=backend) as sampler:
                 sampler.set_run_options(shots=shots, **self._run_config)
-                result: SamplerResult = sampler(parameter_values=params)
+                result: SamplerResult = sampler(
+                    circuits=[0] * len(indices), parameter_values=params
+                )
                 self.assertEqual(result.metadata[0]["shots"], shots)
                 self._compare_probs(result.quasi_dists, target)
 
         with self.subTest("direct call"):
             sampler = Sampler(circuits=circs, backend=backend)
             sampler.set_run_options(shots=shots, **self._run_config)
-            result = sampler(parameter_values=params)
+            result = sampler(circuits=[0] * len(indices), parameter_values=params)
             self.assertEqual(result.metadata[0]["shots"], shots)
             self._compare_probs(result.quasi_dists, target)
 
@@ -199,7 +208,7 @@ class TestSampler(QiskitTestCase):
         qc1.measure(range(num_qubits - 1), range(num_qubits - 1))
         with Sampler(backend=Aer.get_backend("aer_simulator"), circuits=[qc1] * 10) as sampler:
             with self.subTest("one circuit"):
-                result = sampler(circuit_indices=[0], shots=1000)
+                result = sampler(circuits=[0], shots=1000)
                 self.assertEqual(len(result.metadata), 1)
                 self.assertEqual(result.metadata[0]["shots"], 1000)
                 self.assertEqual(len(result.quasi_dists), 1)
@@ -208,7 +217,7 @@ class TestSampler(QiskitTestCase):
                     self.assertDictEqual(quasi_dist, {0: 1.0})
 
             with self.subTest("two circuits"):
-                result = sampler(circuit_indices=[2, 4], shots=1000)
+                result = sampler(circuits=[2, 4], shots=1000)
                 self.assertEqual(len(result.metadata), 2)
                 self.assertEqual(result.metadata[0]["shots"], 1000)
                 self.assertEqual(result.metadata[1]["shots"], 1000)
@@ -219,7 +228,7 @@ class TestSampler(QiskitTestCase):
 
 
 @ddt
-class TestSamplerMain(QiskitTestCase):
+class TestSamplerMain(unittest.TestCase):
     """Test Sampler main"""
 
     def setUp(self):
