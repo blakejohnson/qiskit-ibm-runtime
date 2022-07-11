@@ -12,16 +12,17 @@
 
 """Unit tests for Sampler."""
 
-import unittest
-
 from test.unit import combine
+import unittest
 
 from ddt import ddt
 import numpy as np
 from qiskit import Aer, QuantumCircuit
+from qiskit.circuit import Parameter
 from qiskit.circuit.library import RealAmplitudes
 from qiskit.exceptions import QiskitError
 from qiskit.primitives import SamplerResult
+from qiskit.providers.fake_provider import FakeBogota
 
 from programs.sampler import Sampler, main
 
@@ -317,6 +318,7 @@ class TestSamplerMain(unittest.TestCase):
             circuits=self._circuits,
             circuit_indices=[0, 1, 2],
             run_options={"shots": 1000, "seed_simulator": 123},
+            transpilation_settings={"seed_transpiler": 15},
         )
         self._compare_probs(result["quasi_dists"], self._targets)
 
@@ -330,5 +332,64 @@ class TestSamplerMain(unittest.TestCase):
             circuit_indices=[0, 0],
             parameter_values=self._pqc_params,
             run_options={"shots": 1000, "seed_simulator": 123},
+            transpilation_settings={"seed_transpiler": 15},
         )
         self._compare_probs(result["quasi_dists"], self._pqc_targets)
+
+    @combine(noise=[True, False], shots=[10000, 20000])
+    def test_sampler_with_m3(self, noise, shots):
+        """test sampler with M3"""
+        backend = FakeBogota() if noise else Aer.get_backend("aer_simulator")
+        result = main(
+            backend=backend,
+            user_messenger=None,
+            circuits=self._circuits,
+            circuit_indices=[0, 1, 2],
+            run_options={"shots": shots, "seed_simulator": 123},
+            transpilation_settings={"seed_transpiler": 15},
+            resilience_settings={"level": 1},
+        )
+        self._compare_probs(result["quasi_dists"], self._targets)
+
+    @combine(noise=[True, False], shots=[10000, 20000])
+    def test_sampler_pqc_m3(self, noise, shots):
+        """test sampler with a parametrized circuit and M3"""
+        backend = FakeBogota() if noise else Aer.get_backend("aer_simulator")
+        result = main(
+            backend=backend,
+            user_messenger=None,
+            circuits=[self._pqc],
+            circuit_indices=[0, 0],
+            parameter_values=self._pqc_params,
+            run_options={"shots": shots, "seed_simulator": 123},
+            transpilation_settings={"seed_transpiler": 15},
+            resilience_settings={"level": 1},
+        )
+        self._compare_probs(result["quasi_dists"], self._pqc_targets)
+
+    @combine(noise=[True, False], shots=[10000, 20000])
+    def test_sampler_pqc_m3_2(self, noise, shots):
+        """test sampler with a parametrized circuit and M3 (2)"""
+        # Note: Bogota has a linear coupling map
+        backend = FakeBogota() if noise else Aer.get_backend("aer_simulator")
+        num_qubits = 3
+        circ = QuantumCircuit(num_qubits)
+        param = Parameter("x")
+        circ.ry(param, 0)
+        for i in range(num_qubits - 1):
+            circ.cx(i, i + 1)
+        circ.measure_all()
+        result = main(
+            backend=backend,
+            user_messenger=None,
+            circuits=[circ],
+            circuit_indices=[0, 0, 0],
+            parameter_values=[[0], [np.pi / 2], [np.pi]],
+            run_options={"shots": shots, "seed_simulator": 123},
+            transpilation_settings={"seed_transpiler": 15},
+            resilience_settings={"level": 1},
+        )
+        zeros = "0" * num_qubits
+        ones = "1" * num_qubits
+        targets = [{zeros: 1.0}, {zeros: 0.5, ones: 0.5}, {ones: 1.0}]
+        self._compare_probs(result["quasi_dists"], targets)

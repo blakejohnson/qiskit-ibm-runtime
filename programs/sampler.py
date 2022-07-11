@@ -18,14 +18,19 @@ from collections.abc import Iterable, Sequence
 import copy
 from typing import cast
 
+from mthree import M3Mitigation
+from mthree.utils import final_measurement_mapping
 from qiskit.circuit import Parameter, QuantumCircuit
 from qiskit.compiler import transpile
 from qiskit.exceptions import QiskitError
 from qiskit.primitives import BaseSampler, SamplerResult
 from qiskit.providers import Options
 from qiskit.providers.backend import BackendV1 as Backend
-from qiskit.result import BaseReadoutMitigator, QuasiDistribution, Result
+from qiskit.result import QuasiDistribution, Result
 from qiskit.transpiler import PassManager
+
+# Number of effective shots per measurement error rate
+DEFAULT_SHOTS = 25000
 
 
 class Sampler(BaseSampler):
@@ -38,7 +43,6 @@ class Sampler(BaseSampler):
         backend: Backend,
         circuits: QuantumCircuit | Iterable[QuantumCircuit],
         parameters: Iterable[Iterable[Parameter]] | None = None,
-        readout_mitigator: BaseReadoutMitigator | None = None,
         bound_pass_manager: PassManager | None = None,
         skip_transpilation: bool = False,
     ):
@@ -54,7 +58,6 @@ class Sampler(BaseSampler):
         super().__init__(circuits, parameters)
 
         self._backend = backend
-        self._readout_mitigator = readout_mitigator
         self._run_options = Options()
         self._is_closed = False
 
@@ -64,6 +67,7 @@ class Sampler(BaseSampler):
         self._preprocessed_circuits: list[QuantumCircuit] | None = None
         self._transpiled_circuits: list[QuantumCircuit] | None = None
         self._skip_transpilation = skip_transpilation
+        self._m3_mitigation: M3Mitigation | None = None
 
     @property
     def preprocessed_circuits(self) -> list[QuantumCircuit]:
@@ -91,7 +95,8 @@ class Sampler(BaseSampler):
         self._check_is_closed()
         if self._skip_transpilation:
             self._transpiled_circuits = list(self._circuits)
-        else:
+        elif self._transpiled_circuits is None:
+            # Only transpile if have not done so yet
             self._transpile()
         return self._transpiled_circuits
 
@@ -150,6 +155,7 @@ class Sampler(BaseSampler):
     ) -> SamplerResult:
         self._check_is_closed()
 
+        # This line does the actual transpilation
         transpiled_circuits = self.transpiled_circuits
         bound_circuits = [
             transpiled_circuits[i].bind_parameters((dict(zip(self._parameters[i], value))))
@@ -162,12 +168,12 @@ class Sampler(BaseSampler):
         run_opts.update_options(**run_options)
         result = self._backend.run(bound_circuits, **run_opts.__dict__).result()
 
-        return self._postprocessing(result)
+        return self._postprocessing(result, bound_circuits)
 
     def close(self):
         self._is_closed = True
 
-    def _postprocessing(self, result: Result) -> SamplerResult:
+    def _postprocessing(self, result: Result, circuits: list[QuantumCircuit]) -> SamplerResult:
         if not isinstance(result, Result):
             raise TypeError("result must be an instance of Result.")
 
@@ -178,15 +184,27 @@ class Sampler(BaseSampler):
         shots = sum(counts[0].values())
 
         quasis = []
-        for count in counts:
-            if self._readout_mitigator is None:
+        mitigation_overheads = []
+        mitigation_times = []
+        for count, circ in zip(counts, circuits):
+            if self._m3_mitigation is None:
                 quasis.append(QuasiDistribution({k: v / shots for k, v in count.items()}))
             else:
-                quasis.append(self._readout_mitigator.quasi_probabilities(count))
+                mapping = final_measurement_mapping(circ)
+                quasi, details = self._m3_mitigation.apply_correction(
+                    count, mapping, return_mitigation_overhead=True, details=True
+                )
+                quasis.append(QuasiDistribution(quasi))
+                mitigation_overheads.append(quasi.mitigation_overhead)
+                mitigation_times.append(details["time"])
 
-        metadata = [
-            {"header_metadata": res.header.metadata, "shots": shots} for res in result.results
-        ]
+        metadata = []
+        for idx, res in enumerate(result.results):
+            _temp_dict = {"header_metadata": res.header.metadata, "shots": shots}
+            if self._m3_mitigation:
+                _temp_dict["readout_mitigation_overhead"] = mitigation_overheads[idx]
+                _temp_dict["readout_mitigation_time"] = mitigation_times[idx]
+            metadata.append(_temp_dict)
 
         return SamplerResult(quasi_dists=quasis, metadata=metadata)
 
@@ -209,6 +227,15 @@ class Sampler(BaseSampler):
             return circuits
         else:
             return cast("list[QuantumCircuit]", self._bound_pass_manager.run(circuits))
+
+    def calibrate_m3_mitigation(self, backend) -> None:
+        """Calibrate M3 mitigation
+
+        Args:
+            backend: The backend.
+        """
+        self._m3_mitigation = M3Mitigation(backend)
+        self._m3_mitigation.cals_from_system(shots=DEFAULT_SHOTS)
 
     @staticmethod
     def result_to_dict(result: SamplerResult, circuits, circuit_indices):
@@ -240,6 +267,8 @@ def main(
     parameter_values=None,
     skip_transpilation=False,
     run_options=None,
+    transpilation_settings=None,
+    resilience_settings=None,
 ):
 
     """Sample distributions generated by given circuits executed on the target backend.
@@ -251,18 +280,36 @@ def main(
         parameters (list): Parameters of the quantum circuits.
         circuit_indices (list): Indexes of the circuits to evaluate.
         parameter_values (list): Concrete parameters to be bound.
-        skip_transpilation (bool): Skip transpiling of circuits, default=False.
+        skip_transpilation (bool): (Deprecated) Skip transpiling of circuits, default=False.
         run_options (dict): A collection of kwargs passed to backend.run().
+        transpilation_settings (dict): Transpilation settings.
+        resilience_settings (dict): Resilience settings.
 
     Returns:
         dict: A dictionary with quasi-probabilities and metadata.
     """
+    transpilation_settings = transpilation_settings or {}
+    optimization_settings = transpilation_settings.pop("optimization_settings", {})
+    skip_transpilation = transpilation_settings.pop("skip_transpilation", skip_transpilation)
+
     sampler = Sampler(
         backend=backend,
         circuits=circuits,
         parameters=parameters,
         skip_transpilation=skip_transpilation,
     )
+
+    transpile_options = transpilation_settings.copy()
+    transpile_options["optimization_level"] = optimization_settings.get("level", 1)
+
+    sampler.set_transpile_options(**transpile_options)
+    # Must transpile circuits before calibrating M3
+    _ = sampler.transpiled_circuits
+
+    resilience_settings = resilience_settings or {}
+
+    if resilience_settings.get("level", 0) == 1:
+        sampler.calibrate_m3_mitigation(backend)
 
     run_options = run_options or {}
     result = sampler(

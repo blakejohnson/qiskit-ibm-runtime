@@ -12,16 +12,22 @@
 
 """Unit tests for Estimator."""
 
+from test.unit import combine
 import unittest
+from warnings import catch_warnings
 
 from ddt import ddt
 import numpy as np
 from qiskit import Aer, QuantumCircuit
+from qiskit.circuit import Parameter
 from qiskit.circuit.library import RealAmplitudes
 from qiskit.exceptions import QiskitError
 from qiskit.opflow import PauliSumOp
+from qiskit.primitives import Estimator as RefEstimator
 from qiskit.primitives import EstimatorResult
 from qiskit.quantum_info import Operator, SparsePauliOp
+from qiskit.quantum_info.random import random_pauli_list
+from qiskit.providers.fake_provider import FakeMontreal
 
 from programs.estimator import Estimator, main
 
@@ -165,6 +171,35 @@ class TestEstimator(unittest.TestCase):
             with self.assertRaises(QiskitError):
                 est([1], [1], [[1, 2]])
 
+    @combine(noise=[False], grouping=[True, False], num_qubits=[2, 5])
+    def test_compare_reference(self, noise, grouping, num_qubits):
+        """Test to compare results of Estimator with those of the reference one"""
+        size = 10
+        seed = 123
+        shots = 10000
+
+        param_x = Parameter("x")
+        circ = QuantumCircuit(num_qubits)
+        circ.ry(param_x, range(num_qubits))
+        obs = SparsePauliOp(
+            random_pauli_list(num_qubits=num_qubits, size=size, seed=seed, phase=False)
+        )
+        params = np.linspace(0, np.pi, 5)[:, np.newaxis]
+        with RefEstimator(circuits=[circ], observables=[obs]) as est:
+            result = est([0] * len(params), [0] * len(params), params)
+            targets = result.values
+        backend = FakeMontreal() if noise else Aer.get_backend("aer_simulator")
+        with Estimator(
+            circuits=[circ],
+            observables=[obs],
+            backend=backend,
+            abelian_grouping=grouping,
+        ) as est:
+            result = est(
+                [0] * len(params), [0] * len(params), params, shots=shots, seed_simulator=15
+            )
+        np.testing.assert_allclose(result.values, targets, rtol=1e-1)
+
 
 @ddt
 class TestEstimatorMain(unittest.TestCase):
@@ -183,38 +218,49 @@ class TestEstimatorMain(unittest.TestCase):
             ]
         )
 
-    def test_main(self):
+    @combine(resilience_level=[0, 1])
+    def test_main(self, resilience_level):
         """Test main"""
         backend = Aer.get_backend("aer_simulator")
         shots = 10000
-        result = main(
-            backend=backend,
-            user_messenger=None,
-            circuits=[self.ansatz],
-            observables=[self.observable],
-            circuit_indices=[0],
-            observable_indices=[0],
-            parameter_values=[[0, 1, 1, 2, 3, 5]],
-            run_options={"shots": shots, "seed_simulator": 15},
-        )
+
+        with catch_warnings(record=True) as warn_cm:
+            result = main(
+                backend=backend,
+                user_messenger=None,
+                circuits=[self.ansatz],
+                observables=[self.observable],
+                circuit_indices=[0],
+                observable_indices=[0],
+                parameter_values=[[0, 1, 1, 2, 3, 5]],
+                run_options={"shots": shots, "seed_simulator": 15},
+                transpilation_settings={"seed_transpiler": 15},
+                resilience_settings={"level": resilience_level},
+            )
+            self.assertEqual(len(warn_cm), resilience_level)
         np.testing.assert_allclose(result["values"], [-1.283], rtol=1e-3)
         self.assertEqual(len(result["metadata"]), 1)
         self.assertEqual(result["metadata"][0]["shots"], shots)
 
-    def test_main2(self):
+    @combine(resilience_level=[0, 1])
+    def test_main2(self, resilience_level):
         """Test main 2"""
         backend = Aer.get_backend("aer_simulator")
         shots = 10000
-        result = main(
-            backend=backend,
-            user_messenger=None,
-            circuits=[self.ansatz],
-            observables=[self.observable],
-            circuit_indices=[0, 0],
-            observable_indices=[0, 0],
-            parameter_values=[[0, 1, 1, 2, 3, 5], [1, 1, 2, 3, 5, 8]],
-            run_options={"shots": shots, "seed_simulator": 15},
-        )
+        with catch_warnings(record=True) as warn_cm:
+            result = main(
+                backend=backend,
+                user_messenger=None,
+                circuits=[self.ansatz],
+                observables=[self.observable],
+                circuit_indices=[0, 0],
+                observable_indices=[0, 0],
+                parameter_values=[[0, 1, 1, 2, 3, 5], [1, 1, 2, 3, 5, 8]],
+                run_options={"shots": shots, "seed_simulator": 15},
+                transpilation_settings={"seed_transpiler": 15},
+                resilience_settings={"level": resilience_level},
+            )
+            self.assertEqual(len(warn_cm), resilience_level)
         np.testing.assert_allclose(result["values"], [-1.283, -1.315], rtol=1e-3)
         self.assertEqual(len(result["metadata"]), 2)
         self.assertEqual(result["metadata"][0]["shots"], shots)

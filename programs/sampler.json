@@ -25,8 +25,16 @@
           "description": "A list of concrete parameters to be bound for each circuit. If specified, it must have the same length as circuit_indices.",
           "type": "array"
         },
+        "transpilation_settings": {
+          "description": "Transpilation settings.",
+          "type": "object"
+        },
+        "resilience_settings": {
+          "description": "Resilience settings.",
+          "type": "object"
+        },
         "skip_transpilation": {
-          "description": "Whether to skip circuit transpilation.",
+          "description": "(Deprecated) Whether to skip circuit transpilation.",
           "type": "boolean",
           "default": false
         },

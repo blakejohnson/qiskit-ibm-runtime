@@ -19,8 +19,8 @@ from collections import defaultdict
 from collections.abc import Iterable, Sequence
 import copy
 from itertools import accumulate
-import logging
 from typing import cast
+from warnings import warn
 
 import numpy as np
 from qiskit.circuit import Parameter, ParameterExpression, QuantumCircuit
@@ -33,12 +33,10 @@ from qiskit.providers import Options
 from qiskit.quantum_info import SparsePauliOp
 from qiskit.quantum_info.operators.base_operator import BaseOperator
 from qiskit.quantum_info.operators.symplectic.base_pauli import BasePauli
-from qiskit.result import BaseReadoutMitigator, Counts, Result
+from qiskit.result import Counts, Result
 from qiskit.result.mitigation.utils import str2diag
 from qiskit.transpiler import PassManager
 import retworkx as rx
-
-logger = logging.getLogger(__name__)
 
 
 def _grouping(sparse_pauli_operator: SparsePauliOp):
@@ -48,6 +46,7 @@ def _grouping(sparse_pauli_operator: SparsePauliOp):
         List[SparsePauliOp]: List of SparsePauliOp where each SparsePauliOp contains commutable
             Pauli operators.
     """
+    sparse_pauli_operator = sparse_pauli_operator.simplify(atol=0)
     edges = sparse_pauli_operator.paulis._noncommutation_graph(True)
     graph = rx.PyGraph()
     graph.add_nodes_from(range(sparse_pauli_operator.size))
@@ -102,7 +101,6 @@ class Estimator(BaseEstimator):
         circuits: QuantumCircuit | Iterable[QuantumCircuit],
         observables: BaseOperator | PauliSumOp | Iterable[BaseOperator | PauliSumOp],
         parameters: Iterable[Iterable[Parameter]] | None = None,
-        readout_mitigator: BaseReadoutMitigator | None = None,
         abelian_grouping: bool = True,
         bound_pass_manager: PassManager | None = None,
         skip_transpilation: bool = False,
@@ -124,7 +122,6 @@ class Estimator(BaseEstimator):
         self._abelian_grouping = abelian_grouping
 
         self._backend = backend
-        self._readout_mitigator = readout_mitigator
         self._run_options = Options()
         self._is_closed = False
 
@@ -207,7 +204,7 @@ class Estimator(BaseEstimator):
     def backend(self) -> Backend:
         """
         Returns:
-            The backend which this sampler object based on
+            The backend which this estimator object based on
         """
         return self._backend
 
@@ -275,13 +272,30 @@ class Estimator(BaseEstimator):
         # Run
         run_opts = copy.copy(self.run_options)
         run_opts.update_options(**run_options)
-        results = self._backend.run(bound_circuits, **run_opts.__dict__).result()
+        result = self._backend.run(bound_circuits, **run_opts.__dict__).result()
 
-        results.num_observables = num_observables
-        return self._postprocessing(results)
+        return self._postprocessing(result, accum)
 
     def close(self):
         self._is_closed = True
+
+    @staticmethod
+    def _measurement_circuit(num_qubits: int, pauli: str):
+        # Note: if pauli is I for all qubits, this function generates a circuit to measure only
+        # the first qubit.
+        # Although such an operator can be optimized out by interpreting it as a constant (1),
+        # this optimization requires changes in various methods. So it is left as future work.
+        reversed_pauli = pauli[::-1]
+        qubit_indices = [i for i, char in enumerate(reversed_pauli) if char != "I"] or [0]
+        meas_circuit = QuantumCircuit(num_qubits, len(qubit_indices))
+        for clbit, i in enumerate(qubit_indices):
+            val = reversed_pauli[i]
+            if val == "Y":
+                meas_circuit.sdg(i)
+            if val in ["Y", "X"]:
+                meas_circuit.h(i)
+            meas_circuit.measure(i, clbit)
+        return meas_circuit
 
     def _preprocessing(self) -> list[tuple[QuantumCircuit, list[QuantumCircuit]]]:
         """
@@ -294,43 +308,35 @@ class Estimator(BaseEstimator):
             diff_circuits: list[QuantumCircuit] = []
             if self._abelian_grouping:
                 for o_p in observable.grouping():
-                    coeff_dict = {
-                        key: val.real.item() if np.isreal(val) else val.item()
-                        for key, val in o_p.label_iter()
-                    }
                     lst = []
-                    for paulis in zip(*coeff_dict.keys()):
+                    for paulis in zip(*o_p.paulis.to_labels()):
                         pauli_set = set(paulis)
                         pauli_set.discard("I")
                         lst.append(pauli_set.pop() if pauli_set else "I")
                     pauli = "".join(lst)
-
-                    meas_circuit = QuantumCircuit(circuit.num_qubits, observable.num_qubits)
-                    for i, val in enumerate(reversed(pauli)):
-                        if val == "Y":
-                            meas_circuit.sdg(i)
-                        if val in ["Y", "X"]:
-                            meas_circuit.h(i)
-                        meas_circuit.measure(i, i)
-                    meas_circuit.metadata = {"basis": pauli, "coeff": coeff_dict}
+                    meas_circuit = self._measurement_circuit(circuit.num_qubits, pauli)
+                    str_indices = [i for i, char in enumerate(pauli) if char != "I"] or [
+                        len(pauli) - 1
+                    ]
+                    basis = "".join(pauli[i] for i in str_indices)
+                    coeff_dict = {
+                        "".join(key[i] for i in str_indices): np.real_if_close(val).item()
+                        for key, val in o_p.label_iter()
+                    }
+                    meas_circuit.metadata = {"basis": basis, "coeff": coeff_dict}
                     diff_circuits.append(meas_circuit)
             else:
                 for pauli, coeff in observable.label_iter():
-                    meas_circuit = QuantumCircuit(circuit.num_qubits, observable.num_qubits)
-                    for i, val in enumerate(reversed(pauli)):
-                        if val == "Y":
-                            meas_circuit.sdg(i)
-                        if val in ["Y", "X"]:
-                            meas_circuit.h(i)
-                        meas_circuit.measure(i, i)
-                    coeff = coeff.real.item() if np.isreal(coeff) else coeff.item()
-                    meas_circuit.metadata = {"basis": pauli, "coeff": coeff}
+                    meas_circuit = self._measurement_circuit(circuit.num_qubits, pauli)
+                    basis = "".join(char for char in pauli if char != "I") or "I"
+                    coeff = np.real_if_close(coeff).item()
+                    meas_circuit.metadata = {"basis": basis, "coeff": {basis: coeff}}
                     diff_circuits.append(meas_circuit)
 
             preprocessed_circuits.append((circuit.copy(), diff_circuits))
         return preprocessed_circuits
 
-    def _postprocessing(self, result: Result) -> EstimatorResult:
+    def _postprocessing(self, result: Result, accum: list[int]) -> EstimatorResult:
         """
         Postprocessing for evaluation of expectation value using pauli rotation gates.
         """
@@ -339,34 +345,26 @@ class Estimator(BaseEstimator):
         if not isinstance(counts, list):
             counts = [counts]
         metadata = [res.header.metadata for res in result.results]
-        num_observables = result.num_observables
-        accum = [0] + list(accumulate(num_observables))
         expval_list = []
         var_list = []
 
-        for i in range(len(num_observables)):
+        for i, j in zip(accum, accum[1:]):
 
             combined_expval = 0.0
             combined_var = 0.0
             combined_stderr = 0.0
 
-            for count, meta in zip(
-                counts[accum[i] : accum[i + 1]], metadata[accum[i] : accum[i + 1]]
-            ):
+            for count, meta in zip(counts[i:j], metadata[i:j]):
                 basis = meta.get("basis", None)
                 coeff = meta.get("coeff", 1)
                 basis_coeff = coeff if isinstance(coeff, dict) else {basis: coeff}
                 for basis, coeff in basis_coeff.items():
                     diagonal = str2diag(basis.translate(self._trans)) if basis is not None else None
-                    # qubits = meta.get("qubits", None)
                     shots = sum(count.values())
 
                     # Compute expval component
-                    if self._readout_mitigator is None:
-                        expval, var = _expval_with_variance(count, diagonal)
-                    else:
-                        expval, stddev = self._readout_mitigator.expectation_value(count, diagonal)
-                        var = stddev**2 * shots
+                    expval, var = _expval_with_variance(count, diagonal)
+
                     # Accumulate
                     combined_expval += expval * coeff
                     combined_var += var * coeff**2
@@ -392,7 +390,7 @@ class Estimator(BaseEstimator):
         """Convert ``EstimatorResult`` to a dictionary
 
         Args:
-            result: The result of ``Sampler``
+            result: The result of ``Estimator``
             shots: The number of shots
 
         Returns:
@@ -418,7 +416,7 @@ def _expval_with_variance(
     if diagonal is None:
         coeffs = np.array([(-1) ** key.count("1") for key in counts.keys()], dtype=probs.dtype)
     else:
-        keys = [int("0b" + key, 0) for key in counts.keys()]
+        keys = [int(key, 2) for key in counts.keys()]
         coeffs = np.asarray(diagonal[keys], dtype=probs.dtype)
 
     # Compute expval
@@ -435,10 +433,9 @@ def _expval_with_variance(
     # Compute standard deviation
     if variance < 0:
         if not np.isclose(variance, 0):
-            logger.warning(
+            warn(
                 "Encountered a negative variance in expectation value calculation."
-                "(%f). Setting standard deviation of result to 0.",
-                variance,
+                f"({variance}). Setting standard deviation of result to 0.",
             )
         variance = np.float64(0.0)
     return expval.item(), variance.item()
@@ -455,6 +452,8 @@ def main(
     parameter_values=None,
     skip_transpilation=False,
     run_options=None,
+    transpilation_settings=None,
+    resilience_settings=None,  # pylint: disable=unused-argument
 ):
     """Estimator primitive.
 
@@ -468,12 +467,18 @@ def main(
         circuit_indices: List of circuit indices.
         observable_indices: List of observable indices.
         parameter_values: Concrete parameters to be bound.
-        skip_transpilation: Skip transpiling of circuits, default=False.
+        skip_transpilation: (Deprecated) Skip transpiling of circuits, default=False.
         run_options: Execution time options.
+        transpilation_settings: Transpilation settings.
+        resilience_settings: Resilience settings.
 
     Returns: Expectation values and metadata.
 
     """
+    transpilation_settings = transpilation_settings or {}
+    skip_transpilation = transpilation_settings.pop("skip_transpilation", skip_transpilation)
+    optimization_settings = transpilation_settings.pop("optimization_settings", {})
+
     estimator = Estimator(
         backend=backend,
         circuits=circuits,
@@ -481,8 +486,22 @@ def main(
         parameters=parameters,
         skip_transpilation=skip_transpilation,
     )
+
+    transpile_options = transpilation_settings.copy()
+    transpile_options["optimization_level"] = optimization_settings.get("level", 1)
+    estimator.set_transpile_options(**transpile_options)
+
+    resilience_settings = resilience_settings or {}
+
+    # TODO: T-Rex will be a separate PR
+    if resilience_settings.get("level", 0) >= 1:
+        warn(
+            "Pauli twirling readout error mitigation is not implemented yet. "
+            "'level' of the resilience setting is ignored."
+        )
+
     run_options = run_options or {}
-    shots = run_options.get("shots") or backend.options.shots
+    shots = run_options.get("shots", backend.options.shots)
     result = estimator(
         circuits=circuit_indices,
         observables=observable_indices,
