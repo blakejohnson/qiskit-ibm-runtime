@@ -71,6 +71,11 @@ def main(backend, user_messenger, **kwargs):
     operator = kwargs["operator"]
     aux_operators = kwargs.get("aux_operators", None)
     initial_point = kwargs.get("initial_point", None)
+
+    # set the number of batched evaluations, with a maximum of 1000 parameter sets at once
+    # for now to avoid any memory issues of allocating too many large vectors
+    max_evals_grouped = kwargs.get("max_evals_grouped", min(2 * ansatz.num_parameters, 1000))
+
     optimizer = kwargs.get("optimizer", SPSA())
     if isinstance(optimizer, dict):
         # since we cannot properly deprecate we raise the warning here to break the program
@@ -112,6 +117,7 @@ def main(backend, user_messenger, **kwargs):
         optimizer=optimizer,
         initial_point=initial_point,
         expectation=PauliExpectation(),
+        max_evals_grouped=max_evals_grouped,
         callback=publisher.callback,
         quantum_instance=_quantum_instance,
     )

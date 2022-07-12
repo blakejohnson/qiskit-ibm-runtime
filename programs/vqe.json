@@ -47,6 +47,11 @@
             "object"
           ],
           "default": "null"
+        },
+        "max_evals_grouped": {
+           "description": "The maximum number of parameter sets that can be evaluated at once. Defaults to the minimum of 2 times the number of parameters, or 1000.",
+           "type": "integer",
+           "default": "null"
         }
       },
       "required": [

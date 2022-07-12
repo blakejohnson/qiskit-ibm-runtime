@@ -19,6 +19,7 @@ from qiskit.algorithms import NumPyMinimumEigensolver
 from qiskit.algorithms.optimizers import SPSA, COBYLA, QNSPSA
 from qiskit.circuit.library import EfficientSU2, RealAmplitudes
 from qiskit.opflow import X, Z, I
+from qiskit.providers.basicaer import QasmSimulatorPy
 
 from qiskit_nature.runtime import VQEClient
 from qiskit_nature.algorithms import GroundStateEigensolver
@@ -33,8 +34,31 @@ from qiskit_nature.transformers.second_quantization.electronic import (
     ActiveSpaceTransformer,
 )
 
+from programs.vqe import main
+
 from .decorator import get_provider_and_backend
 from .base_testcase import BaseTestCase
+
+
+class CountingBackend(QasmSimulatorPy):
+    """A version of Terra's built-in QasmSimulator that counts how often ``run`` is called."""
+
+    def __init__(self, configuration=None, provider=None, **fields):
+        super().__init__(configuration, provider, **fields)
+        self.run_count = 0
+
+    def run(self, qobj, **backend_options):
+        self.run_count += 1
+        return super().run(qobj, **backend_options)
+
+
+class BlackHoleMessenger:
+    """A fake user messenger swallowing everything thrown at it."""
+
+    # pylint: disable=unused-argument
+    def publish(self, msg, final=False):
+        """Fakes the publish method, does not return anything or have any effect."""
+        pass
 
 
 class TestVQE(BaseTestCase):
@@ -174,3 +198,24 @@ class TestVQE(BaseTestCase):
 
         if self.backend.configuration().simulator:
             self.assertLess(abs(result.eigenvalue - reference.eigenvalue), 1)
+
+    def test_batched_evaluations(self):
+        """Test circuit evaluations are batched per default."""
+        backend = CountingBackend()
+
+        ansatz = EfficientSU2(3, entanglement="linear", reps=1)
+        initial_point = np.random.random(ansatz.num_parameters)
+        maxiter = 10
+        optimizer = SPSA(maxiter, learning_rate=0.01, perturbation=0.1)
+
+        main(
+            backend,
+            user_messenger=BlackHoleMessenger(),
+            operator=self.hamiltonian,
+            ansatz=ansatz,
+            initial_point=initial_point,
+            optimizer=optimizer,
+        )
+
+        # one evaluation per iteration plus a final one from SPSA and a final one from VQE
+        self.assertEqual(backend.run_count, maxiter + 2)
