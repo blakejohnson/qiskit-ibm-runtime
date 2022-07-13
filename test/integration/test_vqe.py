@@ -21,6 +21,7 @@ from qiskit.circuit.library import EfficientSU2, RealAmplitudes
 from qiskit.opflow import X, Z, I
 from qiskit.providers.basicaer import QasmSimulatorPy
 
+import qiskit_nature
 from qiskit_nature.runtime import VQEClient
 from qiskit_nature.algorithms import GroundStateEigensolver
 from qiskit_nature.drivers.second_quantization import HDF5Driver
@@ -77,6 +78,10 @@ class TestVQE(BaseTestCase):
 
     def setUp(self) -> None:
         """Test case setup."""
+        # avoid deprecation warnings from Qiskit Nature (this has to be set even if no
+        # auxiliary operators are used anywhere)
+        qiskit_nature.settings.dict_aux_operators = True
+
         spin_coupling = (Z ^ Z ^ I) + (I ^ Z ^ Z)
         transverse_field = (X ^ I ^ I) + (I ^ X ^ I) + (I ^ I ^ X)
         hamiltonian = -0.5 * (spin_coupling + 0.5 * transverse_field)
