@@ -12,9 +12,9 @@
 
 """Unit tests for Estimator."""
 
+from math import ceil
 from test.unit import combine
 import unittest
-from warnings import catch_warnings
 
 from ddt import ddt
 import numpy as np
@@ -25,11 +25,11 @@ from qiskit.exceptions import QiskitError
 from qiskit.opflow import PauliSumOp
 from qiskit.primitives import Estimator as RefEstimator
 from qiskit.primitives import EstimatorResult
+from qiskit.providers.fake_provider import FakeBogota, FakeMontreal
 from qiskit.quantum_info import Operator, SparsePauliOp
 from qiskit.quantum_info.random import random_pauli_list
-from qiskit.providers.fake_provider import FakeMontreal
 
-from programs.estimator import Estimator, main
+from programs.estimator import Estimator, PauliTwirledMitigation, main
 
 
 @ddt
@@ -171,12 +171,14 @@ class TestEstimator(unittest.TestCase):
             with self.assertRaises(QiskitError):
                 est([1], [1], [[1, 2]])
 
-    @combine(noise=[False], grouping=[True, False], num_qubits=[2, 5])
+    @combine(noise=[True, False], grouping=[True, False], num_qubits=[2, 5])
     def test_compare_reference(self, noise, grouping, num_qubits):
         """Test to compare results of Estimator with those of the reference one"""
         size = 10
-        seed = 123
+        seed = 15
         shots = 10000
+        num_twirled_circuits = 4
+        shots_calibration = 8192
 
         param_x = Parameter("x")
         circ = QuantumCircuit(num_qubits)
@@ -189,16 +191,28 @@ class TestEstimator(unittest.TestCase):
             result = est([0] * len(params), [0] * len(params), params)
             targets = result.values
         backend = FakeMontreal() if noise else Aer.get_backend("aer_simulator")
+        mit = PauliTwirledMitigation(
+            backend=backend,
+            seed=seed,
+            num_twirled_circuits=num_twirled_circuits,
+            shots_calibration=shots_calibration,
+        )
         with Estimator(
             circuits=[circ],
             observables=[obs],
             backend=backend,
             abelian_grouping=grouping,
+            pauli_twirled_mitigation=mit,
         ) as est:
             result = est(
-                [0] * len(params), [0] * len(params), params, shots=shots, seed_simulator=15
+                [0] * len(params), [0] * len(params), params, shots=shots, seed_simulator=seed
             )
-        np.testing.assert_allclose(result.values, targets, rtol=1e-1)
+        np.testing.assert_allclose(result.values, targets, rtol=1e-1, atol=1e-1)
+        shots2 = int(ceil(shots / num_twirled_circuits)) * num_twirled_circuits
+        for meta in result.metadata:
+            self.assertEqual(meta["shots"], shots2)
+            self.assertEqual(meta["readout_mitigation_num_twirled_circuits"], num_twirled_circuits)
+            self.assertEqual(meta["readout_mitigation_shots_calibration"], shots_calibration)
 
 
 @ddt
@@ -223,45 +237,153 @@ class TestEstimatorMain(unittest.TestCase):
         """Test main"""
         backend = Aer.get_backend("aer_simulator")
         shots = 10000
-
-        with catch_warnings(record=True) as warn_cm:
-            result = main(
-                backend=backend,
-                user_messenger=None,
-                circuits=[self.ansatz],
-                observables=[self.observable],
-                circuit_indices=[0],
-                observable_indices=[0],
-                parameter_values=[[0, 1, 1, 2, 3, 5]],
-                run_options={"shots": shots, "seed_simulator": 15},
-                transpilation_settings={"seed_transpiler": 15},
-                resilience_settings={"level": resilience_level},
-            )
-            self.assertEqual(len(warn_cm), resilience_level)
-        np.testing.assert_allclose(result["values"], [-1.283], rtol=1e-3)
+        circuits = [0]
+        observables = [0]
+        params = [[0, 1, 1, 2, 3, 5]]
+        with RefEstimator([self.ansatz], [self.observable]) as estimator:
+            target = estimator(circuits, observables, params).values
+        result = main(
+            backend=backend,
+            user_messenger=None,
+            circuits=[self.ansatz],
+            observables=[self.observable],
+            circuit_indices=circuits,
+            observable_indices=observables,
+            parameter_values=params,
+            run_options={"shots": shots, "seed_simulator": 15},
+            transpilation_settings={"seed_transpiler": 15},
+            resilience_settings={
+                "level": resilience_level,
+                "pauli_twirled_mitigation": {"seed_mitigation": 15, "seed_simulator": 15},
+            },
+        )
+        np.testing.assert_allclose(result["values"], target, rtol=1e-2)
         self.assertEqual(len(result["metadata"]), 1)
-        self.assertEqual(result["metadata"][0]["shots"], shots)
+        if resilience_level == 0:
+            self.assertEqual(result["metadata"][0]["shots"], shots)
+        else:
+            div = result["metadata"][0]["readout_mitigation_num_twirled_circuits"]
+            self.assertEqual(result["metadata"][0]["shots"], int(ceil(shots / div)) * div)
 
     @combine(resilience_level=[0, 1])
     def test_main2(self, resilience_level):
-        """Test main 2"""
+        """Test main (2)"""
         backend = Aer.get_backend("aer_simulator")
         shots = 10000
-        with catch_warnings(record=True) as warn_cm:
-            result = main(
-                backend=backend,
-                user_messenger=None,
-                circuits=[self.ansatz],
-                observables=[self.observable],
-                circuit_indices=[0, 0],
-                observable_indices=[0, 0],
-                parameter_values=[[0, 1, 1, 2, 3, 5], [1, 1, 2, 3, 5, 8]],
-                run_options={"shots": shots, "seed_simulator": 15},
-                transpilation_settings={"seed_transpiler": 15},
-                resilience_settings={"level": resilience_level},
-            )
-            self.assertEqual(len(warn_cm), resilience_level)
-        np.testing.assert_allclose(result["values"], [-1.283, -1.315], rtol=1e-3)
+        circuits = [0, 0]
+        observables = [0, 0]
+        params = [[0, 1, 1, 2, 3, 5], [1, 1, 2, 3, 5, 8]]
+        with RefEstimator([self.ansatz], [self.observable]) as estimator:
+            target = estimator(circuits, observables, params).values
+        result = main(
+            backend=backend,
+            user_messenger=None,
+            circuits=[self.ansatz],
+            observables=[self.observable],
+            circuit_indices=circuits,
+            observable_indices=observables,
+            parameter_values=params,
+            run_options={"shots": shots, "seed_simulator": 15},
+            transpilation_settings={"seed_transpiler": 15},
+            resilience_settings={
+                "level": resilience_level,
+                "pauli_twirled_mitigation": {"seed_mitigation": 15, "seed_simulator": 15},
+            },
+        )
+        np.testing.assert_allclose(result["values"], target, rtol=1e-2)
         self.assertEqual(len(result["metadata"]), 2)
-        self.assertEqual(result["metadata"][0]["shots"], shots)
-        self.assertEqual(result["metadata"][1]["shots"], shots)
+        if resilience_level == 0:
+            self.assertEqual(result["metadata"][0]["shots"], shots)
+            self.assertEqual(result["metadata"][1]["shots"], shots)
+        else:
+            div = result["metadata"][0]["readout_mitigation_num_twirled_circuits"]
+            self.assertEqual(result["metadata"][0]["shots"], int(ceil(shots / div)) * div)
+            self.assertEqual(result["metadata"][1]["shots"], int(ceil(shots / div)) * div)
+
+    @combine(noise=[True, False], shots=[10000, 20000])
+    def test_estimator_with_trex(self, noise, shots):
+        """Test estimator with T-Rex"""
+        backend = FakeBogota() if noise else Aer.get_backend("aer_simulator")
+        resilience_level = 1
+        circuits = [0, 0]
+        observables = [0, 0]
+        params = [[0, 1, 1, 2, 3, 5], [1, 1, 2, 3, 5, 8]]
+        with RefEstimator([self.ansatz], [self.observable]) as estimator:
+            target = estimator(circuits, observables, params).values
+        result = main(
+            backend=backend,
+            user_messenger=None,
+            circuits=[self.ansatz],
+            observables=[self.observable],
+            circuit_indices=circuits,
+            observable_indices=observables,
+            parameter_values=params,
+            run_options={"shots": shots, "seed_simulator": 15},
+            transpilation_settings={"seed_transpiler": 15},
+            resilience_settings={
+                "level": resilience_level,
+                "pauli_twirled_mitigation": {"seed_mitigation": 15, "seed_simulator": 15},
+            },
+        )
+        np.testing.assert_allclose(result["values"], target, rtol=1e-2)
+        self.assertEqual(len(result["metadata"]), 2)
+        div = result["metadata"][0]["readout_mitigation_num_twirled_circuits"]
+        self.assertEqual(result["metadata"][0]["shots"], int(ceil(shots / div)) * div)
+        self.assertEqual(result["metadata"][1]["shots"], int(ceil(shots / div)) * div)
+
+    @combine(noise=[True, False], resilience_level=[0, 1], shots=[100])
+    def test_estimator_with_trex_2(self, noise, resilience_level, shots):
+        """Test estimator with T-Rex (2)"""
+        backend = FakeBogota() if noise else Aer.get_backend("aer_simulator")
+        circuit = RealAmplitudes(num_qubits=5, reps=2, entanglement="full")
+        num_parameters = circuit.num_parameters
+        observable = SparsePauliOp("IIIII")
+        result = main(
+            backend=backend,
+            user_messenger=None,
+            circuits=[circuit],
+            observables=[observable],
+            circuit_indices=[0, 0],
+            observable_indices=[0, 0],
+            parameter_values=[[0] * num_parameters, [1] * num_parameters],
+            run_options={"shots": shots, "seed_simulator": 15},
+            transpilation_settings={"seed_transpiler": 15},
+            resilience_settings={
+                "level": resilience_level,
+                "pauli_twirled_mitigation": {"seed_mitigation": 15, "seed_simulator": 15},
+            },
+        )
+        np.testing.assert_allclose(result["values"], [1, 1], rtol=1e-2)
+        self.assertEqual(len(result["metadata"]), 2)
+        if resilience_level == 0:
+            self.assertEqual(result["metadata"][0]["shots"], shots)
+            self.assertEqual(result["metadata"][1]["shots"], shots)
+        else:
+            div = result["metadata"][0]["readout_mitigation_num_twirled_circuits"]
+            self.assertEqual(result["metadata"][0]["shots"], int(ceil(shots / div)) * div)
+            self.assertEqual(result["metadata"][1]["shots"], int(ceil(shots / div)) * div)
+
+    @combine(noise=[True, False], resilience_level=[0, 1])
+    def test_estimator_with_trex_3(self, noise, resilience_level):
+        """Test estimator with T-Rex (3)"""
+        backend = FakeBogota() if noise else Aer.get_backend("aer_simulator")
+        circuit = RealAmplitudes(num_qubits=5, reps=2, entanglement="full")
+        num_parameters = circuit.num_parameters
+        observable = SparsePauliOp("IIIII")
+        result = main(
+            backend=backend,
+            user_messenger=None,
+            circuits=[circuit],
+            observables=[observable],
+            circuit_indices=[0, 0],
+            observable_indices=[0, 0],
+            parameter_values=[[0] * num_parameters, [1] * num_parameters],
+            run_options={"seed_simulator": 15},
+            transpilation_settings={"seed_transpiler": 15},
+            resilience_settings={
+                "level": resilience_level,
+                "pauli_twirled_mitigation": {"seed_mitigation": 15, "seed_simulator": 15},
+            },
+        )
+        np.testing.assert_allclose(result["values"], [1, 1], rtol=1e-2)
+        self.assertEqual(len(result["metadata"]), 2)

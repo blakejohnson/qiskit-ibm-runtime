@@ -19,34 +19,33 @@ from collections import defaultdict
 from collections.abc import Iterable, Sequence
 import copy
 from itertools import accumulate
-from typing import cast
-from warnings import warn
 
+from mthree.utils import final_measurement_mapping
 import numpy as np
 from qiskit.circuit import Parameter, ParameterExpression, QuantumCircuit
 from qiskit.compiler import transpile
 from qiskit.exceptions import QiskitError
 from qiskit.opflow import PauliSumOp
 from qiskit.primitives import BaseEstimator, EstimatorResult
-from qiskit.providers import BackendV1 as Backend
-from qiskit.providers import Options
-from qiskit.quantum_info import SparsePauliOp
+from qiskit.providers import Backend, Options
+from qiskit.quantum_info import Pauli, PauliList, SparsePauliOp
 from qiskit.quantum_info.operators.base_operator import BaseOperator
 from qiskit.quantum_info.operators.symplectic.base_pauli import BasePauli
 from qiskit.result import Counts, Result
-from qiskit.result.mitigation.utils import str2diag
+from qiskit.tools.monitor import job_monitor
 from qiskit.transpiler import PassManager
 import retworkx as rx
 
 
 def _grouping(sparse_pauli_operator: SparsePauliOp):
     """Partition a SparsePauliOp into sets of commuting Pauli strings.
+    Note that the input SparsePauliOp need to be simplified beforehand.
+    Otherwise, the output could be wrong.
 
     Returns:
         List[SparsePauliOp]: List of SparsePauliOp where each SparsePauliOp contains commutable
             Pauli operators.
     """
-    sparse_pauli_operator = sparse_pauli_operator.simplify(atol=0)
     edges = sparse_pauli_operator.paulis._noncommutation_graph(True)
     graph = rx.PyGraph()
     graph.add_nodes_from(range(sparse_pauli_operator.size))
@@ -73,27 +72,57 @@ def init_observable(observable: BaseOperator | PauliSumOp) -> SparsePauliOp:
             coefficient.
     """
     if isinstance(observable, SparsePauliOp):
-        return observable
+        ret = observable
     elif isinstance(observable, PauliSumOp):
         if isinstance(observable.coeff, ParameterExpression):
             raise TypeError(
                 f"Observable must have numerical coefficient, not {type(observable.coeff)}."
             )
-        return observable.coeff * observable.primitive
+        ret = observable.coeff * observable.primitive
     elif isinstance(observable, BasePauli):
-        return SparsePauliOp(observable)
+        ret = SparsePauliOp(observable)
     elif isinstance(observable, BaseOperator):
-        return SparsePauliOp.from_operator(observable)
+        ret = SparsePauliOp.from_operator(observable)
     else:
-        return SparsePauliOp(observable)
+        ret = SparsePauliOp(observable)
+
+    return ret.simplify(atol=0)
+
+
+def run_circuits(
+    circuits: QuantumCircuit | list[QuantumCircuit],
+    backend: Backend,
+    monitor: bool = False,
+    **run_options,
+) -> tuple[Result, list[dict]]:
+    """Remove metadata of circuits and run the circuits on a backend.
+
+    Args:
+        circuits: The circuits
+        backend: The backend
+        monitor: Enable job minotor if True
+        **run_options: run_options
+
+    Returns:
+        The result and the metadata of the circuits
+    """
+    if isinstance(circuits, QuantumCircuit):
+        circuits = [circuits]
+    metadata = []
+    for circ in circuits:
+        metadata.append(circ.metadata)
+        circ.metadata = {}
+
+    job = backend.run(circuits, **run_options)
+    if monitor:
+        job_monitor(job)
+    return job.result(), metadata
 
 
 class Estimator(BaseEstimator):
     """
     Evaluates expectation value using pauli rotation gates.
     """
-
-    _trans = str.maketrans({"X": "Z", "Y": "Z"})
 
     def __init__(
         self,
@@ -104,6 +133,7 @@ class Estimator(BaseEstimator):
         abelian_grouping: bool = True,
         bound_pass_manager: PassManager | None = None,
         skip_transpilation: bool = False,
+        pauli_twirled_mitigation: PauliTwirledMitigation | None = None,
     ):
         if not isinstance(backend, Backend):
             raise TypeError(f"backend should be BackendV1, not {type(backend)}.")
@@ -133,6 +163,7 @@ class Estimator(BaseEstimator):
 
         self._grouping = list(zip(range(len(self._circuits)), range(len(self._observables))))
         self._skip_transpilation = skip_transpilation
+        self._mitigation = pauli_twirled_mitigation
 
     @property
     def run_options(self) -> Options:
@@ -217,9 +248,8 @@ class Estimator(BaseEstimator):
             num_qubits = common_circuit.num_qubits
             common_circuit.measure_all()
             if not self._skip_transpilation:
-                common_circuit = cast(
-                    QuantumCircuit,
-                    transpile(common_circuit, self.backend, **self.transpile_options.__dict__),
+                common_circuit = transpile(
+                    common_circuit, self.backend, **self.transpile_options.__dict__
                 )
             bit_map = {bit: index for index, bit in enumerate(common_circuit.qubits)}
             layout = [bit_map[qr[0]] for _, qr, _ in common_circuit[-num_qubits:]]
@@ -227,10 +257,7 @@ class Estimator(BaseEstimator):
             # 2. transpile diff circuits
             transpile_opts = copy.copy(self.transpile_options)
             transpile_opts.update_options(initial_layout=layout)
-            diff_circuits = cast(
-                "list[QuantumCircuit]",
-                transpile(diff_circuits, self.backend, **transpile_opts.__dict__),
-            )
+            diff_circuits = transpile(diff_circuits, self.backend, **transpile_opts.__dict__)
             # 3. combine
             transpiled_circuits = []
             for diff_circuit in diff_circuits:
@@ -272,30 +299,39 @@ class Estimator(BaseEstimator):
         # Run
         run_opts = copy.copy(self.run_options)
         run_opts.update_options(**run_options)
-        result = self._backend.run(bound_circuits, **run_opts.__dict__).result()
 
-        return self._postprocessing(result, accum)
+        if self._mitigation:
+            self._mitigation.cals_from_system(
+                [final_measurement_mapping(circ) for circ in bound_circuits]
+            )
+            # run
+            result, metadata = self._mitigation.run_circuits(bound_circuits, **run_opts.__dict__)
+            accum = [e * self._mitigation.num_twirled_circuits for e in accum]
+        else:
+            result, metadata = run_circuits(bound_circuits, self._backend, **run_opts.__dict__)
+
+        return self._postprocessing(result, accum, metadata)
 
     def close(self):
         self._is_closed = True
 
     @staticmethod
-    def _measurement_circuit(num_qubits: int, pauli: str):
+    def _measurement_circuit(num_qubits: int, pauli: Pauli):
         # Note: if pauli is I for all qubits, this function generates a circuit to measure only
         # the first qubit.
         # Although such an operator can be optimized out by interpreting it as a constant (1),
         # this optimization requires changes in various methods. So it is left as future work.
-        reversed_pauli = pauli[::-1]
-        qubit_indices = [i for i, char in enumerate(reversed_pauli) if char != "I"] or [0]
+        qubit_indices = np.arange(pauli.num_qubits)[pauli.z | pauli.x]
+        if not np.any(qubit_indices):
+            qubit_indices = [0]
         meas_circuit = QuantumCircuit(num_qubits, len(qubit_indices))
         for clbit, i in enumerate(qubit_indices):
-            val = reversed_pauli[i]
-            if val == "Y":
-                meas_circuit.sdg(i)
-            if val in ["Y", "X"]:
+            if pauli.x[i]:
+                if pauli.z[i]:
+                    meas_circuit.sdg(i)
                 meas_circuit.h(i)
             meas_circuit.measure(i, clbit)
-        return meas_circuit
+        return meas_circuit, qubit_indices
 
     def _preprocessing(self) -> list[tuple[QuantumCircuit, list[QuantumCircuit]]]:
         """
@@ -307,36 +343,41 @@ class Estimator(BaseEstimator):
             observable = self._observables[group[1]]
             diff_circuits: list[QuantumCircuit] = []
             if self._abelian_grouping:
-                for o_p in observable.grouping():
-                    lst = []
-                    for paulis in zip(*o_p.paulis.to_labels()):
-                        pauli_set = set(paulis)
-                        pauli_set.discard("I")
-                        lst.append(pauli_set.pop() if pauli_set else "I")
-                    pauli = "".join(lst)
-                    meas_circuit = self._measurement_circuit(circuit.num_qubits, pauli)
-                    str_indices = [i for i, char in enumerate(pauli) if char != "I"] or [
-                        len(pauli) - 1
-                    ]
-                    basis = "".join(pauli[i] for i in str_indices)
-                    coeff_dict = {
-                        "".join(key[i] for i in str_indices): np.real_if_close(val).item()
-                        for key, val in o_p.label_iter()
+                for obs in observable.grouping():
+                    basis = Pauli(
+                        (np.logical_or.reduce(obs.paulis.z), np.logical_or.reduce(obs.paulis.x))
+                    )
+                    meas_circuit, indices = self._measurement_circuit(circuit.num_qubits, basis)
+                    paulis = PauliList.from_symplectic(
+                        obs.paulis.z[:, indices],
+                        obs.paulis.x[:, indices],
+                        obs.paulis.phase,
+                    )
+                    meas_circuit.metadata = {
+                        "paulis": paulis,
+                        "coeffs": np.real_if_close(obs.coeffs),
                     }
-                    meas_circuit.metadata = {"basis": basis, "coeff": coeff_dict}
                     diff_circuits.append(meas_circuit)
             else:
-                for pauli, coeff in observable.label_iter():
-                    meas_circuit = self._measurement_circuit(circuit.num_qubits, pauli)
-                    basis = "".join(char for char in pauli if char != "I") or "I"
-                    coeff = np.real_if_close(coeff).item()
-                    meas_circuit.metadata = {"basis": basis, "coeff": {basis: coeff}}
+                for basis, obs in zip(observable.paulis, observable):
+                    meas_circuit, indices = self._measurement_circuit(circuit.num_qubits, basis)
+                    paulis = PauliList.from_symplectic(
+                        obs.paulis.z[:, indices],
+                        obs.paulis.x[:, indices],
+                        obs.paulis.phase,
+                    )
+                    meas_circuit.metadata = {
+                        "paulis": paulis,
+                        "coeffs": np.real_if_close(obs.coeffs),
+                    }
                     diff_circuits.append(meas_circuit)
 
             preprocessed_circuits.append((circuit.copy(), diff_circuits))
         return preprocessed_circuits
 
-    def _postprocessing(self, result: Result, accum: list[int]) -> EstimatorResult:
+    def _postprocessing(
+        self, result: Result, accum: list[int], metadata: list[dict]
+    ) -> EstimatorResult:
         """
         Postprocessing for evaluation of expectation value using pauli rotation gates.
         """
@@ -344,36 +385,55 @@ class Estimator(BaseEstimator):
         counts = result.get_counts()
         if not isinstance(counts, list):
             counts = [counts]
-        metadata = [res.header.metadata for res in result.results]
         expval_list = []
         var_list = []
+        shots_list = []
 
         for i, j in zip(accum, accum[1:]):
 
             combined_expval = 0.0
             combined_var = 0.0
-            combined_stderr = 0.0
+            step = self._mitigation.num_twirled_circuits if self._mitigation else 1
 
-            for count, meta in zip(counts[i:j], metadata[i:j]):
-                basis = meta.get("basis", None)
-                coeff = meta.get("coeff", 1)
-                basis_coeff = coeff if isinstance(coeff, dict) else {basis: coeff}
-                for basis, coeff in basis_coeff.items():
-                    diagonal = str2diag(basis.translate(self._trans)) if basis is not None else None
-                    shots = sum(count.values())
+            for k in range(i, j, step):
+                meta = metadata[k]
+                paulis = meta["paulis"]
+                coeffs = meta["coeffs"]
 
-                    # Compute expval component
-                    expval, var = _expval_with_variance(count, diagonal)
+                if self._mitigation:
+                    flips = [datum["flip"] for datum in metadata[k : k + step]]
+                    count = self._mitigation.combine_counts(counts[k : k + step], flips)
+                else:
+                    count = counts[k]
 
-                    # Accumulate
-                    combined_expval += expval * coeff
-                    combined_var += var * coeff**2
-                    combined_stderr += np.sqrt(max(var * coeff**2 / shots, 0.0))
+                expvals, variances = _pauli_expval_with_variance(count, paulis)
+
+                if self._mitigation:
+                    count2 = self._mitigation.calibrated_counts[meta["qubits"]]
+                    div, _ = _pauli_expval_with_variance(count2, paulis)
+                    expvals /= div
+                    # TODO: this variance is a rough estimation. Need more accurate one in the future.
+                    variances /= div**2
+
+                # Accumulate
+                combined_expval += np.dot(expvals, coeffs)
+                combined_var += np.dot(variances, coeffs**2)
+
             expval_list.append(combined_expval)
             var_list.append(combined_var)
-        metadata = [{"variance": var} for var in var_list]
+            shots_list.append(sum(counts[i].values()) * step)
 
-        return EstimatorResult(np.array(expval_list, np.float64), metadata)
+        metadata = [{"variance": var, "shots": shots} for var, shots in zip(var_list, shots_list)]
+        if self._mitigation:
+            for meta in metadata:
+                meta.update(
+                    {
+                        "readout_mitigation_num_twirled_circuits": self._mitigation.num_twirled_circuits,
+                        "readout_mitigation_shots_calibration": self._mitigation.shots_calibration,
+                    }
+                )
+
+        return EstimatorResult(np.real_if_close(expval_list), metadata)
 
     def _check_is_closed(self):
         if self._is_closed:
@@ -383,62 +443,214 @@ class Estimator(BaseEstimator):
         if self._bound_pass_manager is None:
             return circuits
         else:
-            return cast("list[QuantumCircuit]", self._bound_pass_manager.run(circuits))
-
-    @staticmethod
-    def result_to_dict(result: EstimatorResult, shots: int):
-        """Convert ``EstimatorResult`` to a dictionary
-
-        Args:
-            result: The result of ``Estimator``
-            shots: The number of shots
-
-        Returns:
-            A dictionary representing the result.
-
-        """
-        ret = result.__dict__
-        for metadata in ret["metadata"]:
-            metadata["shots"] = shots
-        return ret
+            return self._bound_pass_manager.run(circuits)
 
 
-def _expval_with_variance(
-    counts: Counts,
-    diagonal: np.ndarray | None = None,
-) -> tuple[float, float]:
+def _paulis2inds(paulis: PauliList) -> list[int]:
+    """Convert PauliList to diagonal integers.
 
-    probs = np.fromiter(counts.values(), dtype=float)
-    shots = probs.sum()
-    probs = probs / shots
+    These are integer representations of the binary string with a
+    1 where there are Paulis, and 0 where there are identities.
+    """
+    # Treat Z, X, Y the same
+    nonid = paulis.z | paulis.x
 
-    # Get diagonal operator coefficients
-    if diagonal is None:
-        coeffs = np.array([(-1) ** key.count("1") for key in counts.keys()], dtype=probs.dtype)
-    else:
-        keys = [int(key, 2) for key in counts.keys()]
-        coeffs = np.asarray(diagonal[keys], dtype=probs.dtype)
+    inds = [0] * paulis.size
+    # bits are packed into uint8 in little endian
+    # e.g., i-th bit corresponds to coefficient 2^i
+    packed_vals = np.packbits(nonid, axis=1, bitorder="little")
+    for i, vals in enumerate(packed_vals):
+        for j, val in enumerate(vals):
+            inds[i] += val.item() * (1 << (8 * j))
+    return inds
 
-    # Compute expval
-    expval = coeffs.dot(probs)
+
+def _parity(integer: int) -> int:
+    """Return the parity of an integer"""
+    return bin(integer).count("1") % 2
+
+
+def _pauli_expval_with_variance(counts: Counts, paulis: PauliList) -> tuple[np.ndarray, np.ndarray]:
+    """Return array of expval and variance pairs for input Paulis.
+
+    Note: All non-identity Pauli's are treated as Z-paulis, assuming
+    that basis rotations have been applied to convert them to the
+    diagonal basis.
+    """
+    # Diag indices
+    size = len(paulis)
+    diag_inds = _paulis2inds(paulis)
+
+    expvals = np.zeros(size, dtype=float)
+    denom = 0  # Total shots for counts dict
+    for bin_outcome, freq in counts.items():
+        outcome = int(bin_outcome, 2)
+        denom += freq
+        for k in range(size):
+            coeff = (-1) ** _parity(diag_inds[k] & outcome)
+            expvals[k] += freq * coeff
+
+    # Divide by total shots
+    expvals /= denom
 
     # Compute variance
-    if diagonal is None:
-        # The square of the parity diagonal is the all 1 vector
-        sq_expval = np.sum(probs)
-    else:
-        sq_expval = (coeffs**2).dot(probs)
-    variance = sq_expval - expval**2
+    variances = 1 - expvals**2
+    return expvals, variances
 
-    # Compute standard deviation
-    if variance < 0:
-        if not np.isclose(variance, 0):
-            warn(
-                "Encountered a negative variance in expectation value calculation."
-                f"({variance}). Setting standard deviation of result to 0.",
-            )
-        variance = np.float64(0.0)
-    return expval.item(), variance.item()
+
+class PauliTwirledMitigation:
+    """
+    Pauli twirled readout error mitigation (T-Rex)
+    """
+
+    def __init__(
+        self,
+        backend: Backend,
+        num_twirled_circuits: int = 16,
+        shots_calibration: int = 8192,
+        seed: np.random.Generator | int | None = None,
+        **cal_run_options,
+    ):
+        self._backend = backend
+        self._num_twirled_circuits = num_twirled_circuits
+        self._shots_calibration = shots_calibration
+        if seed is None or isinstance(seed, int):
+            self._rng = np.random.default_rng(seed)
+        elif isinstance(seed, np.random.Generator):
+            self._rng = seed
+        else:
+            raise QiskitError(f"Invalid random number seed: {seed}")
+        self._cal_run_options = cal_run_options
+        self._counts_identity: dict[Sequence[int], Counts] = {}
+
+    @property
+    def num_twirled_circuits(self):
+        """Number of Pauli twirled circuits for each circuit"""
+        return self._num_twirled_circuits
+
+    @property
+    def calibrated_counts(self):
+        """Calibrate counts for identity circuits"""
+        return self._counts_identity
+
+    @property
+    def shots_calibration(self):
+        """Number of shots for calibration"""
+        return self._num_twirled_circuits * self._subdivide_shots(
+            self._shots_calibration, self._num_twirled_circuits
+        )
+
+    def cals_from_system(self, mappings: list[dict[int, int]]):
+        """Calibrate count data
+
+        Args:
+            mappings: The qubit mapping
+        """
+        for mapping in mappings:
+            qubits_to_measure = tuple(mapping)
+            if qubits_to_measure not in self._counts_identity:
+                self._counts_identity[qubits_to_measure] = self._calibrate(qubits_to_measure)
+
+    @staticmethod
+    def _bitflip(bitstring: str, flip_qubits: list[int]):
+        lst = list(bitstring[::-1])
+        conv = {"0": "1", "1": "0"}
+        for i in flip_qubits:
+            lst[i] = conv[lst[i]]
+        return "".join(lst[::-1])
+
+    @classmethod
+    def combine_counts(cls, counts: list[Counts], flips: list[list[int]]) -> Counts:
+        """Combine count data by flipping bits
+
+        Args:
+            counts: The count data
+            flips: The flip data
+
+        Returns:
+            The sum of the count data that are flipped at corresponding bits to the flip data.
+
+        """
+        total: dict[str, int] = defaultdict(int)
+        for count, flip in zip(counts, flips):
+            for key, num in count.items():
+                total[cls._bitflip(key, flip)] += num
+        return Counts(total)
+
+    def _append_random_x_and_measure(self, circ: QuantumCircuit, qubits: Sequence[int]):
+        flip = np.where(self._rng.choice(2, len(qubits)) == 1)[0]
+        if len(flip) > 0:
+            circ.x(np.asarray(qubits)[flip])
+        meas = QuantumCircuit(circ.num_qubits, len(qubits))
+        meas.measure(qubits, range(len(qubits)))
+        for creg in meas.cregs:
+            circ.add_register(creg)
+        circ.compose(meas, inplace=True)
+        qubits = tuple(qubits)
+        if circ.metadata:
+            circ.metadata["flip"] = flip
+            circ.metadata["qubits"] = qubits
+        else:
+            circ.metadata = {"flip": flip, "qubits": qubits}
+        return circ
+
+    @staticmethod
+    def _subdivide_shots(shots: int, div: int) -> int:
+        """Subdivide shots
+
+        Args:
+            shots: The total number of shots to be subdivided
+            div: The divisor
+
+        Returns:
+            The number of subdivided shots. The sum of the shots should be equal to or larger than
+            the total number of shots.
+
+        Reference:
+            https://datagy.io/python-ceiling/ ("Python Ceiling Division" section)
+        """
+        return -(-shots // div)
+
+    def _calibrate(self, qubits: Sequence[int]):
+        circuits = []
+        for _ in range(self._num_twirled_circuits):
+            circ = QuantumCircuit(max(qubits) + 1)
+            circ = self._append_random_x_and_measure(circ, qubits)
+            circuits.append(circ)
+        shots = self._subdivide_shots(self._shots_calibration, self._num_twirled_circuits)
+        result, metadata = run_circuits(
+            circuits, self._backend, shots=shots, **self._cal_run_options
+        )
+
+        counts = result.get_counts()
+        if not isinstance(counts, list):
+            counts = [counts]
+
+        flips = [meta["flip"] for meta in metadata]
+
+        return self.combine_counts(counts, flips)
+
+    def run_circuits(self, circuits, shots, **options):
+        """Generate Pauli twirled circuits and run them
+
+        Args:
+            circuits: The circuits to run.
+            shots: The number of shots.
+            **options: The run options of the backend.
+
+        Returns:
+            The result data of the circuits generated by applying Pauli twirling to the input circuits.
+
+        """
+        circuits2 = []
+        for circ in circuits:
+            qubits = list(final_measurement_mapping(circ))
+            circ.remove_final_measurements(inplace=True)
+            for _ in range(self._num_twirled_circuits):
+                circ2 = self._append_random_x_and_measure(circ.copy(), qubits)
+                circuits2.append(circ2)
+        shots2 = self._subdivide_shots(shots, self._num_twirled_circuits)
+        return run_circuits(circuits2, backend=self._backend, shots=shots2, **options)
 
 
 def main(
@@ -453,7 +665,7 @@ def main(
     skip_transpilation=False,
     run_options=None,
     transpilation_settings=None,
-    resilience_settings=None,  # pylint: disable=unused-argument
+    resilience_settings=None,
 ):
     """Estimator primitive.
 
@@ -478,6 +690,13 @@ def main(
     transpilation_settings = transpilation_settings or {}
     skip_transpilation = transpilation_settings.pop("skip_transpilation", skip_transpilation)
     optimization_settings = transpilation_settings.pop("optimization_settings", {})
+    resilience_settings = resilience_settings or {}
+
+    mitigation = None
+    if resilience_settings.get("level", 0) == 1:
+        options = resilience_settings.pop("pauli_twirled_mitigation", {})
+        seed = options.pop("seed_mitigation", None)
+        mitigation = PauliTwirledMitigation(backend=backend, seed=seed, **options)
 
     estimator = Estimator(
         backend=backend,
@@ -485,23 +704,17 @@ def main(
         observables=observables,
         parameters=parameters,
         skip_transpilation=skip_transpilation,
+        pauli_twirled_mitigation=mitigation,
     )
 
     transpile_options = transpilation_settings.copy()
     transpile_options["optimization_level"] = optimization_settings.get("level", 1)
     estimator.set_transpile_options(**transpile_options)
 
-    resilience_settings = resilience_settings or {}
-
-    # TODO: T-Rex will be a separate PR
-    if resilience_settings.get("level", 0) >= 1:
-        warn(
-            "Pauli twirling readout error mitigation is not implemented yet. "
-            "'level' of the resilience setting is ignored."
-        )
-
     run_options = run_options or {}
-    shots = run_options.get("shots", backend.options.shots)
+    if "shots" not in run_options:
+        run_options["shots"] = backend.options.shots
+
     result = estimator(
         circuits=circuit_indices,
         observables=observable_indices,
@@ -509,6 +722,4 @@ def main(
         **run_options,
     )
 
-    result_dict = estimator.result_to_dict(result, shots)
-
-    return result_dict
+    return result.__dict__
