@@ -23,7 +23,7 @@ from qiskit.circuit.quantumcircuit import ClassicalRegister, QuantumCircuit, Qua
 from qiskit.compiler import transpile
 from qiskit.qasm3 import Exporter
 from qiskit.result import marginal_counts, Result
-from qiskit.providers.ibmq.runtime.utils import RuntimeEncoder
+from qiskit_ibm_runtime.utils import RuntimeEncoder
 import mthree
 import numpy as np
 

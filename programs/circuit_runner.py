@@ -21,8 +21,8 @@ from time import perf_counter
 from qiskit import Aer
 from qiskit.compiler import transpile, schedule
 from qiskit.result import marginal_counts
-from qiskit.providers.ibmq.runtime.utils import RuntimeDecoder
-from qiskit.providers.ibmq.runtime import UserMessenger
+from qiskit_ibm_runtime.utils import RuntimeDecoder
+from qiskit_ibm_runtime.program import UserMessenger
 import mthree
 
 

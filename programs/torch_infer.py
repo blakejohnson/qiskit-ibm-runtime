@@ -25,8 +25,8 @@ import dill
 
 from qiskit import Aer
 from qiskit.utils.mitigation import CompleteMeasFitter
-from qiskit.providers.ibmq.runtime.utils import RuntimeDecoder
 from qiskit.utils import QuantumInstance
+from qiskit_ibm_runtime.utils import RuntimeDecoder
 from qiskit_machine_learning.connectors import TorchConnector
 
 try:

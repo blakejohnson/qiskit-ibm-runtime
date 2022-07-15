@@ -1,6 +1,7 @@
 qiskit-aer
 qiskit-optimization
-qiskit-ibmq-provider>=0.18
+qiskit-ibmq-provider
+qiskit-ibm-runtime
 qiskit-nature
 pyyaml
 requests

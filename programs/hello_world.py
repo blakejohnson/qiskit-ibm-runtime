@@ -38,7 +38,7 @@ def main(backend, user_messenger, **kwargs):
 
     Args:
         backend (qiskit.providers.Backend): Backend to submit the circuits to.
-        user_messenger (qiskit.providers.ibmq.runtime.UserMessenger): Used to communicate with the
+        user_messenger (qiskit_ibm_runtime.UserMessenger): Used to communicate with the
             program consumer.
         kwargs: User inputs.
     """

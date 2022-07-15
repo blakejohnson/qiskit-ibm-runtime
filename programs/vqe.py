@@ -28,7 +28,7 @@ from qiskit.opflow import PauliExpectation
 from qiskit.utils import QuantumInstance
 
 from qiskit.utils.mitigation import CompleteMeasFitter
-from qiskit.providers.ibmq.runtime.utils import RuntimeDecoder
+from qiskit_ibm_runtime.utils import RuntimeDecoder
 
 WAIT = 0.2
 
