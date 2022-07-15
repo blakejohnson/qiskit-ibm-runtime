@@ -25,7 +25,7 @@ from typing import Callable, Dict, List, Optional, Tuple, Union, Any
 import dill
 
 from qiskit import Aer
-from qiskit.ignis.mitigation.measurement import CompleteMeasFitter
+from qiskit.utils.mitigation import CompleteMeasFitter
 from qiskit.providers.ibmq.runtime import UserMessenger
 from qiskit.providers.ibmq.runtime.utils import RuntimeDecoder
 from qiskit.utils import QuantumInstance

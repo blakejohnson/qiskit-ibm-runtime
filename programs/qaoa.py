@@ -34,7 +34,7 @@ from qiskit.opflow.primitive_ops.pauli_sum_op import PauliSumOp
 from qiskit.utils import QuantumInstance
 from qiskit.providers.backend import Backend
 from qiskit.dagcircuit import DAGCircuit
-from qiskit.ignis.mitigation import TensoredMeasFitter
+from qiskit.utils.mitigation import TensoredMeasFitter
 from qiskit.exceptions import QiskitError
 from qiskit.circuit.library.standard_gates.equivalence_library import (
     StandardEquivalenceLibrary as std_eqlib,

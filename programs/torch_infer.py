@@ -24,7 +24,7 @@ from typing import Callable, List, Tuple, Union, Any
 import dill
 
 from qiskit import Aer
-from qiskit.ignis.mitigation.measurement import CompleteMeasFitter
+from qiskit.utils.mitigation import CompleteMeasFitter
 from qiskit.providers.ibmq.runtime.utils import RuntimeDecoder
 from qiskit.utils import QuantumInstance
 from qiskit_machine_learning.connectors import TorchConnector
