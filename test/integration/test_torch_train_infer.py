@@ -26,9 +26,11 @@ from .base_testcase import BaseTestCase
 from .decorator import get_provider_and_backend
 
 try:
-    from torch import Tensor
+    from torch import Tensor, tensor, float32
     from torch.nn import MSELoss
     from torch.optim import Adam
+    from torch.utils.data import DataLoader
+
 except ImportError:
 
     class Dataset:
@@ -39,8 +41,51 @@ except ImportError:
         pass
 
 
-# pylint: disable=line-too-long
-LOADER = "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cmVmZXRjaF9mYWN0b3KUSwKMCnBpbl9tZW1vcnmUiYwRcGluX21lbW9yeV9kZXZpY2WUjACUjAd0aW1lb3V0lEsAjA53b3JrZXJfaW5pdF9mbpROjCRfRGF0YUxvYWRlcl9fbXVsdGlwcm9jZXNzaW5nX2NvbnRleHSUTowNX2RhdGFzZXRfa2luZJRLAIwKYmF0Y2hfc2l6ZZRLAYwJZHJvcF9sYXN0lImMB3NhbXBsZXKUjBh0b3JjaC51dGlscy5kYXRhLnNhbXBsZXKUjBFTZXF1ZW50aWFsU2FtcGxlcpSTlCmBlH2UjAtkYXRhX3NvdXJjZZRoWHNijA1iYXRjaF9zYW1wbGVylGh/jAxCYXRjaFNhbXBsZXKUk5QpgZR9lChofmiCaHxLAWh9iXVijAlnZW5lcmF0b3KUTowKY29sbGF0ZV9mbpSMH3RvcmNoLnV0aWxzLmRhdGEuX3V0aWxzLmNvbGxhdGWUjA9kZWZhdWx0X2NvbGxhdGWUk5SMEnBlcnNpc3RlbnRfd29ya2Vyc5SJjBhfRGF0YUxvYWRlcl9faW5pdGlhbGl6ZWSUiIwbX0l0ZXJhYmxlRGF0YXNldF9sZW5fY2FsbGVklE6MCV9pdGVyYXRvcpROdWIu"
+DATA_X = [
+    [0.3067],
+    [1.3521],
+    [0.6457],
+    [0.2820],
+    [-0.4797],
+    [0.9167],
+    [-0.3922],
+    [2.4616],
+    [2.9133],
+    [-0.7324],
+    [1.8330],
+    [0.1816],
+    [0.4275],
+    [2.6741],
+    [-2.6953],
+    [-2.5941],
+    [-3.0146],
+    [2.0899],
+    [1.7477],
+    [2.3249],
+]
+
+DATA_Y = [
+    [0.4934],
+    [1.0958],
+    [0.5863],
+    [0.3905],
+    [-0.6142],
+    [0.8496],
+    [-0.5248],
+    [0.8067],
+    [0.2351],
+    [-0.7028],
+    [0.8717],
+    [0.2902],
+    [0.3971],
+    [0.4780],
+    [-0.6241],
+    [-0.4735],
+    [-0.0819],
+    [0.9150],
+    [1.1619],
+    [0.8016],
+]
 
 
 class TestTorchTrainInfer(BaseTestCase):
@@ -71,6 +116,13 @@ class TestTorchTrainInfer(BaseTestCase):
         # Construct QNN
         self.qnn = TwoLayerQNN(1, feature_map, ansatz)
 
+        # Mock torch dataset
+        x_tensor = tensor(DATA_X, dtype=float32)
+        y_tensor = tensor(DATA_Y, dtype=float32)
+        dataset = [[x, y] for (x, y) in zip(x_tensor, y_tensor)]
+        # Construct torch dataloader
+        self.loader = DataLoader(dataset)  # type: ignore[arg-type,var-annotated]
+
     def test_torch_train_direct(self):
         """Test torch train script directly."""
         initial_weights = np.array([-0.08473834])
@@ -80,7 +132,7 @@ class TestTorchTrainInfer(BaseTestCase):
             "model": obj_to_str(model),
             "optimizer": obj_to_str(Adam(model.parameters(), lr=0.1)),
             "loss_func": obj_to_str(MSELoss(reduction="sum")),
-            "train_data": LOADER,
+            "train_data": obj_to_str(self.loader),
             "epochs": 1,
             "seed": 42,
         }
@@ -100,8 +152,8 @@ class TestTorchTrainInfer(BaseTestCase):
             "model": obj_to_str(model),
             "optimizer": obj_to_str(Adam(model.parameters(), lr=0.1)),
             "loss_func": obj_to_str(MSELoss(reduction="sum")),
-            "train_data": LOADER,
-            "val_data": LOADER,
+            "train_data": obj_to_str(self.loader),
+            "val_data": obj_to_str(self.loader),
             "epochs": 1,
             "seed": 42,
         }
@@ -124,7 +176,7 @@ class TestTorchTrainInfer(BaseTestCase):
         # Test torch-infer for prediction
         inputs = {
             "model": obj_to_str(model),
-            "data": LOADER,
+            "data": obj_to_str(self.loader),
         }
 
         options = {"backend_name": self.backend_name}
@@ -136,7 +188,7 @@ class TestTorchTrainInfer(BaseTestCase):
         # Test torch-infer for scoring
         inputs = {
             "model": obj_to_str(model),
-            "data": LOADER,
+            "data": obj_to_str(self.loader),
             "score_func": obj_to_str(MSELoss()),
         }
 
