@@ -234,8 +234,9 @@ class Sampler(BaseSampler):
         Args:
             backend: The backend.
         """
+        mappings = [final_measurement_mapping(circ) for circ in self.transpiled_circuits]
         self._m3_mitigation = M3Mitigation(backend)
-        self._m3_mitigation.cals_from_system(shots=DEFAULT_SHOTS)
+        self._m3_mitigation.cals_from_system(mappings, shots=DEFAULT_SHOTS)
 
     @staticmethod
     def result_to_dict(result: SamplerResult, circuits, circuit_indices):
