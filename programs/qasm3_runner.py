@@ -29,6 +29,8 @@ import numpy as np
 
 
 QASM3_SIM_NAME = "simulator_qasm3"
+QASM2_SIM_NAME = "qasm_simulator"
+SIMULATORS = (QASM3_SIM_NAME, QASM2_SIM_NAME)
 
 
 class CircuitMerger:
@@ -251,7 +253,6 @@ class Qasm3Encoder(RuntimeEncoder):
 
 def main(
     backend,
-    user_messenger,
     circuits,
     transpiler_config=None,
     exporter_config=None,
@@ -268,7 +269,6 @@ def main(
 
     Args:
         backend: Backend to execute circuits on.
-        user_messenger: Used to communicate with the users.
         circuits: Circuits to execute.
         transpiler_config: Transpiler configurations.
         exporter_config: QASM3 exporter configurations.
@@ -302,8 +302,10 @@ def main(
         )
 
     # TODO Better validation once we can query for input_allowed
-    if backend.configuration().simulator and backend.name() != QASM3_SIM_NAME:
-        raise ValueError("This backend does not support QASM3")
+    if backend.configuration().simulator and backend.name() not in SIMULATORS:
+        raise ValueError(
+            f"The selected backend ({backend.name()}) does not support dynamic circuit capabilities"
+        )
 
     is_qc = isinstance(circuits[0], QuantumCircuit)
 
@@ -355,8 +357,12 @@ def main(
             qasm3_strs.append(Exporter(**exporter_config).dumps(circ))
             qasm3_metadata.append(get_circuit_metadata(circ))
 
-        payload = qasm3_strs
-        run_config["qasm3_metadata"] = qasm3_metadata
+        # Submit circuits for testing of standard circuit merger
+        if backend.name() != QASM2_SIM_NAME:
+            payload = qasm3_strs
+            run_config["qasm3_metadata"] = qasm3_metadata
+        else:
+            payload = circuits
 
         if use_measurement_mitigation:
             # get final meas mappings
@@ -374,16 +380,18 @@ def main(
             mit = mthree.M3Mitigation(backend)
             mit.tensored_cals_from_system(all_meas_qubits)
     else:
+        if backend.name() == QASM2_SIM_NAME:
+            raise ValueError(
+                "This simulator backend does not support OpenQASM 3 source strings as input. "
+                "Please submit a quantum circuit instead."
+            )
         payload = circuits
 
     if backend.name() == QASM3_SIM_NAME:
         if len(payload) > 1:
             raise ValueError("QASM3 simulator only supports a single circuit.")
         result = backend.run(payload[0], args=qasm3_args, shots=run_config.get("shots", None))
-        if use_merging:
-            result = merger.unwrap_results(result)
-        user_messenger.publish(result, final=True, encoder=Qasm3Encoder)
-        return result.to_dict()
+        return Qasm3Encoder().encode(result)
 
     result = backend.run(payload, **run_config).result()
 
