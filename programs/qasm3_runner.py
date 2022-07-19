@@ -253,6 +253,7 @@ class Qasm3Encoder(RuntimeEncoder):
 
 def main(
     backend,
+    user_messenger, # pylint: disable=unused-argument
     circuits,
     transpiler_config=None,
     exporter_config=None,
@@ -269,6 +270,7 @@ def main(
 
     Args:
         backend: Backend to execute circuits on.
+        user_messenger (UserMessenger): Used to communicate with the program user.
         circuits: Circuits to execute.
         transpiler_config: Transpiler configurations.
         exporter_config: QASM3 exporter configurations.
