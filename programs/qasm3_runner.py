@@ -353,8 +353,11 @@ def main(
         # Convert circuits to qasm3
         qasm3_strs = []
         qasm3_metadata = []
-        exporter_config = exporter_config or {}
-        exporter_config["disable_constants"] = exporter_config.get("disable_constants", True)
+        exporter_config = exporter_config or {
+            "includes": (),
+            "disable_constants": True,
+            "basis_gates": backend.configuration().basis_gates,
+        }
         for circ in circuits:
             qasm3_strs.append(Exporter(**exporter_config).dumps(circ))
             qasm3_metadata.append(get_circuit_metadata(circ))
