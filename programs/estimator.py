@@ -34,31 +34,6 @@ from qiskit.quantum_info.operators.symplectic.base_pauli import BasePauli
 from qiskit.result import Counts, Result
 from qiskit.tools.monitor import job_monitor
 from qiskit.transpiler import PassManager
-import retworkx as rx
-
-
-def _grouping(sparse_pauli_operator: SparsePauliOp):
-    """Partition a SparsePauliOp into sets of commuting Pauli strings.
-    Note that the input SparsePauliOp need to be simplified beforehand.
-    Otherwise, the output could be wrong.
-
-    Returns:
-        List[SparsePauliOp]: List of SparsePauliOp where each SparsePauliOp contains commutable
-            Pauli operators.
-    """
-    edges = sparse_pauli_operator.paulis._noncommutation_graph(True)
-    graph = rx.PyGraph()
-    graph.add_nodes_from(range(sparse_pauli_operator.size))
-    graph.add_edges_from_no_data(edges)
-    # Keys in coloring_dict are nodes, values are colors
-    coloring_dict = rx.graph_greedy_color(graph)
-    groups = defaultdict(list)
-    for idx, color in coloring_dict.items():
-        groups[color].append(idx)
-    return [sparse_pauli_operator[group] for group in groups.values()]
-
-
-SparsePauliOp.grouping = _grouping
 
 
 def init_observable(observable: BaseOperator | PauliSumOp) -> SparsePauliOp:
@@ -345,7 +320,7 @@ class Estimator(BaseEstimator):
             observable = self._observables[group[1]]
             diff_circuits: list[QuantumCircuit] = []
             if self._abelian_grouping:
-                for obs in observable.grouping():
+                for obs in observable.group_commuting(qubit_wise=True):
                     basis = Pauli(
                         (np.logical_or.reduce(obs.paulis.z), np.logical_or.reduce(obs.paulis.x))
                     )
