@@ -158,7 +158,9 @@ class Sampler(BaseSampler):
         # This line does the actual transpilation
         transpiled_circuits = self.transpiled_circuits
         bound_circuits = [
-            transpiled_circuits[i].bind_parameters((dict(zip(self._parameters[i], value))))
+            transpiled_circuits[i]
+            if len(value) == 0
+            else transpiled_circuits[i].bind_parameters((dict(zip(self._parameters[i], value))))
             for i, value in zip(circuits, parameter_values)
         ]
         bound_circuits = self._bound_pass_manager_run(bound_circuits)
