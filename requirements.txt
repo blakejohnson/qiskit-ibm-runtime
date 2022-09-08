@@ -1,6 +1,6 @@
 retworkx>=0.8.0
 qiskit-terra
-qiskit-ignis
+qiskit-ibm-runtime
 qiskit-machine-learning[torch,sparse]
 cvxopt
 jupyter

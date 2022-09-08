@@ -15,25 +15,34 @@ Sampler class
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
+from typing import cast, Dict, List
 import copy
-from typing import cast
+import hashlib
+import json
+import logging
+import numpy as np
 
 from mthree import M3Mitigation
 from mthree.utils import final_measurement_mapping
 from qiskit.circuit import Parameter, QuantumCircuit
+from qiskit.circuit.parametertable import ParameterView
 from qiskit.compiler import transpile
 from qiskit.exceptions import QiskitError
-from qiskit.primitives import BaseSampler, SamplerResult
+from qiskit.primitives import SamplerResult
 from qiskit.providers import Options
 from qiskit.providers.backend import BackendV1 as Backend
 from qiskit.result import QuasiDistribution, Result
 from qiskit.transpiler import PassManager
 
+from qiskit_ibm_runtime import RuntimeDecoder, RuntimeEncoder
+
 # Number of effective shots per measurement error rate
 DEFAULT_SHOTS = 25000
 
+logger = logging.getLogger(__name__)
 
-class Sampler(BaseSampler):
+
+class Sampler:
     """
     Sampler class
     """
@@ -41,10 +50,11 @@ class Sampler(BaseSampler):
     def __init__(
         self,
         backend: Backend,
-        circuits: QuantumCircuit | Iterable[QuantumCircuit],
+        circuits: QuantumCircuit | Iterable[QuantumCircuit] | Dict[str, QuantumCircuit],
         parameters: Iterable[Iterable[Parameter]] | None = None,
         bound_pass_manager: PassManager | None = None,
         skip_transpilation: bool = False,
+        circuit_ids: Sequence[str] = None,
     ):
         """
         Args:
@@ -54,20 +64,41 @@ class Sampler(BaseSampler):
         """
         if not isinstance(backend, Backend):
             raise TypeError(f"backend should be BackendV1, not {type(backend)}.")
-
-        super().__init__(circuits, parameters)
-
         self._backend = backend
+        self._circuit_ids: Sequence[str] = circuit_ids
+        self._transpile_options = Options()
+        self._circuits_map: Dict[str, QuantumCircuit] = {}
+        self._circuits = self._get_circuits(circuits=circuits)
+        self._parameters = parameters
+        self._circuit_cache = CircuitCache(cache=self._get_cache())
         self._run_options = Options()
         self._is_closed = False
-
-        self._transpile_options = Options()
         self._bound_pass_manager = bound_pass_manager
-
         self._preprocessed_circuits: list[QuantumCircuit] | None = None
         self._transpiled_circuits: list[QuantumCircuit] | None = None
         self._skip_transpilation = skip_transpilation
         self._m3_mitigation: M3Mitigation | None = None
+
+    def _get_circuits(
+        self, circuits: QuantumCircuit | Iterable[QuantumCircuit] | Dict[str, QuantumCircuit]
+    ):
+        """Return list of circuits."""
+        if isinstance(circuits, QuantumCircuit):
+            circuits = (circuits,)
+            return list(circuits)
+        elif isinstance(circuits, Dict) or self._circuit_ids is not None:
+            self._circuits_map = circuits  # type: ignore
+            return list(circuits.values())  # type: ignore
+        else:
+            return [] if circuits is None else list(circuits)
+
+    def _get_cache(self):
+        """Return instance of Cache class."""
+        try:
+            return self._backend.provider().cache()
+        except AttributeError:
+            # Unit tests use AerProvider which doesn't have cache() method
+            return None
 
     @property
     def preprocessed_circuits(self) -> list[QuantumCircuit]:
@@ -93,12 +124,44 @@ class Sampler(BaseSampler):
             QiskitError: if the instance has been closed.
         """
         self._check_is_closed()
+
         if self._skip_transpilation:
             self._transpiled_circuits = list(self._circuits)
         elif self._transpiled_circuits is None:
-            # Only transpile if have not done so yet
-            self._transpile()
+            if self._circuit_ids:
+                # 1. Initialize a list transpiled circuits from cache and another list of
+                # raw circuits whose transpiled versions were not found in cache
+                self._circuit_cache.initialize_transpiled_and_raw_circuits(
+                    circuits_map=self._circuits_map,
+                    circuit_ids=self._circuit_ids,
+                    backend_name=self._backend.name(),
+                    transpile_options=self._transpile_options.__dict__,
+                )
+                if self._circuit_cache.raw_circuits:
+                    # 2. Transpile the raw circuits whose transpiled versions were not found in cache
+                    transpiled_circuits = self._transpile(circuits=self._circuit_cache.raw_circuits)
+                    # 3. Update cache with transpiled and raw circuits and merge transpiled circuits
+                    # from step 2 with transpiled circuits retrieved from cache in step 1
+                    self._circuit_cache.update_cache_and_merge_transpiled_circuits(
+                        transpiled_circuits=transpiled_circuits,
+                    )
+                self._transpiled_circuits = self._circuit_cache.transpiled_circuits
+            else:
+                self._transpiled_circuits = self._transpile(circuits=self.preprocessed_circuits)
         return self._transpiled_circuits
+
+    def _transpile(self, circuits: List[QuantumCircuit]):
+        """Transpile given circuits in parallel. Calling transpile on multiple circuits is faster
+        than calling transpile once for each circuit."""
+        transpiled_circuits = cast(
+            "list[QuantumCircuit]",
+            transpile(
+                circuits,
+                self._backend,
+                **self.transpile_options.__dict__,
+            ),
+        )
+        return transpiled_circuits
 
     @property
     def backend(self) -> Backend:
@@ -107,6 +170,15 @@ class Sampler(BaseSampler):
             The backend which this sampler object based on
         """
         return self._backend
+
+    @property
+    def circuits(self) -> List[QuantumCircuit]:
+        """Quantum circuits to be sampled.
+
+        Returns:
+            The quantum circuits to be sampled.
+        """
+        return self._circuits
 
     @property
     def run_options(self) -> Options:
@@ -147,22 +219,79 @@ class Sampler(BaseSampler):
         self._transpile_options.update_options(**fields)
         return self
 
-    def _call(
+    def run(
         self,
-        circuits: Sequence[int],
-        parameter_values: Sequence[Sequence[float]],
+        circuit_indices: Sequence[int] = None,
+        parameter_values: Sequence[Sequence[float]] = None,
         **run_options,
     ) -> SamplerResult:
-        self._check_is_closed()
+        """Run the sampling of bitstrings."""
+        # TODO remove this if block when non-flexible sessions interface is no longer supported
+        if not self._circuit_ids:
+            self._parameters = self._initialize_parameters(
+                circuits=self._circuits,
+                parameters=self._parameters,
+            )
+            self._validate_parameters(
+                circuits=self._circuits,
+                parameters=self._parameters,
+            )
+            self._validate_circuit_indices(
+                circuits=self._circuits,
+                circuit_indices=circuit_indices,
+            )
+            parameter_values = self._initialize_parameter_values(
+                circuits_len=len(circuit_indices),
+                circuits=self._circuits,
+                parameter_values=parameter_values,
+            )
+            self._validate_parameter_values_circuit_indices(
+                circuit_indices=circuit_indices,
+                parameters=self._parameters,
+                parameter_values=parameter_values,
+            )
+            self._check_is_closed()
+            # This line does the actual transpilation
+            transpiled_circuits = self.transpiled_circuits
+            bound_circuits = [
+                transpiled_circuits[i]
+                if len(value) == 0
+                else transpiled_circuits[i].bind_parameters(
+                    (dict(zip(self._parameters[i], value)))  # type: ignore
+                )
+                for i, value in zip(circuit_indices, parameter_values)
+            ]
+        else:
+            self._check_is_closed()
+            # This line does the actual transpilation
+            transpiled_circuits = self.transpiled_circuits
+            self._parameters = self._initialize_parameters(
+                circuits=transpiled_circuits,
+                parameters=self._parameters,
+            )
+            self._validate_parameters(
+                circuits=transpiled_circuits,
+                parameters=self._parameters,
+            )
+            parameter_values = self._initialize_parameter_values(
+                circuits_len=len(self._circuit_ids),
+                circuits=transpiled_circuits,
+                parameter_values=parameter_values,
+            )
+            self._validate_parameter_values_circuit_ids(
+                circuit_ids=self._circuit_ids,
+                parameters=self._parameters,
+                parameter_values=parameter_values,
+            )
+            bound_circuits = [
+                transpiled_circuits[i]
+                if len(value) == 0
+                else transpiled_circuits[i].bind_parameters(
+                    (dict(zip(self._parameters[i], value)))  # type: ignore
+                )
+                for i, value in zip(range(len(self._circuit_ids)), parameter_values)
+            ]
 
-        # This line does the actual transpilation
-        transpiled_circuits = self.transpiled_circuits
-        bound_circuits = [
-            transpiled_circuits[i]
-            if len(value) == 0
-            else transpiled_circuits[i].bind_parameters((dict(zip(self._parameters[i], value))))
-            for i, value in zip(circuits, parameter_values)
-        ]
         bound_circuits = self._bound_pass_manager_run(bound_circuits)
 
         # Run
@@ -172,7 +301,100 @@ class Sampler(BaseSampler):
 
         return self._postprocessing(result, bound_circuits)
 
+    def _initialize_parameters(
+        self, circuits: List[QuantumCircuit], parameters: Iterable[Iterable[Parameter]] = None
+    ) -> Iterable[Iterable[Parameter]]:
+        if parameters is None:
+            return [circ.parameters for circ in circuits]
+        else:
+            return [ParameterView(par) for par in parameters]
+
+    def _validate_parameters(
+        self, circuits: List[QuantumCircuit], parameters: Iterable[Iterable[Parameter]] = None
+    ) -> None:
+        if len(parameters) != len(circuits):  # type: ignore
+            raise QiskitError(
+                f"Different number of parameters ({len(parameters)}) "  # type: ignore
+                f"and circuits ({len(circuits)})."
+            )
+        for i, (circ, params) in enumerate(zip(circuits, parameters)):
+            if circ.num_parameters != len(params):  # type: ignore
+                raise QiskitError(
+                    f"Different numbers of parameters of {i}-th circuit: "
+                    f"expected {circ.num_parameters}, actual {len(params)}."  # type: ignore
+                )
+
+    def _validate_circuit_indices(
+        self,
+        circuits: List[QuantumCircuit],
+        circuit_indices: Sequence[int] = None,
+    ) -> None:
+        if max(circuit_indices) >= len(circuits):
+            raise QiskitError(
+                f"The number of circuits is {len(circuits)}, "
+                f"but the index {max(circuit_indices)} is given."
+            )
+
+    def _initialize_parameter_values(
+        self,
+        circuits_len: int,
+        circuits: List[QuantumCircuit],
+        parameter_values: Sequence[Sequence[float]] = None,
+    ) -> Sequence[Sequence[float]]:
+        # Support ndarray
+        if isinstance(parameter_values, np.ndarray):
+            return parameter_values.tolist()
+        # Allow optional
+        elif parameter_values is None:
+            for i, circuit in enumerate(circuits):
+                if circuit.num_parameters != 0:
+                    raise QiskitError(
+                        f"The {i}-th circuit ({len(circuits)}) is parameterized,"
+                        "but parameter values are not given."
+                    )
+            return [[]] * circuits_len
+        return parameter_values
+
+    def _validate_parameter_values_circuit_indices(
+        self,
+        circuit_indices: Sequence[int] = None,
+        parameters: Iterable[Iterable[Parameter]] = None,
+        parameter_values: Sequence[Sequence[float]] = None,
+    ) -> None:
+        if len(circuit_indices) != len(parameter_values):
+            raise QiskitError(
+                f"The number of circuits ({len(circuit_indices)}) does not match "
+                f"the number of parameter value sets ({len(parameter_values)})."
+            )
+        for i, value in zip(circuit_indices, parameter_values):
+            if len(value) != len(parameters[i]):  # type: ignore
+                raise QiskitError(
+                    f"The number of values ({len(value)}) does not match "
+                    f"the number of parameters ({len(parameters[i])}) "  # type: ignore
+                    f"for the {i}-th circuit."
+                )
+
+    def _validate_parameter_values_circuit_ids(
+        self,
+        circuit_ids: Sequence[str] = None,
+        parameters: Iterable[Iterable[Parameter]] = None,
+        parameter_values: Sequence[Sequence[float]] = None,
+    ) -> None:
+        if len(circuit_ids) != len(parameter_values):
+            raise QiskitError(
+                f"The number of circuits ({len(circuit_ids)}) does not match "
+                f"the number of parameter value sets ({len(parameter_values)})."
+            )
+        for i, value in zip(range(len(circuit_ids)), parameter_values):
+            if len(value) != len(parameters[i]):  # type: ignore
+                raise QiskitError(
+                    f"The number of values ({len(value)}) does not match "
+                    f"the number of parameters ({len(parameters[i])}) "  # type: ignore
+                    f"for the circuit {i}."
+                )
+
     def close(self):
+        """Close the session and free resources"""
         self._is_closed = True
 
     def _postprocessing(self, result: Result, circuits: list[QuantumCircuit]) -> SamplerResult:
@@ -210,16 +432,6 @@ class Sampler(BaseSampler):
 
         return SamplerResult(quasi_dists=quasis, metadata=metadata)
 
-    def _transpile(self):
-        self._transpiled_circuits = cast(
-            "list[QuantumCircuit]",
-            transpile(
-                self.preprocessed_circuits,
-                self.backend,
-                **self.transpile_options.__dict__,
-            ),
-        )
-
     def _check_is_closed(self):
         if self._is_closed:
             raise QiskitError("The primitive has been closed.")
@@ -241,7 +453,9 @@ class Sampler(BaseSampler):
         self._m3_mitigation.cals_from_system(mappings, shots=DEFAULT_SHOTS)
 
     @staticmethod
-    def result_to_dict(result: SamplerResult, circuits, circuit_indices):
+    def result_to_dict(
+        result: SamplerResult, circuits, circuit_indices, transpiled_circuits, circuit_ids
+    ):
         """Convert ``SamplerResult`` to a dictionary
 
         Args:
@@ -254,24 +468,187 @@ class Sampler(BaseSampler):
 
         """
         ret = result.__dict__
-        ret["quasi_dists"] = [
-            dist.binary_probabilities(circuits[index].num_clbits)
-            for index, dist in zip(circuit_indices, result.quasi_dists)
-        ]
+        if circuit_indices:
+            ret["quasi_dists"] = [
+                dist.binary_probabilities(circuits[index].num_clbits)
+                for index, dist in zip(circuit_indices, result.quasi_dists)
+            ]
+        else:
+            ret["quasi_dists"] = [
+                dist.binary_probabilities(transpiled_circuits[index].num_clbits)
+                for index, dist in zip(range(len(circuit_ids)), result.quasi_dists)
+            ]
         return ret
+
+
+class CircuitCache:
+    """
+    Class to cache circuits in in-memory data store
+    """
+
+    def __init__(
+        self,
+        cache,
+    ):
+        """
+        Args:
+            cache: An instance of Cache class
+        """
+        self._cache = cache
+        self._transpiled_circuits_map: Dict[str, QuantumCircuit | str] = {}
+        self._transpiled_circuits: list[QuantumCircuit | str] = []
+        self._raw_circuits = []
+        self._circuit_ids = []
+        self._circuit_digests = []
+        self._backend_name: str = ""
+        self._transpile_options: Dict = {}
+
+    @property
+    def transpiled_circuits(self) -> list[QuantumCircuit | str]:
+        """
+        Returns a list of transpiled circuits or
+        an intermediate list of transpiled circuits and circuit digests
+        """
+        return self._transpiled_circuits
+
+    @property
+    def raw_circuits(self) -> list[QuantumCircuit]:
+        """
+        Returns a list of raw (not transpiled) circuits
+        """
+        return self._raw_circuits
+
+    def initialize_transpiled_and_raw_circuits(
+        self,
+        circuits_map: Dict[str, QuantumCircuit],
+        circuit_ids: Sequence[str],
+        backend_name: str,
+        transpile_options: Dict,
+    ) -> None:
+        """
+        Get transpiled circuits from in-memory datastore and also get raw circuits (not transpiled)
+        """
+        self._backend_name = backend_name
+        self._transpile_options = transpile_options
+        for circuit_id in circuit_ids:
+            hash_str = self._construct_hash_str(
+                circuit_id=circuit_id,
+                backend_name=backend_name,
+                transpile_options=transpile_options,
+            )
+            circuit_digest = self._hash(hash_str=hash_str)
+            # Option 1: Try to get transpiled circuit from local map
+            # (helps not to transpile repeated circuits in same job)
+            transpiled_circuit = self._transpiled_circuits_map.get(circuit_digest)
+            if transpiled_circuit:
+                if transpiled_circuit == circuit_digest:
+                    self._transpiled_circuits.append(circuit_digest)
+                    continue
+                self._transpiled_circuits.append(transpiled_circuit)
+                continue
+            # Option 2: Try to get transpiled circuit from in-memory data store
+            # (helps not to transpile repeated circuits across jobs in a session)
+            if self._cache:
+                try:
+                    transpiled_circuit = self._cache.get(key=circuit_digest)
+                    self._transpiled_circuits.append(transpiled_circuit)
+                    self._transpiled_circuits_map.update({circuit_digest: transpiled_circuit})
+                    continue
+                except Exception as exception:  #  pylint: disable=broad-except
+                    logger.warning("Could not get transpiled circuit from cache. %s", exception)
+            # Option 3: Try to get raw circuit from local map so it can be transpiled
+            circuit = circuits_map.get(circuit_id)
+            # Option 4: Try to get raw circuit from in-memory data store so it can be transpiled
+            if not circuit:
+                try:
+                    hash_str = self._cache.get(circuit_id)
+                    hash_obj = json.loads(hash_str, cls=RuntimeDecoder)
+                    circuit = hash_obj.get("circuit")
+                except Exception as exception:  #  pylint: disable=broad-except
+                    logger.warning("Could not get raw circuit from cache. %s", exception)
+            self._raw_circuits.append(circuit)
+            self._circuit_ids.append(circuit_id)
+            self._circuit_digests.append(circuit_digest)
+            self._transpiled_circuits.append(circuit_digest)
+            self._transpiled_circuits_map.update({circuit_digest: circuit_digest})
+
+    def _construct_hash_str(
+        self, circuit_id: str, backend_name: str, transpile_options: Dict
+    ) -> str:
+        """Construct str to hash using circuit_id, backend name and transpile_options."""
+        hash_obj = {
+            "circuit_id": circuit_id,
+            "backend": backend_name,
+            "transpile_options": transpile_options,
+        }
+        return json.dumps(hash_obj)
+
+    def _hash(self, hash_str: str) -> str:
+        """Hashes and returns a digest.
+        blake2s is supposedly faster than SHAs.
+        """
+        return hashlib.blake2s(hash_str.encode()).hexdigest()
+
+    def update_cache_and_merge_transpiled_circuits(
+        self,
+        transpiled_circuits: List[QuantumCircuit],
+    ) -> None:
+        """Update cache with
+        * transpiled circuit
+        * raw circuit + backend name + transpile_options.
+
+        We put circuit_digest as placeholder in self._transpiled_circuits list for
+        circuits not found in cache. This method also updates those placeholders in the list
+        with the transpiled circuits from the map."""
+        if self._circuit_digests:
+            for i, transpiled_circuit in enumerate(transpiled_circuits):
+                circuit_digest = self._circuit_digests[i]
+                # Save transpiled circuit in local map
+                self._transpiled_circuits_map.update({circuit_digest: transpiled_circuit})
+                if self._cache:
+                    # Save transpiled circuit in in-memory data store
+                    self._cache.set(key=circuit_digest, value=transpiled_circuit)
+                    # Save raw circuit in in-memory data store so it can be used later for transpilation
+                    # if different transpile options are passed
+                    raw_circuit_hash_str = self._construct_raw_circuit_hash_str(
+                        circuit=self._raw_circuits[i],
+                        backend_name=self._backend_name,
+                        transpile_options=self._transpile_options,
+                    )
+                    self._cache.set(key=self._circuit_ids[i], value=raw_circuit_hash_str)
+        for i, transpiled_circuit in enumerate(self._transpiled_circuits):
+            # Check if it is a circuit digest string
+            if isinstance(transpiled_circuit, str):
+                # Replace circuit digest string with
+                self._transpiled_circuits[i] = self._transpiled_circuits_map.get(transpiled_circuit)
+
+    def _construct_raw_circuit_hash_str(
+        self,
+        circuit: QuantumCircuit,
+        backend_name: str,
+        transpile_options: Dict,
+    ) -> str:
+        """Construct hash string based on circuit, backend name and transpile options."""
+        hash_obj = {
+            "circuit": circuit,
+            "backend": backend_name,
+            "transpile_options": transpile_options,
+        }
+        return json.dumps(hash_obj, cls=RuntimeEncoder)
 
 
 def main(
     backend,
     user_messenger,  # pylint: disable=unused-argument
     circuits,
-    circuit_indices,
+    circuit_indices=None,
     parameters=None,
     parameter_values=None,
     skip_transpilation=False,
     run_options=None,
     transpilation_settings=None,
     resilience_settings=None,
+    circuit_ids=None,
     **kwargs,  # pylint: disable=unused-argument
 ):
 
@@ -280,7 +657,7 @@ def main(
     Parameters:
         backend (ProgramBackend): Qiskit backend instance.
         user_messenger (UserMessenger): Used to communicate with the program user.
-        circuits: (QuantumCircuit or list): A single list of QuantumCircuits.
+        circuits: (QuantumCircuit or list or dict): A single or list or dictionary of QuantumCircuits.
         parameters (list): Parameters of the quantum circuits.
         circuit_indices (list): Indexes of the circuits to evaluate.
         parameter_values (list): Concrete parameters to be bound.
@@ -288,6 +665,7 @@ def main(
         run_options (dict): A collection of kwargs passed to backend.run().
         transpilation_settings (dict): Transpilation settings.
         resilience_settings (dict): Resilience settings.
+        circuit_ids (list): A list of unique IDs of QuantumCircuits.
         kwargs (dict): Temporary solution to make flexible session work. TO BE REMOVED.
 
     Returns:
@@ -302,6 +680,7 @@ def main(
         circuits=circuits,
         parameters=parameters,
         skip_transpilation=skip_transpilation,
+        circuit_ids=circuit_ids,
     )
 
     transpile_options = transpilation_settings.copy()
@@ -309,7 +688,7 @@ def main(
 
     sampler.set_transpile_options(**transpile_options)
     # Must transpile circuits before calibrating M3
-    _ = sampler.transpiled_circuits
+    transpiled_circuits = sampler.transpiled_circuits
 
     resilience_settings = resilience_settings or {}
 
@@ -317,12 +696,14 @@ def main(
         sampler.calibrate_m3_mitigation(backend)
 
     run_options = run_options or {}
-    result = sampler(
-        circuits=circuit_indices,
+    result = sampler.run(
+        circuit_indices=circuit_indices,
         parameter_values=parameter_values,
         **run_options,
     )
 
-    result_dict = sampler.result_to_dict(result, sampler.circuits, circuit_indices)
+    result_dict = sampler.result_to_dict(
+        result, sampler.circuits, circuit_indices, transpiled_circuits, circuit_ids
+    )
 
     return result_dict

@@ -40,9 +40,11 @@ class TestSampler(BaseTestCase):
         qc1.cx(3, 4)
         qc1.measure_all()
         self.qc1 = qc1
+        self.qc1_id = str(id(qc1))
 
-    def test_sampler(self):
-        """Test sampler program."""
+    # TODO: remove this test when non-flexible interface is no longer supported in provider
+    def test_sampler_circuit_indices(self):
+        """Test sampler program with circuit indices."""
         program_inputs = {"circuits": self.qc1, "circuit_indices": [0]}
 
         options = {"backend_name": self.backend_name}
@@ -55,3 +57,21 @@ class TestSampler(BaseTestCase):
         self.log.debug("Job ID: %s", job.job_id())
         job.wait_for_final_state()
         self.assertEqual(job.status(), JobStatus.DONE, job.error_message())
+
+    def test_sampler(self):
+        """Test sampler program with circuit ids."""
+        program_inputs = {"circuits": {self.qc1_id: self.qc1}, "circuit_ids": [self.qc1_id]}
+
+        options = {"backend_name": self.backend_name}
+
+        job = self.provider.runtime.run(
+            program_id="sampler",
+            options=options,
+            inputs=program_inputs,
+        )
+        self.log.debug("Job ID: %s", job.job_id())
+        job.wait_for_final_state()
+        self.assertEqual(job.status(), JobStatus.DONE, job.error_message())
+        # TODO: after switching these tests to use qiskit-ibm-runtime we can add
+        # start_session=True to the first run call above and make another run call with
+        # circuits={} and circuit_ids=[self.qc1_id], so we can test caching circuits in redis
