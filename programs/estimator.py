@@ -75,7 +75,7 @@ def run_circuits(
     Args:
         circuits: The circuits
         backend: The backend
-        monitor: Enable job minotor if True
+        monitor: Enable job monitor if True
         **run_options: run_options
 
     Returns:
@@ -293,7 +293,9 @@ class Estimator(BaseEstimator):
         self._is_closed = True
 
     @staticmethod
-    def _measurement_circuit(num_qubits: int, pauli: Pauli):
+    def _measurement_circuit(
+        num_qubits: int, pauli: Pauli, obs: SparsePauliOp
+    ) -> tuple[QuantumCircuit, PauliList]:
         # Note: if pauli is I for all qubits, this function generates a circuit to measure only
         # the first qubit.
         # Although such an operator can be optimized out by interpreting it as a constant (1),
@@ -308,7 +310,12 @@ class Estimator(BaseEstimator):
                     meas_circuit.sdg(i)
                 meas_circuit.h(i)
             meas_circuit.measure(i, clbit)
-        return meas_circuit, qubit_indices
+        paulis = PauliList.from_symplectic(
+            obs.paulis.z[:, qubit_indices],
+            obs.paulis.x[:, qubit_indices],
+            obs.paulis.phase,
+        )
+        return meas_circuit, paulis
 
     def _preprocessing(self) -> list[tuple[QuantumCircuit, list[QuantumCircuit]]]:
         """
@@ -324,12 +331,7 @@ class Estimator(BaseEstimator):
                     basis = Pauli(
                         (np.logical_or.reduce(obs.paulis.z), np.logical_or.reduce(obs.paulis.x))
                     )
-                    meas_circuit, indices = self._measurement_circuit(circuit.num_qubits, basis)
-                    paulis = PauliList.from_symplectic(
-                        obs.paulis.z[:, indices],
-                        obs.paulis.x[:, indices],
-                        obs.paulis.phase,
-                    )
+                    meas_circuit, paulis = self._measurement_circuit(circuit.num_qubits, basis, obs)
                     meas_circuit.metadata = {
                         "paulis": paulis,
                         "coeffs": np.real_if_close(obs.coeffs),
@@ -337,12 +339,7 @@ class Estimator(BaseEstimator):
                     diff_circuits.append(meas_circuit)
             else:
                 for basis, obs in zip(observable.paulis, observable):
-                    meas_circuit, indices = self._measurement_circuit(circuit.num_qubits, basis)
-                    paulis = PauliList.from_symplectic(
-                        obs.paulis.z[:, indices],
-                        obs.paulis.x[:, indices],
-                        obs.paulis.phase,
-                    )
+                    meas_circuit, paulis = self._measurement_circuit(circuit.num_qubits, basis, obs)
                     meas_circuit.metadata = {
                         "paulis": paulis,
                         "coeffs": np.real_if_close(obs.coeffs),
@@ -432,14 +429,12 @@ def _paulis2inds(paulis: PauliList) -> list[int]:
     # Treat Z, X, Y the same
     nonid = paulis.z | paulis.x
 
-    inds = [0] * paulis.size
     # bits are packed into uint8 in little endian
     # e.g., i-th bit corresponds to coefficient 2^i
-    packed_vals = np.packbits(nonid, axis=1, bitorder="little")
-    for i, vals in enumerate(packed_vals):
-        for j, val in enumerate(vals):
-            inds[i] += val.item() * (1 << (8 * j))
-    return inds
+    packed_vals = np.packbits(nonid, axis=1, bitorder="little").astype(object)
+    power_uint8 = 1 << (8 * np.arange(packed_vals.shape[1], dtype=object))
+    inds = packed_vals @ power_uint8
+    return inds.tolist()
 
 
 def _parity(integer: int) -> int:
@@ -485,7 +480,7 @@ class PauliTwirledMitigation:
         backend: Backend,
         num_twirled_circuits: int = 16,
         shots_calibration: int = 8192,
-        seed: np.random.Generator | int | None = None,
+        seed: int | None = None,
         **cal_run_options,
     ):
         self._backend = backend
@@ -493,8 +488,6 @@ class PauliTwirledMitigation:
         self._shots_calibration = shots_calibration
         if seed is None or isinstance(seed, int):
             self._rng = np.random.default_rng(seed)
-        elif isinstance(seed, np.random.Generator):
-            self._rng = seed
         else:
             raise QiskitError(f"Invalid random number seed: {seed}")
         self._cal_run_options = cal_run_options

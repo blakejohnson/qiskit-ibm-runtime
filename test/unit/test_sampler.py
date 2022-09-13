@@ -474,8 +474,9 @@ class TestSamplerMainCircuitIndices(unittest.TestCase):
             results["quasi_dists"], [{"111": 1.0}, {"000": 1.0}, {"000": 0.5, "010": 0.5}]
         )
 
-    def test_sampler(self):
-        """test sampler"""
+    @combine(resilience_level=[0, 1])
+    def test_no_noise_no_params(self, resilience_level):
+        """Test for main without noise with non-parametrized circuits"""
         backend = Aer.get_backend("aer_simulator")
         result = main(
             backend=backend,
@@ -484,11 +485,13 @@ class TestSamplerMainCircuitIndices(unittest.TestCase):
             circuit_indices=[0, 1, 2],
             run_options={"shots": 1000, "seed_simulator": 123},
             transpilation_settings={"seed_transpiler": 15},
+            resilience_settings={"level": resilience_level},
         )
         self._compare_probs(result["quasi_dists"], self._targets)
 
-    def test_sampler_pqc(self):
-        """test sampler with a parametrized circuit"""
+    @combine(resilience_level=[0, 1])
+    def test_no_noise_params(self, resilience_level):
+        """Test for main without noise with a parameterized circuit"""
         backend = Aer.get_backend("aer_simulator")
         result = main(
             backend=backend,
@@ -498,12 +501,13 @@ class TestSamplerMainCircuitIndices(unittest.TestCase):
             parameter_values=self._pqc_params,
             run_options={"shots": 1000, "seed_simulator": 123},
             transpilation_settings={"seed_transpiler": 15},
+            resilience_settings={"level": resilience_level},
         )
         self._compare_probs(result["quasi_dists"], self._pqc_targets)
 
     @combine(noise=[True, False], shots=[10000, 20000])
-    def test_sampler_with_m3(self, noise, shots):
-        """test sampler with M3"""
+    def test_mitigation_no_params(self, noise, shots):
+        """Test for mitigation with non-parametrized circuits"""
         backend = FakeBogota() if noise else Aer.get_backend("aer_simulator")
         result = main(
             backend=backend,
@@ -517,8 +521,8 @@ class TestSamplerMainCircuitIndices(unittest.TestCase):
         self._compare_probs(result["quasi_dists"], self._targets)
 
     @combine(noise=[True, False], shots=[10000, 20000])
-    def test_sampler_pqc_m3(self, noise, shots):
-        """test sampler with a parametrized circuit and M3"""
+    def test_mitigation_params(self, noise, shots):
+        """Test for mitigation with a parametrized circuit"""
         backend = FakeBogota() if noise else Aer.get_backend("aer_simulator")
         result = main(
             backend=backend,
@@ -533,8 +537,8 @@ class TestSamplerMainCircuitIndices(unittest.TestCase):
         self._compare_probs(result["quasi_dists"], self._pqc_targets)
 
     @combine(noise=[True, False], shots=[10000, 20000])
-    def test_sampler_pqc_m3_2(self, noise, shots):
-        """test sampler with a parametrized circuit and M3 (2)"""
+    def test_mitigation_ghz_params(self, noise, shots):
+        """Test for mitigation with a GHZ circuit and parameters"""
         # Note: Bogota has a linear coupling map
         backend = FakeBogota() if noise else Aer.get_backend("aer_simulator")
         num_qubits = 3

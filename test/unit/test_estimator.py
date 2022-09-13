@@ -233,8 +233,8 @@ class TestEstimatorMain(unittest.TestCase):
         )
 
     @combine(resilience_level=[0, 1])
-    def test_main(self, resilience_level):
-        """Test main"""
+    def test_no_noise_single_param(self, resilience_level):
+        """Test for main without noise with single parameter set"""
         backend = Aer.get_backend("aer_simulator")
         shots = 10000
         circuits = [0]
@@ -266,8 +266,8 @@ class TestEstimatorMain(unittest.TestCase):
             self.assertEqual(result["metadata"][0]["shots"], int(ceil(shots / div)) * div)
 
     @combine(resilience_level=[0, 1])
-    def test_main2(self, resilience_level):
-        """Test main (2)"""
+    def test_no_noise_multiple_params(self, resilience_level):
+        """Test for main without noise with multiple parameter sets"""
         backend = Aer.get_backend("aer_simulator")
         shots = 10000
         circuits = [0, 0]
@@ -301,8 +301,8 @@ class TestEstimatorMain(unittest.TestCase):
             self.assertEqual(result["metadata"][1]["shots"], int(ceil(shots / div)) * div)
 
     @combine(noise=[True, False], shots=[10000, 20000])
-    def test_estimator_with_trex(self, noise, shots):
-        """Test estimator with T-Rex"""
+    def test_mitigation(self, noise, shots):
+        """Test for mitigation w/ and w/o noise"""
         backend = FakeBogota() if noise else Aer.get_backend("aer_simulator")
         resilience_level = 1
         circuits = [0, 0]
@@ -332,8 +332,8 @@ class TestEstimatorMain(unittest.TestCase):
         self.assertEqual(result["metadata"][1]["shots"], int(ceil(shots / div)) * div)
 
     @combine(noise=[True, False], resilience_level=[0, 1], shots=[100])
-    def test_estimator_with_trex_2(self, noise, resilience_level, shots):
-        """Test estimator with T-Rex (2)"""
+    def test_identity(self, noise, resilience_level, shots):
+        """Test for identity observable"""
         backend = FakeBogota() if noise else Aer.get_backend("aer_simulator")
         circuit = RealAmplitudes(num_qubits=5, reps=2, entanglement="full")
         num_parameters = circuit.num_parameters
@@ -364,8 +364,8 @@ class TestEstimatorMain(unittest.TestCase):
             self.assertEqual(result["metadata"][1]["shots"], int(ceil(shots / div)) * div)
 
     @combine(noise=[True, False], resilience_level=[0, 1])
-    def test_estimator_with_trex_3(self, noise, resilience_level):
-        """Test estimator with T-Rex (3)"""
+    def test_identity_wo_shots(self, noise, resilience_level):
+        """Test for identity observable without `shots`"""
         backend = FakeBogota() if noise else Aer.get_backend("aer_simulator")
         circuit = RealAmplitudes(num_qubits=5, reps=2, entanglement="full")
         num_parameters = circuit.num_parameters
