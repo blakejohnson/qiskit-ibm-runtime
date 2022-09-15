@@ -14,8 +14,8 @@
 
 from qiskit.test import QiskitTestCase
 from qiskit.transpiler import CouplingMap
-from qiskit.providers.aer import AerSimulator
 from qiskit.exceptions import QiskitError
+from qiskit_aer import AerSimulator
 
 from programs.qaoa import (
     SwapStrategy,
