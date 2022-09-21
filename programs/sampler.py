@@ -110,7 +110,6 @@ class Sampler:
         Raises:
             QiskitError: if the instance has been closed.
         """
-        self._check_is_closed()
         return list(self._circuits)
 
     @property
@@ -123,8 +122,6 @@ class Sampler:
         Raises:
             QiskitError: if the instance has been closed.
         """
-        self._check_is_closed()
-
         if self._skip_transpilation:
             self._transpiled_circuits = list(self._circuits)
         elif self._transpiled_circuits is None:
@@ -196,7 +193,6 @@ class Sampler:
         Returns:
             self
         """
-        self._check_is_closed()
         self._run_options.update_options(**fields)
         return self
 
@@ -214,8 +210,6 @@ class Sampler:
         Raises:
             QiskitError: if the instance has been closed.
         """
-        self._check_is_closed()
-
         self._transpile_options.update_options(**fields)
         return self
 
@@ -250,7 +244,6 @@ class Sampler:
                 parameters=self._parameters,
                 parameter_values=parameter_values,
             )
-            self._check_is_closed()
             # This line does the actual transpilation
             transpiled_circuits = self.transpiled_circuits
             bound_circuits = [
@@ -262,7 +255,6 @@ class Sampler:
                 for i, value in zip(circuit_indices, parameter_values)
             ]
         else:
-            self._check_is_closed()
             # This line does the actual transpilation
             transpiled_circuits = self.transpiled_circuits
             self._parameters = self._initialize_parameters(
@@ -432,10 +424,6 @@ class Sampler:
 
         return SamplerResult(quasi_dists=quasis, metadata=metadata)
 
-    def _check_is_closed(self):
-        if self._is_closed:
-            raise QiskitError("The primitive has been closed.")
-
     def _bound_pass_manager_run(self, circuits):
         if self._bound_pass_manager is None:
             return circuits
@@ -495,6 +483,7 @@ class CircuitCache:
             cache: An instance of Cache class
         """
         self._cache = cache
+        self._circuit_id_digest_map: Dict[str, str] = {}
         self._transpiled_circuits_map: Dict[str, QuantumCircuit | str] = {}
         self._transpiled_circuits: list[QuantumCircuit | str] = []
         self._raw_circuits = []
@@ -537,6 +526,7 @@ class CircuitCache:
                 transpile_options=transpile_options,
             )
             circuit_digest = self._hash(hash_str=hash_str)
+            self._circuit_id_digest_map.update({circuit_id: circuit_digest})
             # Option 1: Try to get transpiled circuit from local map
             # (helps not to transpile repeated circuits in same job)
             transpiled_circuit = self._transpiled_circuits_map.get(circuit_digest)
@@ -635,6 +625,11 @@ class CircuitCache:
             "transpile_options": transpile_options,
         }
         return json.dumps(hash_obj, cls=RuntimeEncoder)
+
+    def get_transpiled_circuit(self, circuit_id: str) -> QuantumCircuit:
+        """Return QuantumCircuit for circuit id"""
+        circuit_digest = self._circuit_id_digest_map.get(circuit_id)
+        return self._transpiled_circuits_map.get(circuit_digest)
 
 
 def main(

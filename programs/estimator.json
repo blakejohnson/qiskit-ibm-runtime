@@ -52,6 +52,10 @@
         "run_options": {
           "description": "A collection of key-value pairs identifying the execution options. Acceptable options include: shots, qubit_lo_freq, meas_lo_freq, schedule_los, rep_delay, init_qubits, and use_measure_esp.",
           "type": "object"
+        },
+        "circuit_ids": {
+          "description": "A list of unique IDs of QuantumCircuits.",
+          "type": "array"
         }
       },
       "required": [
