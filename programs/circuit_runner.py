@@ -19,6 +19,7 @@ import sys
 from time import perf_counter
 
 from qiskit import Aer
+from qiskit.circuit import QuantumCircuit
 from qiskit.compiler import transpile, schedule
 from qiskit.result import marginal_counts
 from qiskit_ibm_runtime.utils import RuntimeDecoder
@@ -43,6 +44,14 @@ def main(
 ):
     """Circuit runner program"""
 
+    if not isinstance(circuits, list):
+        circuits = [circuits]
+
+    for i, circuit in enumerate(circuits):
+        # Support QASM 2.0 strings
+        if isinstance(circuit, str) and "OPENQASM 2.0" in circuit:
+            circuits[i] = QuantumCircuit.from_qasm_str(circuit)
+
     # transpiling the circuits using given transpile options
     transpiler_options = transpiler_options or {}
     circuits = transpile(
@@ -62,9 +71,6 @@ def main(
             meas_map=meas_map,
             method=scheduling_method,
         )
-
-    if not isinstance(circuits, list):
-        circuits = [circuits]
 
     if measurement_error_mitigation:
         # get final meas mappings

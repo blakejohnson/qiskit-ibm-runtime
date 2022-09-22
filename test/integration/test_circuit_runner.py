@@ -60,3 +60,34 @@ class TestCircuitRunner(BaseTestCase):
         self.log.debug("Job ID: %s", job.job_id())
         job.wait_for_final_state()
         self.assertEqual(job.status(), JobStatus.DONE, job.error_message())
+
+    def test_circuit_runner_qasm_2(self):
+        """Test circuit_runner program with QASM 2.0 input."""
+        qc_str = """OPENQASM 2.0;
+            include "qelib1.inc";
+
+            qreg q[2];
+            creg c[2];
+
+            h q[0];
+            cx q[0], q[1];
+            measure q[0] -> c[0];
+            measure q[1] -> c[1];"""
+        program_inputs = {
+            "circuits": qc_str,
+            "shots": 2048,
+            "optimization_level": 0,
+            "measurement_error_mitigation": False,
+        }
+
+        options = {"backend_name": self.backend_name}
+
+        job = self.provider.runtime.run(
+            program_id="circuit-runner",
+            options=options,
+            inputs=program_inputs,
+            result_decoder=RunnerResult,
+        )
+        self.log.debug("Job ID: %s", job.job_id())
+        job.wait_for_final_state()
+        self.assertEqual(job.status(), JobStatus.DONE, job.error_message())

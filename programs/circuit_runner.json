@@ -11,7 +11,7 @@
             "object",
             "array"
           ],
-          "description": "A circuit or a list of QuantumCircuits."
+          "description": "A circuit or a list of QuantumCircuits or a list of QASM 2.0 strings."
         },
         "shots": {
           "description": "Number of repetitions of each circuit, for sampling. Default: 1024.",
