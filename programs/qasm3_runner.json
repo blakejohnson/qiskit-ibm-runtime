@@ -39,7 +39,7 @@
         "skip_transpilation": {
           "description": "Skip circuit transpilation.",
           "type": "boolean",
-          "default": false
+          "default": true
         },
         "use_measurement_mitigation": {
           "description": "Whether to apply measurement error mitigation. Currently, error mitigation only applies to QuantumCircuit.",

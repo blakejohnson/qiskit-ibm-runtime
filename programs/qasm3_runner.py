@@ -19,10 +19,14 @@ program can only run on a backend that supports OpenQASM3."""
 from time import perf_counter
 from typing import Dict, Iterable, List, Optional, Set, Union
 
-from qiskit.circuit.quantumcircuit import ClassicalRegister, QuantumCircuit, QuantumRegister
+from qiskit.circuit.library import Barrier
+from qiskit.circuit.quantumcircuit import ClassicalRegister, Delay, QuantumCircuit, QuantumRegister
 from qiskit.compiler import transpile
 from qiskit.qasm3 import Exporter
 from qiskit.result import marginal_counts, Result
+from qiskit.transpiler import PassManager
+from qiskit.transpiler.instruction_durations import InstructionDurations
+from qiskit.transpiler.passes import TimeUnitConversion
 from qiskit_ibm_runtime.utils import RuntimeEncoder
 import mthree
 import numpy as np
@@ -71,15 +75,11 @@ class CircuitMerger:
         circuit.barrier(used_qubits)
 
         if init_delay:
-            # need to schedule circuit
-            return transpile(
-                circuit,
-                backend=self.backend,
-                scheduling_method="as_late_as_possible",
-                optimization_level=0,
-            )
-        else:
-            return circuit
+            instruction_durations = InstructionDurations.from_backend(self.backend)
+            pm_ = PassManager([TimeUnitConversion(instruction_durations)])
+            circuit = pm_.run(circuit)
+
+        return circuit
 
     def _used_qubits(self, circuits: List[QuantumCircuit]) -> Union[Set[int], range]:
         """Find all qubits used across the circuits to be merged."""
@@ -89,6 +89,10 @@ class CircuitMerger:
                 # circuit is not working on physical qubits, fallback to resetting all qubits
                 return range(self.backend.configuration().n_qubits)
             for data in circuit.data:
+                if isinstance(data.operation, Delay):
+                    continue
+                if isinstance(data.operation, Barrier):
+                    continue
                 qubits.update(qubit.index for qubit in data[1])
         return qubits
 
@@ -259,7 +263,7 @@ def main(
     exporter_config=None,
     run_config=None,
     qasm3_args=None,
-    skip_transpilation=False,
+    skip_transpilation=True,
     use_measurement_mitigation=False,
     merge_circuits=True,
     init_num_resets=3,

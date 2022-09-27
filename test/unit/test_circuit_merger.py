@@ -16,7 +16,9 @@ import unittest
 
 from typing import Tuple
 
-from qiskit import BasicAer, QuantumCircuit, QuantumRegister, ClassicalRegister, execute
+from qiskit import BasicAer, QuantumCircuit, QuantumRegister, ClassicalRegister, execute, transpile
+from qiskit.circuit import Delay, Reset
+from qiskit.providers.fake_provider import FakeBogota
 
 from programs.qasm3_runner import CircuitMerger
 
@@ -110,3 +112,67 @@ class TestCircuitMerger(unittest.TestCase):
         merger = CircuitMerger([qc1, qc2], backend=self.sim_backend)
         merged_circuit = merger.merge_circuits(init_circuit=custom_init)
         self.assertEqual(merged_circuit.count_ops()["y"], 2 * 2 * n_qubits)
+
+    def test_init_delay(self):
+        """Test circuit with init delay."""
+        qc1, qc2 = _create_test_circuits()
+        backend = FakeBogota()
+
+        merger = CircuitMerger([qc1, qc2], backend=backend)
+        merged_circuit = merger.merge_circuits(init_delay=1e-6, init_delay_unit="s")
+
+        delay_found = False
+        for inst in merged_circuit.data:
+            operation = inst.operation
+            if isinstance(operation, Delay):
+                delay_found = True
+                self.assertEqual(operation.duration, 4500)
+                self.assertEqual(operation.unit, "dt")
+        self.assertTrue(delay_found)
+
+    def test_reset_only_on_used_qubits(self):
+        """Test that we only insert resets on qubits we use in the circuit."""
+
+        backend = FakeBogota()
+
+        qc0 = QuantumCircuit(1, 1)
+        qc0.x(0)
+        qc0.measure(0, 0)
+
+        qc1 = transpile(qc0, backend, initial_layout=[0])
+        qc2 = transpile(qc0, backend, initial_layout=[1])
+
+        merger = CircuitMerger([qc1, qc2], backend=backend)
+        merged_circuit = merger.merge_circuits(init_num_resets=1)
+
+        reset_found = False
+        for inst in merged_circuit.data:
+            operation = inst.operation
+            if isinstance(operation, Reset):
+                reset_found = True
+                self.assertIn(inst.qubits[0].index, (0, 1))
+        self.assertTrue(reset_found)
+
+    def test_reset_only_on_used_qubits_non_nop(self):
+        """Test that we only insert resets on qubits that have non-nop operations applied."""
+
+        backend = FakeBogota()
+
+        qc0 = QuantumCircuit(2, 2)
+        qc0.x(0)
+        qc0.barrier([0, 1])
+        qc0.measure(0, 0)
+
+        # Use ASAP scheduling to force delay padding of the program
+        qc1 = transpile(qc0, backend, initial_layout=[0, 1], scheduling_method="asap")
+
+        merger = CircuitMerger([qc1], backend=backend)
+        merged_circuit = merger.merge_circuits(init_num_resets=1)
+
+        reset_found = False
+        for inst in merged_circuit.data:
+            operation = inst.operation
+            if isinstance(operation, Reset):
+                reset_found = True
+                self.assertIn(inst.qubits[0].index, (0,))
+        self.assertTrue(reset_found)
