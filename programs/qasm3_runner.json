@@ -26,7 +26,7 @@
           "type": "object"
         },
         "run_config": {
-          "description": "Execution time options. QSAM3 simulator supports 'shots', and real backends support both 'shots' and 'rep_delay'.",
+          "description": "Execution time options. QASM3 simulator supports 'shots', and real backends support both 'shots' and 'rep_delay'.",
           "type": "object"
         },
         "qasm3_args": {
