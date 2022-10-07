@@ -1,7 +1,7 @@
 {
   "name": "qasm3-runner",
   "description": "A runtime program that takes one or more circuits, converts them to OpenQASM3, compiles them, executes them, and optionally applies measurement error mitigation. This program can also take and execute one or more OpenQASM3 strings. Note that this program can only run on a backend that supports OpenQASM3.",
-  "max_execution_time": 14400,
+  "max_execution_time": 7200,
   "spec": {
     "backend_requirements": {
       "input_allowed": "qasm3"
