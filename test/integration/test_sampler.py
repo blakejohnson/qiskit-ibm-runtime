@@ -29,6 +29,7 @@ class TestSampler(BaseTestCase):
         super().setUpClass()
         cls.provider = provider
         cls.backend_name = backend_name
+        cls.program_id = "sampler"
 
     def setUp(self) -> None:
         """Test case setup."""
@@ -50,7 +51,7 @@ class TestSampler(BaseTestCase):
         options = {"backend_name": self.backend_name}
 
         job = self.provider.runtime.run(
-            program_id="sampler",
+            program_id=self.program_id,
             options=options,
             inputs=program_inputs,
         )
@@ -65,7 +66,7 @@ class TestSampler(BaseTestCase):
         options = {"backend_name": self.backend_name}
 
         job = self.provider.runtime.run(
-            program_id="sampler",
+            program_id=self.program_id,
             options=options,
             inputs=program_inputs,
         )
@@ -75,3 +76,22 @@ class TestSampler(BaseTestCase):
         # TODO: after switching these tests to use qiskit-ibm-runtime we can add
         # start_session=True to the first run call above and make another run call with
         # circuits={} and circuit_ids=[self.qc1_id], so we can test caching circuits in redis
+
+    def test_sampler_skip_transpilation_true(self):
+        """Test sampler program with skip_transpilation set to True."""
+        program_inputs = {
+            "circuits": {self.qc1_id: self.qc1},
+            "circuit_ids": [self.qc1_id, self.qc1_id, self.qc1_id],
+            "transpilation_settings": {"skip_transpilation": True},
+        }
+
+        options = {"backend_name": self.backend_name}
+
+        job = self.provider.runtime.run(
+            program_id=self.program_id,
+            options=options,
+            inputs=program_inputs,
+        )
+        self.log.debug("Job ID: %s", job.job_id())
+        job.wait_for_final_state()
+        self.assertEqual(job.status(), JobStatus.DONE, job.error_message())

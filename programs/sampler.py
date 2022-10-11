@@ -110,6 +110,9 @@ class Sampler:
         Raises:
             QiskitError: if the instance has been closed.
         """
+        # This method is no longer used in the new flexible session flow
+        # with circuits and circuit_ids, and hence can be removed when
+        # we remove support for circuit_indices
         return list(self._circuits)
 
     @property
@@ -122,11 +125,9 @@ class Sampler:
         Raises:
             QiskitError: if the instance has been closed.
         """
-        if self._skip_transpilation:
-            self._transpiled_circuits = list(self._circuits)
-        elif self._transpiled_circuits is None:
+        if not self._transpiled_circuits:
             if self._circuit_ids:
-                # 1. Initialize a list transpiled circuits from cache and another list of
+                # 1. Initialize a list of transpiled circuits from cache and another list of
                 # raw circuits whose transpiled versions were not found in cache
                 self._circuit_cache.initialize_transpiled_and_raw_circuits(
                     circuits_map=self._circuits_map,
@@ -135,8 +136,13 @@ class Sampler:
                     transpile_options=self._transpile_options.__dict__,
                 )
                 if self._circuit_cache.raw_circuits:
-                    # 2. Transpile the raw circuits whose transpiled versions were not found in cache
-                    transpiled_circuits = self._transpile(circuits=self._circuit_cache.raw_circuits)
+                    if not self._skip_transpilation:
+                        # 2. Transpile the raw circuits whose transpiled versions were not found in cache
+                        transpiled_circuits = self._transpile(
+                            circuits=self._circuit_cache.raw_circuits
+                        )
+                    else:
+                        transpiled_circuits = self._circuit_cache.raw_circuits
                     # 3. Update cache with transpiled and raw circuits and merge transpiled circuits
                     # from step 2 with transpiled circuits retrieved from cache in step 1
                     self._circuit_cache.update_cache_and_merge_transpiled_circuits(
@@ -144,7 +150,10 @@ class Sampler:
                     )
                 self._transpiled_circuits = self._circuit_cache.transpiled_circuits
             else:
-                self._transpiled_circuits = self._transpile(circuits=self.preprocessed_circuits)
+                if not self._skip_transpilation:
+                    self._transpiled_circuits = self._transpile(circuits=self.preprocessed_circuits)
+                else:
+                    self._transpiled_circuits = list(self._circuits)
         return self._transpiled_circuits
 
     def _transpile(self, circuits: List[QuantumCircuit]):
