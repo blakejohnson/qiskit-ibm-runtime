@@ -111,6 +111,18 @@ def main(backend, user_messenger, **kwargs):
     elif len(initial_point) != ansatz.num_parameters:
         raise ValueError("Mismatching number of parameters and initial point dimension.")
 
+    history = {"nfevs": [], "params": [], "energy": [], "std": []}
+
+    def store_history_and_forward(nfevs, params, energy, std):
+        # store information
+        history["nfevs"].append(nfevs)
+        history["params"].append(params)
+        history["energy"].append(energy)
+        history["std"].append(std)
+
+        # and forward information to users callback
+        publisher.callback(nfevs, params, energy, std)
+
     # construct the VQE instance
     vqe = VQE(
         ansatz=ansatz,
@@ -118,7 +130,7 @@ def main(backend, user_messenger, **kwargs):
         initial_point=initial_point,
         expectation=PauliExpectation(),
         max_evals_grouped=max_evals_grouped,
-        callback=publisher.callback,
+        callback=store_history_and_forward,
         quantum_instance=_quantum_instance,
     )
     result = vqe.compute_minimum_eigenvalue(operator, aux_operators)
@@ -137,7 +149,7 @@ def main(backend, user_messenger, **kwargs):
         "eigenstate": result.eigenstate,
         "eigenvalue": result.eigenvalue,
         "aux_operator_eigenvalues": aux_operator_values,
-        "optimizer_history": None,
+        "optimizer_history": history,
     }
 
     user_messenger.publish(serialized_result, final=True)

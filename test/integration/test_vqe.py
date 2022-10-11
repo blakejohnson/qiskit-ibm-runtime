@@ -120,10 +120,17 @@ class TestVQE(BaseTestCase):
         result = job.result()
         self.log.info("Runtime: %s", result["eigenvalue"])
 
-        self.assertIsInstance(result["aux_operator_eigenvalues"], dict)
+        with self.subTest(msg="check auxops is dict"):
+            self.assertIsInstance(result["aux_operator_eigenvalues"], dict)
+
+        with self.subTest(msg="check history shape"):
+            self.assertIsInstance(result["optimizer_history"], dict)
+            # 300x 2 evaluations plus 25x 2 for the initial calibration and a final one
+            self.assertEqual(len(result["optimizer_history"]["nfevs"]), 651)
 
         if self.backend.configuration().simulator:
-            self.assertLess(abs(result["eigenvalue"] - reference.eigenvalue), 1)
+            with self.subTest(msg="check eigenvalue"):
+                self.assertLess(abs(result["eigenvalue"] - reference.eigenvalue), 1)
 
     def test_nature_program(self):
         """Test vqe nature program."""

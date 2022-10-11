@@ -101,7 +101,7 @@
           "type": "array"
         },
         "optimizer_history": {
-          "description": "A dictionary containing information about the optimization process: the value objective function, parameters, and a timestamp.",
+          "description": "A dictionary containing information about the function evaluations (not necessarily the actual parameter value!): the current evaluation count, the parameters, the energy and the standard deviation.",
           "type": "object"
         }
       }
