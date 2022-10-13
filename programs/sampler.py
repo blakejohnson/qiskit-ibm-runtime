@@ -678,6 +678,13 @@ def main(
     transpilation_settings = transpilation_settings or {}
     optimization_settings = transpilation_settings.pop("optimization_settings", {})
     skip_transpilation = transpilation_settings.pop("skip_transpilation", skip_transpilation)
+    run_options = run_options or {}
+
+    # Configure noise model.
+    noise_model = run_options.pop("noise_model", None)
+    seed_simulator = run_options.pop("seed_simulator", None)
+    if backend.configuration().simulator:
+        backend.set_options(noise_model=noise_model, seed_simulator=seed_simulator)
 
     sampler = Sampler(
         backend=backend,
@@ -699,7 +706,6 @@ def main(
     if resilience_settings.get("level", 0) == 1:
         sampler.calibrate_m3_mitigation(backend)
 
-    run_options = run_options or {}
     result = sampler.run(
         circuit_indices=circuit_indices,
         parameter_values=parameter_values,

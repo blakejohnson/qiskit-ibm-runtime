@@ -1130,6 +1130,13 @@ def main(
     skip_transpilation = transpilation_settings.pop("skip_transpilation", skip_transpilation)
     optimization_settings = transpilation_settings.pop("optimization_settings", {})
     resilience_settings = resilience_settings or {}
+    run_options = run_options or {}
+
+    # Configure noise model.
+    noise_model = run_options.pop("noise_model", None)
+    seed_simulator = run_options.pop("seed_simulator", None)
+    if backend.configuration().simulator:
+        backend.set_options(noise_model=noise_model, seed_simulator=seed_simulator)
 
     mitigation = None
     if resilience_settings.get("level", 0) == 1:
@@ -1151,7 +1158,6 @@ def main(
     transpile_options["optimization_level"] = optimization_settings.get("level", 1)
     estimator.set_transpile_options(**transpile_options)
 
-    run_options = run_options or {}
     if "shots" not in run_options:
         run_options["shots"] = backend.options.shots
 
