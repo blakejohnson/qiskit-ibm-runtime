@@ -17,15 +17,16 @@ import unittest
 
 from ddt import ddt
 import numpy as np
-from qiskit import Aer, QuantumCircuit
+from qiskit import Aer, ClassicalRegister, QuantumCircuit
 from qiskit.circuit import Parameter
 from qiskit.circuit.library import RealAmplitudes
 from qiskit.exceptions import QiskitError
 from qiskit.providers.fake_provider import FakeBogota
 
-from programs.sampler import Sampler, main, CircuitCache
+from programs.sampler import CircuitCache, MidcircuitMeasurementError, Sampler, main
 
 from .mock.mock_cache import MockCache
+
 
 # TODO: remove this class when non-flexible interface is no longer supported in provider
 @ddt
@@ -738,6 +739,86 @@ class TestSamplerMainCircuitIds(unittest.TestCase):
         ones = "1" * num_qubits
         targets = [{zeros: 1.0}, {zeros: 0.5, ones: 0.5}, {ones: 1.0}]
         self._compare_probs(result["quasi_dists"], targets)
+
+    @combine(resilience_level=[0, 1])
+    def test_sampler_separated_cregs(self, resilience_level):
+        """test sampler with separated cregs"""
+        backend = Aer.get_backend("aer_simulator")
+        circ = QuantumCircuit(4, 2)
+        circ.h(0)
+        circ.cx(0, 1)
+        aux = QuantumCircuit([], ClassicalRegister(2))
+        circ.tensor(aux, inplace=True)
+        circ.measure_all(add_bits=False)
+        result = main(
+            backend=backend,
+            user_messenger=None,
+            circuits=[circ],
+            circuit_indices=[0],
+            parameter_values=[[]],
+            run_options={"shots": 10000, "seed_simulator": 123},
+            transpilation_settings={"seed_transpiler": 15},
+            resilience_settings={"level": resilience_level},
+        )
+        targets = [{"0000": 0.5, "0011": 0.5}]
+        self._compare_probs(result["quasi_dists"], targets)
+
+    @combine(resilience_level=[0, 1])
+    def test_sampler_separated_cregs_unused_clbits(self, resilience_level):
+        """test sampler with separated cregs with unused clbits"""
+        backend = Aer.get_backend("aer_simulator")
+        circ = QuantumCircuit(2, 2)
+        circ.h(0)
+        circ.cx(0, 1)
+        circ.measure_all()
+        result = main(
+            backend=backend,
+            user_messenger=None,
+            circuits=[circ],
+            circuit_indices=[0],
+            parameter_values=[[]],
+            run_options={"shots": 10000, "seed_simulator": 123},
+            transpilation_settings={"seed_transpiler": 15},
+            resilience_settings={"level": resilience_level},
+        )
+        targets = [{"0000": 0.5, "1100": 0.5}]
+        self._compare_probs(result["quasi_dists"], targets)
+
+    @combine(resilience_level=[0, 1])
+    def test_sampler_multiple_measurements(self, resilience_level):
+        """test sampler with multiple measurements of the same qubit to raise an error
+        if readout error mitigation is enabled"""
+        backend = Aer.get_backend("aer_simulator")
+        circ = QuantumCircuit(1, 2)
+        circ.h(0)
+        circ.measure(0, 0)
+        circ.measure(0, 1)
+
+        if resilience_level == 0:
+            result = main(
+                backend=backend,
+                user_messenger=None,
+                circuits=[circ],
+                circuit_indices=[0],
+                parameter_values=[[]],
+                run_options={"shots": 10000, "seed_simulator": 123},
+                transpilation_settings={"seed_transpiler": 15},
+                resilience_settings={"level": resilience_level},
+            )
+            targets = [{"00": 0.5, "11": 0.5}]
+            self._compare_probs(result["quasi_dists"], targets)
+        else:
+            with self.assertRaises(MidcircuitMeasurementError):
+                _ = main(
+                    backend=backend,
+                    user_messenger=None,
+                    circuits=[circ],
+                    circuit_indices=[0],
+                    parameter_values=[[]],
+                    run_options={"shots": 10000, "seed_simulator": 123},
+                    transpilation_settings={"seed_transpiler": 15},
+                    resilience_settings={"level": resilience_level},
+                )
 
 
 @ddt

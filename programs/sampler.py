@@ -15,15 +15,16 @@ Sampler class
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
-from typing import cast, Dict, List
 import copy
 import hashlib
 import json
 import logging
-import numpy as np
+from typing import Dict, List, cast
 
 from mthree import M3Mitigation
-from mthree.utils import final_measurement_mapping
+from mthree.classes import QuasiDistribution as M3QuasiDistribution
+from mthree.utils import final_measurement_mapping, marginal_distribution
+import numpy as np
 from qiskit.circuit import Parameter, QuantumCircuit
 from qiskit.circuit.parametertable import ParameterView
 from qiskit.compiler import transpile
@@ -31,15 +32,20 @@ from qiskit.exceptions import QiskitError
 from qiskit.primitives import SamplerResult
 from qiskit.providers import Options
 from qiskit.providers.backend import BackendV1 as Backend
-from qiskit.result import QuasiDistribution, Result
+from qiskit.result import Counts, QuasiDistribution, Result
 from qiskit.transpiler import PassManager
-
 from qiskit_ibm_runtime import RuntimeDecoder, RuntimeEncoder
 
 # Number of effective shots per measurement error rate
 DEFAULT_SHOTS = 25000
 
 logger = logging.getLogger(__name__)
+
+
+class MidcircuitMeasurementError(QiskitError):
+    """Error related to midcircuit measurements"""
+
+    pass
 
 
 class Sampler:
@@ -412,13 +418,13 @@ class Sampler:
         mitigation_overheads = []
         mitigation_times = []
         for count, circ in zip(counts, circuits):
+            # hack for separated cregs
+            count = Counts({key.replace(" ", ""): val for key, val in count.items()})
+
             if self._m3_mitigation is None:
                 quasis.append(QuasiDistribution({k: v / shots for k, v in count.items()}))
             else:
-                mapping = final_measurement_mapping(circ)
-                quasi, details = self._m3_mitigation.apply_correction(
-                    count, mapping, return_mitigation_overhead=True, details=True
-                )
+                quasi, details = self._apply_correction(count, circ)
                 quasis.append(QuasiDistribution(quasi))
                 mitigation_overheads.append(quasi.mitigation_overhead)
                 mitigation_times.append(details["time"])
@@ -432,6 +438,54 @@ class Sampler:
             metadata.append(_temp_dict)
 
         return SamplerResult(quasi_dists=quasis, metadata=metadata)
+
+    def _apply_correction(
+        self, counts: Counts, circuit: QuantumCircuit
+    ) -> tuple[M3QuasiDistribution, dict]:
+        mapping = final_measurement_mapping(circuit)
+        used_clbits = set(mapping.values())
+        all_clbits = set(range(circuit.num_clbits))
+        if used_clbits != all_clbits:
+            unused_clbits = list(all_clbits - used_clbits)
+            unused_counts = marginal_distribution(counts, unused_clbits)
+            if len(unused_counts) > 1 or set(next(iter(unused_counts))) != {"0"}:
+                raise MidcircuitMeasurementError(
+                    "Sampler does not currently support mid-circuit measurements "
+                    "when resilience_level is not 0"
+                )
+            reduced_counts, reduced_mapping = marginal_distribution(
+                counts, sorted(used_clbits), mapping
+            )
+            quasi, details = self._m3_mitigation.apply_correction(
+                reduced_counts, reduced_mapping, return_mitigation_overhead=True, details=True
+            )
+            quasi = self._expand_keys(quasi, unused_clbits, circuit.num_clbits)
+        else:
+            quasi, details = self._m3_mitigation.apply_correction(
+                counts, mapping, return_mitigation_overhead=True, details=True
+            )
+        return quasi, details
+
+    def _expand_keys(
+        self, quasi: M3QuasiDistribution, unused_clbits: list[int], num_clbits: int
+    ) -> M3QuasiDistribution:
+        def _expand(key: str):
+            lst = [""] * num_clbits
+            for i in unused_clbits:
+                lst[num_clbits - i - 1] = "0"
+            i = 0
+            for char in key:
+                while lst[i]:
+                    i += 1
+                lst[i] = char
+                i += 1
+            return "".join(lst)
+
+        return M3QuasiDistribution(
+            {_expand(key): val for key, val in quasi.items()},
+            shots=quasi.shots,
+            mitigation_overhead=quasi.mitigation_overhead,
+        )
 
     def _bound_pass_manager_run(self, circuits):
         if self._bound_pass_manager is None:
