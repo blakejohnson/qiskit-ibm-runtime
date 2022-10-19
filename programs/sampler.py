@@ -19,41 +19,27 @@ import copy
 import hashlib
 import json
 import logging
-from os import environ
-from typing import Dict, List, Optional, cast
+from typing import Dict, List, cast
 
 from mthree import M3Mitigation
 from mthree.classes import QuasiDistribution as M3QuasiDistribution
 from mthree.utils import final_measurement_mapping, marginal_distribution
 import numpy as np
 from qiskit.circuit import Parameter, QuantumCircuit
-from qiskit.circuit.library import RZGate, XGate
 from qiskit.circuit.parametertable import ParameterView
 from qiskit.compiler import transpile
 from qiskit.exceptions import QiskitError
 from qiskit.primitives import SamplerResult
-from qiskit.providers import BackendV1, Options
+from qiskit.providers import Options
 from qiskit.providers.backend import BackendV1 as Backend
 from qiskit.result import Counts, QuasiDistribution, Result
-from qiskit.transpiler import InstructionDurations, PassManager
-from qiskit.transpiler.passes import (
-    ALAPScheduleAnalysis,
-    ConstrainedReschedule,
-    InstructionDurationCheck,
-    PadDynamicalDecoupling,
-    TimeUnitConversion,
-)
-from qiskit.transpiler.timing_constraints import TimingConstraints
+from qiskit.transpiler import PassManager
 from qiskit_ibm_runtime import RuntimeDecoder, RuntimeEncoder
 
 # Number of effective shots per measurement error rate
 DEFAULT_SHOTS = 25000
 
 logger = logging.getLogger(__name__)
-
-# If PRIMITIVES_DEBUG is True, metadata includes bound circuits.
-# Only for internal development and test.
-DEBUG = environ.get("PRIMITIVES_DEBUG", "false") == "true"
 
 
 class MidcircuitMeasurementError(QiskitError):
@@ -449,8 +435,6 @@ class Sampler:
             if self._m3_mitigation:
                 _temp_dict["readout_mitigation_overhead"] = mitigation_overheads[idx]
                 _temp_dict["readout_mitigation_time"] = mitigation_times[idx]
-            if DEBUG:
-                _temp_dict["bound_circuits"] = [circuits[idx]]
             metadata.append(_temp_dict)
 
         return SamplerResult(quasi_dists=quasis, metadata=metadata)
@@ -503,11 +487,11 @@ class Sampler:
             mitigation_overhead=quasi.mitigation_overhead,
         )
 
-    def _bound_pass_manager_run(self, circuits: list[QuantumCircuit]) -> list[QuantumCircuit]:
+    def _bound_pass_manager_run(self, circuits):
         if self._bound_pass_manager is None:
             return circuits
-        circs = self._bound_pass_manager.run(circuits)
-        return circs if isinstance(circs, list) else [circs]
+        else:
+            return cast("list[QuantumCircuit]", self._bound_pass_manager.run(circuits))
 
     def calibrate_m3_mitigation(self, backend) -> None:
         """Calibrate M3 mitigation
@@ -711,61 +695,6 @@ class CircuitCache:
         return self._transpiled_circuits_map.get(circuit_digest)
 
 
-def dynamical_decoupling_pass(backend: BackendV1) -> Optional[PassManager]:
-    """Generates a pass manager of the dynamical decoupling
-
-    Note that this pass is supposed to be applied to bound circuits
-
-    Args:
-        backend: the backend to execute the input circuits
-
-    Returns:
-        PassManager: the pass manager of the dynamical decoupling
-    """
-    # Source:
-    # https://github.ibm.com/IBM-Q-Software/ntc-ibm-programs/issues/213
-    # https://github.ibm.com/IBM-Q-Software/pec-runtime/blob/f8f0a49ee18eda9754734dd3260ea8c8812ee342/pec_runtime/utils/dynamical_decoupling.py#L47
-    #
-    # Note: ProgramBackend uses BackendV1
-    # https://github.ibm.com/IBM-Q-Software/ntc-provider/blob/efa7eaedc92a7a022aba237a00c63886678c1ac4/programruntime/runtime_backend.py#L31
-    # https://github.com/Qiskit/qiskit-ibm-runtime/blob/af308caeb7c261a1fb1a7ca7a45c49f55df02215/qiskit_ibm_runtime/program/program_backend.py#L20
-    #
-    # TODO: When ProgramBackend gets BackendV2, we need to adjust the code accordingly.
-
-    try:
-        durations = InstructionDurations.from_backend(backend)
-        timing_constraints = TimingConstraints(**backend.configuration().timing_constraints)
-    except AttributeError:
-        logger.warning("Backend (%s) does not support dynamical decoupling.", backend)
-        return None
-
-    dd_sequence = [XGate(), RZGate(np.pi), XGate(), RZGate(-np.pi)]
-    spacing = [1 / 4, 1 / 2, 0, 0, 1 / 4]
-
-    schedule_pass = ALAPScheduleAnalysis(durations)
-
-    return PassManager(
-        [
-            TimeUnitConversion(durations),
-            schedule_pass,
-            InstructionDurationCheck(
-                acquire_alignment=timing_constraints.acquire_alignment,
-                pulse_alignment=timing_constraints.pulse_alignment,
-            ),
-            ConstrainedReschedule(
-                acquire_alignment=timing_constraints.acquire_alignment,
-                pulse_alignment=timing_constraints.pulse_alignment,
-            ),
-            PadDynamicalDecoupling(
-                durations=durations,
-                dd_sequence=dd_sequence,
-                spacing=spacing,
-                pulse_alignment=timing_constraints.pulse_alignment,
-            ),
-        ]
-    )
-
-
 def main(
     backend,
     user_messenger,  # pylint: disable=unused-argument
@@ -811,23 +740,16 @@ def main(
     if backend.configuration().simulator:
         backend.set_options(noise_model=noise_model, seed_simulator=seed_simulator)
 
-    transpile_options = transpilation_settings.copy()
-    optimization_level = optimization_settings.get("level", 1)
-    transpile_options["optimization_level"] = optimization_level
-
-    if optimization_level >= 1:
-        bound_pass_manager = dynamical_decoupling_pass(backend)
-    else:
-        bound_pass_manager = None
-
     sampler = Sampler(
         backend=backend,
         circuits=circuits,
         parameters=parameters,
         skip_transpilation=skip_transpilation,
         circuit_ids=circuit_ids,
-        bound_pass_manager=bound_pass_manager,
     )
+
+    transpile_options = transpilation_settings.copy()
+    transpile_options["optimization_level"] = optimization_settings.get("level", 1)
 
     sampler.set_transpile_options(**transpile_options)
     # Must transpile circuits before calibrating M3

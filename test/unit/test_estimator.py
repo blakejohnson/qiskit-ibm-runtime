@@ -29,10 +29,8 @@ from qiskit.providers.fake_provider import FakeBogota, FakeMontreal
 from qiskit.quantum_info import Operator, SparsePauliOp
 from qiskit.quantum_info.random import random_pauli_list
 
-from programs.estimator import CircuitCache, Estimator, PauliTwirledMitigation, main
-
+from programs.estimator import Estimator, PauliTwirledMitigation, main, CircuitCache
 from .mock.mock_cache import MockCache
-
 
 # TODO: remove this class when non-flexible interface is no longer supported in provider
 @ddt
