@@ -8,4 +8,4 @@ matplotlib
 numpy
 dill>=0.3.4
 mthree>=0.24
-git+ssh://git@github.ibm.com/IBM-Q-Software/pec-runtime.git@bf83ad847331e4b33e8ae48bf13bfba5f7a3c94b
+git+ssh://git@github.ibm.com/IBM-Q-Software/pec-runtime.git@0.0.1-rc3
