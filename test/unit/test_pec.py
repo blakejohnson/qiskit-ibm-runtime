@@ -19,6 +19,7 @@ from qiskit import QuantumCircuit
 from qiskit.circuit.library import RealAmplitudes
 from qiskit.providers.fake_provider import FakeNairobi, FakeVigo
 from qiskit.quantum_info import SparsePauliOp
+from qiskit_aer import AerSimulator
 
 from programs.estimator_dev import main, Constant
 from .mock.mock_user_messenger import MockUserMessenger
@@ -31,7 +32,7 @@ class TestPEC(unittest.TestCase):
     def test_user_messenger(self):
         """Test for communication with primitives"""
 
-        backend = FakeVigo()
+        backend = AerSimulator.from_backend(FakeVigo())
         user_messenger = MockUserMessenger()
         observable = SparsePauliOp("III")
         qubits = 3
@@ -60,7 +61,7 @@ class TestPEC(unittest.TestCase):
     def test_num_samples(self):
         """Test option for specifying the number of samples to use"""
 
-        backend = FakeVigo()
+        backend = AerSimulator.from_backend(FakeVigo())
         user_messenger = MockUserMessenger()
         observable = SparsePauliOp("III")
         qubits = 3
@@ -89,7 +90,7 @@ class TestPEC(unittest.TestCase):
     def test_num_samples_default(self):
         """Test the default number of samples to use"""
 
-        backend = FakeVigo()
+        backend = AerSimulator.from_backend(FakeVigo())
         user_messenger = MockUserMessenger()
         observable = SparsePauliOp("III")
         qubits = 3
@@ -116,7 +117,7 @@ class TestPEC(unittest.TestCase):
 
     def test_max_learning_layers(self):
         """Test option for limiting the number of layers to learn"""
-        backend = FakeNairobi()
+        backend = AerSimulator.from_backend(FakeNairobi())
         circuit = RealAmplitudes(num_qubits=5, reps=2, entanglement="full")
         num_parameters = circuit.num_parameters
         observable = SparsePauliOp("IIIII")

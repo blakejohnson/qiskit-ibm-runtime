@@ -12,18 +12,20 @@
 
 """Unit tests for Estimator."""
 
+import unittest
 from math import ceil
 from test.unit import combine
-import unittest
 
-from ddt import ddt
 import numpy as np
+from ddt import ddt
+
 from qiskit import Aer, QuantumCircuit
 from qiskit.circuit import Parameter
 from qiskit.circuit.library import RealAmplitudes
 from qiskit.exceptions import QiskitError
 from qiskit.opflow import PauliSumOp
-from qiskit.primitives import Estimator as RefEstimator, EstimatorResult
+from qiskit.primitives import Estimator as RefEstimator
+from qiskit.primitives import EstimatorResult
 from qiskit.providers import Backend
 from qiskit.providers.fake_provider import FakeBogota, FakeMontreal
 from qiskit.quantum_info import Operator, SparsePauliOp
@@ -47,9 +49,9 @@ def get_backend(resilience_level: int, with_noise: bool = False) -> Backend:
         A backend
     """
     if with_noise:
-        return FakeBogota()
+        return AerSimulator.from_backend(FakeBogota())
     elif resilience_level < 2:
-        return Aer.get_backend("aer_simulator")
+        return AerSimulator()
     else:
         return AerSimulator.from_backend(FakeBogota(), noise_model=None)
 
@@ -600,7 +602,7 @@ class TestEstimatorMainCircuitIndices(unittest.TestCase):
     @combine(noise=[True, False], shots=[10000, 20000])
     def test_mitigation(self, noise, shots):
         """Test for mitigation w/ and w/o noise"""
-        backend = FakeBogota() if noise else Aer.get_backend("aer_simulator")
+        backend = AerSimulator.from_backend(FakeBogota()) if noise else AerSimulator()
         resilience_level = 1
         circuits = [0, 0]
         observables = [0, 0]
@@ -805,7 +807,7 @@ class TestEstimatorMainCircuitIds(unittest.TestCase):
     @combine(noise=[True, False], shots=[10000, 20000])
     def test_mitigation(self, noise, shots):
         """Test for mitigation w/ and w/o noise"""
-        backend = FakeBogota() if noise else Aer.get_backend("aer_simulator")
+        backend = AerSimulator.from_backend(FakeBogota()) if noise else AerSimulator()
         resilience_level = 1
         circuits = [0, 0]
         observables = [0, 0]

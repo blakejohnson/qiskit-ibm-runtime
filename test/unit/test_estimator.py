@@ -28,6 +28,7 @@ from qiskit.primitives import EstimatorResult
 from qiskit.providers.fake_provider import FakeBogota, FakeMontreal
 from qiskit.quantum_info import Operator, SparsePauliOp
 from qiskit.quantum_info.random import random_pauli_list
+from qiskit_aer import AerSimulator
 
 from programs.estimator import Estimator, PauliTwirledMitigation, main, CircuitCache
 from .mock.mock_cache import MockCache
@@ -561,7 +562,7 @@ class TestEstimatorMainCircuitIndices(unittest.TestCase):
     @combine(noise=[True, False], shots=[10000, 20000])
     def test_mitigation(self, noise, shots):
         """Test for mitigation w/ and w/o noise"""
-        backend = FakeBogota() if noise else Aer.get_backend("aer_simulator")
+        backend = AerSimulator.from_backend(FakeBogota()) if noise else AerSimulator()
         resilience_level = 1
         circuits = [0, 0]
         observables = [0, 0]
@@ -736,7 +737,7 @@ class TestEstimatorMainCircuitIds(unittest.TestCase):
     @combine(noise=[True, False], shots=[10000, 20000])
     def test_mitigation(self, noise, shots):
         """Test for mitigation w/ and w/o noise"""
-        backend = FakeBogota() if noise else Aer.get_backend("aer_simulator")
+        backend = AerSimulator.from_backend(FakeBogota()) if noise else AerSimulator()
         resilience_level = 1
         circuits = [0, 0]
         observables = [0, 0]
