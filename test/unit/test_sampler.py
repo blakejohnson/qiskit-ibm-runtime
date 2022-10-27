@@ -12,12 +12,12 @@
 
 """Unit tests for Sampler."""
 
-from test.unit import combine
 import unittest
+from test.unit import combine
 
-from ddt import ddt
 import numpy as np
-from qiskit import Aer, ClassicalRegister, QuantumCircuit
+from ddt import ddt
+from qiskit import ClassicalRegister, QuantumCircuit
 from qiskit.circuit import Parameter
 from qiskit.circuit.library import RealAmplitudes
 from qiskit.exceptions import QiskitError
@@ -26,6 +26,7 @@ from qiskit.providers.fake_provider import FakeBogota
 from programs.sampler import CircuitCache, MidcircuitMeasurementError, Sampler, main
 
 from .mock.mock_cache import MockCache
+from .test_estimator import get_simulator
 
 
 # TODO: remove this class when non-flexible interface is no longer supported in provider
@@ -89,7 +90,7 @@ class TestSamplerCircuitIndices(unittest.TestCase):
     @combine(indices=[[0], [1], [0, 1]], shots=[1000, 2000])
     def test_sample(self, indices, shots):
         """test to sample"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         circuits, target = self._generate_circuits_target(indices)
         with self.subTest("direct call"):
             sampler = Sampler(circuits=circuits, backend=backend)
@@ -107,7 +108,7 @@ class TestSamplerCircuitIndices(unittest.TestCase):
     )
     def test_sample_pqc(self, indices, shots):
         """test to sample a parametrized circuit"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         params, target = self._generate_params_target(indices)
         with self.subTest("direct call"):
             sampler = Sampler(circuits=self._pqc, backend=backend)
@@ -122,7 +123,7 @@ class TestSamplerCircuitIndices(unittest.TestCase):
     )
     def test_sample_with_ndarray(self, indices, shots):
         """test to sample a parametrized circuit"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         params, target = self._generate_params_target(indices)
         params = np.asarray(params)
         with self.subTest("direct call"):
@@ -138,7 +139,7 @@ class TestSamplerCircuitIndices(unittest.TestCase):
     )
     def test_sample_two_pqcs(self, indices, shots):
         """test to sample two parametrized circuits"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         circs = [self._pqc, self._pqc]
         params, target = self._generate_params_target(indices)
         with self.subTest("direct call"):
@@ -155,8 +156,9 @@ class TestSamplerCircuitIndices(unittest.TestCase):
         qc2 = RealAmplitudes(num_qubits=1, reps=1)
         qc2.measure_all()
 
+        backend = get_simulator()
         sampler = Sampler(
-            Aer.get_backend("aer_simulator"),
+            backend,
             [qc1, qc2],
             [qc1.parameters, qc2.parameters],
         )
@@ -172,7 +174,8 @@ class TestSamplerCircuitIndices(unittest.TestCase):
         num_qubits = 5
         qc1 = QuantumCircuit(num_qubits, num_qubits - 1)
         qc1.measure(range(num_qubits - 1), range(num_qubits - 1))
-        sampler = Sampler(backend=Aer.get_backend("aer_simulator"), circuits=[qc1] * 10)
+        backend = get_simulator()
+        sampler = Sampler(backend=backend, circuits=[qc1] * 10)
         with self.subTest("one circuit"):
             result = sampler.run(circuit_indices=[0], shots=1000)
             self.assertEqual(len(result.metadata), 1)
@@ -258,7 +261,7 @@ class TestSamplerCircuitIds(unittest.TestCase):
     @combine(indices=[[0], [1], [0, 1]], shots=[1000, 2000])
     def test_sample(self, indices, shots):
         """test to sample"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         circuits, circuit_ids, target = self._generate_circuits_target(indices)
         with self.subTest("direct call"):
             sampler = Sampler(
@@ -279,7 +282,7 @@ class TestSamplerCircuitIds(unittest.TestCase):
     )
     def test_sample_pqc(self, indices, shots):
         """test to sample a parameterized circuit"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         params, target = self._generate_params_target(indices)
         with self.subTest("direct call"):
             sampler = Sampler(
@@ -298,7 +301,7 @@ class TestSamplerCircuitIds(unittest.TestCase):
     )
     def test_sample_with_ndarray(self, indices, shots):
         """test to sample a parameterized circuit"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         params, target = self._generate_params_target(indices)
         params = np.asarray(params)
         with self.subTest("direct call"):
@@ -318,7 +321,7 @@ class TestSamplerCircuitIds(unittest.TestCase):
     )
     def test_sample_two_pqcs(self, indices, shots):
         """test to sample two parameterized circuits"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         params, target = self._generate_params_target(indices)
         with self.subTest("direct call"):
             sampler = Sampler(
@@ -340,8 +343,9 @@ class TestSamplerCircuitIds(unittest.TestCase):
         qc2.measure_all()
         qc2_id = str(id(qc2))
 
+        backend = get_simulator()
         sampler = Sampler(
-            backend=Aer.get_backend("aer_simulator"),
+            backend=backend,
             circuits={qc1_id: qc1, qc2_id: qc2},
             parameters=[qc1.parameters, qc2.parameters],
             circuit_ids=[qc1_id, qc2_id],
@@ -359,8 +363,9 @@ class TestSamplerCircuitIds(unittest.TestCase):
         qc1 = QuantumCircuit(num_qubits, num_qubits - 1)
         qc1.measure(range(num_qubits - 1), range(num_qubits - 1))
         qc1_id = str(id(qc1))
+        backend = get_simulator()
         sampler = Sampler(
-            backend=Aer.get_backend("aer_simulator"),
+            backend=backend,
             circuits={qc1_id: qc1},
             circuit_ids=[qc1_id],
         )
@@ -378,8 +383,9 @@ class TestSamplerCircuitIds(unittest.TestCase):
         qc1 = QuantumCircuit(num_qubits, num_qubits - 1)
         qc1.measure(range(num_qubits - 1), range(num_qubits - 1))
         qc1_id = str(id(qc1))
+        backend = get_simulator()
         sampler = Sampler(
-            backend=Aer.get_backend("aer_simulator"),
+            backend=backend,
             circuits={qc1_id: qc1},
             circuit_ids=[qc1_id] * 2,
         )
@@ -463,7 +469,7 @@ class TestSamplerMainCircuitIndices(unittest.TestCase):
         qc3.h(range(num_qubits))
         qc3.measure(0, 1)
 
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         results = main(
             backend=backend,
             user_messenger=None,
@@ -478,7 +484,7 @@ class TestSamplerMainCircuitIndices(unittest.TestCase):
     @combine(resilience_level=[0, 1])
     def test_no_noise_no_params(self, resilience_level):
         """Test for main without noise with non-parametrized circuits"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         result = main(
             backend=backend,
             user_messenger=None,
@@ -493,7 +499,7 @@ class TestSamplerMainCircuitIndices(unittest.TestCase):
     @combine(resilience_level=[0, 1])
     def test_no_noise_params(self, resilience_level):
         """Test for main without noise with a parameterized circuit"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         result = main(
             backend=backend,
             user_messenger=None,
@@ -509,7 +515,7 @@ class TestSamplerMainCircuitIndices(unittest.TestCase):
     @combine(noise=[True, False], shots=[10000, 20000])
     def test_mitigation_no_params(self, noise, shots):
         """Test for mitigation with non-parametrized circuits"""
-        backend = FakeBogota() if noise else Aer.get_backend("aer_simulator")
+        backend = get_simulator(FakeBogota() if noise else None)
         result = main(
             backend=backend,
             user_messenger=None,
@@ -524,7 +530,7 @@ class TestSamplerMainCircuitIndices(unittest.TestCase):
     @combine(noise=[True, False], shots=[10000, 20000])
     def test_mitigation_params(self, noise, shots):
         """Test for mitigation with a parametrized circuit"""
-        backend = FakeBogota() if noise else Aer.get_backend("aer_simulator")
+        backend = get_simulator(FakeBogota() if noise else None)
         result = main(
             backend=backend,
             user_messenger=None,
@@ -541,7 +547,7 @@ class TestSamplerMainCircuitIndices(unittest.TestCase):
     def test_mitigation_ghz_params(self, noise, shots):
         """Test for mitigation with a GHZ circuit and parameters"""
         # Note: Bogota has a linear coupling map
-        backend = FakeBogota() if noise else Aer.get_backend("aer_simulator")
+        backend = get_simulator(FakeBogota() if noise else None)
         num_qubits = 3
         circ = QuantumCircuit(num_qubits)
         param = Parameter("x")
@@ -642,7 +648,7 @@ class TestSamplerMainCircuitIds(unittest.TestCase):
         qc3.measure(0, 1)
         qc3_id = str(id(qc3))
 
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         results = main(
             backend=backend,
             user_messenger=None,
@@ -656,7 +662,7 @@ class TestSamplerMainCircuitIds(unittest.TestCase):
 
     def test_sampler(self):
         """test sampler"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         result = main(
             backend=backend,
             user_messenger=None,
@@ -669,7 +675,7 @@ class TestSamplerMainCircuitIds(unittest.TestCase):
 
     def test_sampler_pqc(self):
         """test sampler with a parametrized circuit"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         result = main(
             backend=backend,
             user_messenger=None,
@@ -684,7 +690,7 @@ class TestSamplerMainCircuitIds(unittest.TestCase):
     @combine(noise=[True, False], shots=[10000, 20000])
     def test_sampler_with_m3(self, noise, shots):
         """test sampler with M3"""
-        backend = FakeBogota() if noise else Aer.get_backend("aer_simulator")
+        backend = get_simulator(FakeBogota() if noise else None)
         result = main(
             backend=backend,
             user_messenger=None,
@@ -699,7 +705,7 @@ class TestSamplerMainCircuitIds(unittest.TestCase):
     @combine(noise=[True, False], shots=[10000, 20000])
     def test_sampler_pqc_m3(self, noise, shots):
         """test sampler with a parameterized circuit and M3"""
-        backend = FakeBogota() if noise else Aer.get_backend("aer_simulator")
+        backend = get_simulator(FakeBogota() if noise else None)
         result = main(
             backend=backend,
             user_messenger=None,
@@ -716,7 +722,7 @@ class TestSamplerMainCircuitIds(unittest.TestCase):
     def test_sampler_pqc_m3_2(self, noise, shots):
         """test sampler with a parametrized circuit and M3 (2)"""
         # Note: Bogota has a linear coupling map
-        backend = FakeBogota() if noise else Aer.get_backend("aer_simulator")
+        backend = get_simulator(FakeBogota() if noise else None)
         num_qubits = 3
         circ = QuantumCircuit(num_qubits)
         param = Parameter("x")
@@ -743,7 +749,7 @@ class TestSamplerMainCircuitIds(unittest.TestCase):
     @combine(resilience_level=[0, 1])
     def test_sampler_separated_cregs(self, resilience_level):
         """test sampler with separated cregs"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         circ = QuantumCircuit(4, 2)
         circ.h(0)
         circ.cx(0, 1)
@@ -766,7 +772,7 @@ class TestSamplerMainCircuitIds(unittest.TestCase):
     @combine(resilience_level=[0, 1])
     def test_sampler_separated_cregs_unused_clbits(self, resilience_level):
         """test sampler with separated cregs with unused clbits"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         circ = QuantumCircuit(2, 2)
         circ.h(0)
         circ.cx(0, 1)
@@ -788,7 +794,7 @@ class TestSamplerMainCircuitIds(unittest.TestCase):
     def test_sampler_multiple_measurements(self, resilience_level):
         """test sampler with multiple measurements of the same qubit to raise an error
         if readout error mitigation is enabled"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         circ = QuantumCircuit(1, 2)
         circ.h(0)
         circ.measure(0, 0)

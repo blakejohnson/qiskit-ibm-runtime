@@ -15,34 +15,47 @@ Expectation value class
 
 from __future__ import annotations
 
-from collections import defaultdict
-from collections.abc import Iterable, Sequence, Mapping
-from typing import cast, Dict, List
 import copy
-from itertools import accumulate
 import hashlib
 import json
 import logging
+from collections import defaultdict
+from collections.abc import Iterable, Mapping, Sequence
+from itertools import accumulate
+from os import environ
+from typing import Dict, List, Optional, cast
 
-from mthree.utils import final_measurement_mapping
 import numpy as np
+from mthree.utils import final_measurement_mapping
 from qiskit.circuit import Parameter, QuantumCircuit
+from qiskit.circuit.library import RZGate, XGate
 from qiskit.circuit.parametertable import ParameterView
 from qiskit.compiler import transpile
 from qiskit.exceptions import QiskitError
 from qiskit.opflow import PauliSumOp
 from qiskit.primitives import EstimatorResult
 from qiskit.primitives.utils import init_observable
-from qiskit.providers import Backend, Options
+from qiskit.providers import Backend, BackendV1, Options
 from qiskit.quantum_info import Pauli, PauliList, SparsePauliOp
 from qiskit.quantum_info.operators.base_operator import BaseOperator
 from qiskit.result import Counts, Result
 from qiskit.tools.monitor import job_monitor
-from qiskit.transpiler import PassManager
-
+from qiskit.transpiler import InstructionDurations, PassManager
+from qiskit.transpiler.passes import (
+    ALAPScheduleAnalysis,
+    ConstrainedReschedule,
+    InstructionDurationCheck,
+    PadDynamicalDecoupling,
+    TimeUnitConversion,
+)
+from qiskit.transpiler.timing_constraints import TimingConstraints
 from qiskit_ibm_runtime import RuntimeDecoder, RuntimeEncoder
 
 logger = logging.getLogger(__name__)
+
+# If PRIMITIVES_DEBUG is True, metadata includes bound circuits, coeffs and, paulis.
+# Only for internal development and test.
+DEBUG = environ.get("PRIMITIVES_DEBUG", "false") == "true"
 
 
 def run_circuits(
@@ -67,6 +80,7 @@ def run_circuits(
     metadata = []
     for circ in circuits:
         metadata.append(circ.metadata)
+        metadata[-1]["bound_circuit"] = circ
         circ.metadata = {}
 
     job = backend.run(circuits, **run_options)
@@ -260,6 +274,9 @@ class Estimator:
         expval_list = []
         var_list = []
         shots_list = []
+        paulis_list = []
+        coeffs_list = []
+        circ_list = []
 
         for i, j in zip(accum, accum[1:]):
 
@@ -270,13 +287,17 @@ class Estimator:
             for k in range(i, j, step):
                 meta = metadata[k]
                 paulis = meta["paulis"]
+                paulis_list.append(paulis)
                 coeffs = meta["coeffs"]
+                coeffs_list.append(coeffs)
 
                 if self._mitigation:
                     flips = [datum["flip"] for datum in metadata[k : k + step]]
                     count = self._mitigation.combine_counts(counts[k : k + step], flips)
+                    circ_list.append([datum["bound_circuit"] for datum in metadata[k : k + step]])
                 else:
                     count = counts[k]
+                    circ_list.append([metadata[k]["bound_circuit"]])
 
                 expvals, variances = _pauli_expval_with_variance(count, paulis)
 
@@ -295,7 +316,24 @@ class Estimator:
             var_list.append(combined_var)
             shots_list.append(sum(counts[i].values()) * step)
 
-        metadata = [{"variance": var, "shots": shots} for var, shots in zip(var_list, shots_list)]
+        if DEBUG:
+            metadata = [
+                {
+                    "variance": var,
+                    "shots": shots,
+                    "paulis": paulis,
+                    "coeffs": coeffs,
+                    "bound_circuits": circ,
+                }
+                for var, shots, paulis, coeffs, circ in zip(
+                    var_list, shots_list, paulis_list, coeffs_list, circ_list
+                )
+            ]
+        else:
+            metadata = [
+                {"variance": var, "shots": shots} for var, shots in zip(var_list, shots_list)
+            ]
+
         if self._mitigation:
             for meta in metadata:
                 meta.update(
@@ -494,11 +532,11 @@ class Estimator:
         )
         return meas_circuit, paulis
 
-    def _bound_pass_manager_run(self, circuits):
+    def _bound_pass_manager_run(self, circuits: list[QuantumCircuit]) -> list[QuantumCircuit]:
         if self._bound_pass_manager is None:
             return circuits
-        else:
-            return self._bound_pass_manager.run(circuits)
+        circs = self._bound_pass_manager.run(circuits)
+        return circs if isinstance(circs, list) else [circs]
 
     def _validate_circuits_observables_for_circuit_indices_path(
         self,
@@ -1090,6 +1128,60 @@ class CircuitCache:
         return self._transpiled_circuits_map.get(circuit_digest)
 
 
+def dynamical_decoupling_pass(backend: BackendV1) -> Optional[PassManager]:
+    """Generates a pass manager of the dynamical decoupling
+
+    Note that this pass is supposed to be applied to bound circuits
+
+    Args:
+        backend: the backend to execute the input circuits
+
+    Returns:
+        PassManager: the pass manager of the dynamical decoupling
+    """
+    # Source:
+    # https://github.ibm.com/IBM-Q-Software/ntc-ibm-programs/issues/213
+    # https://github.ibm.com/IBM-Q-Software/pec-runtime/blob/f8f0a49ee18eda9754734dd3260ea8c8812ee342/pec_runtime/utils/dynamical_decoupling.py#L47
+    #
+    # Note: ProgramBackend uses BackendV1
+    # https://github.ibm.com/IBM-Q-Software/ntc-provider/blob/efa7eaedc92a7a022aba237a00c63886678c1ac4/programruntime/runtime_backend.py#L31
+    # https://github.com/Qiskit/qiskit-ibm-runtime/blob/af308caeb7c261a1fb1a7ca7a45c49f55df02215/qiskit_ibm_runtime/program/program_backend.py#L20
+    #
+    # TODO: When ProgramBackend gets BackendV2, we need to adjust the code accordingly.
+
+    try:
+        durations = InstructionDurations.from_backend(backend)
+        timing_constraints = TimingConstraints(**backend.configuration().timing_constraints)
+    except AttributeError:
+        logger.warning("Backend (%s) does not support dynamical decoupling.", backend)
+        return None
+
+    dd_sequence = [XGate(), RZGate(np.pi), XGate(), RZGate(-np.pi)]
+    spacing = [1 / 4, 1 / 2, 0, 0, 1 / 4]
+    schedule_pass = ALAPScheduleAnalysis(durations)
+
+    return PassManager(
+        [
+            TimeUnitConversion(durations),
+            schedule_pass,
+            InstructionDurationCheck(
+                acquire_alignment=timing_constraints.acquire_alignment,
+                pulse_alignment=timing_constraints.pulse_alignment,
+            ),
+            ConstrainedReschedule(
+                acquire_alignment=timing_constraints.acquire_alignment,
+                pulse_alignment=timing_constraints.pulse_alignment,
+            ),
+            PadDynamicalDecoupling(
+                durations=durations,
+                dd_sequence=dd_sequence,
+                spacing=spacing,
+                pulse_alignment=timing_constraints.pulse_alignment,
+            ),
+        ]
+    )
+
+
 def main(
     backend,
     user_messenger,  # pylint: disable=unused-argument
@@ -1126,6 +1218,8 @@ def main(
     Returns: Expectation values and metadata.
 
     """
+    if DEBUG:
+        logger.info("Debug mode")
     transpilation_settings = transpilation_settings or {}
     skip_transpilation = transpilation_settings.pop("skip_transpilation", skip_transpilation)
     optimization_settings = transpilation_settings.pop("optimization_settings", {})
@@ -1144,6 +1238,15 @@ def main(
         seed = options.pop("seed_mitigation", None)
         mitigation = PauliTwirledMitigation(backend=backend, seed=seed, **options)
 
+    transpile_options = transpilation_settings.copy()
+    optimization_level = optimization_settings.get("level", 1)
+    transpile_options["optimization_level"] = optimization_level
+
+    if optimization_level >= 1 and not skip_transpilation:
+        bound_pass_manager = dynamical_decoupling_pass(backend)
+    else:
+        bound_pass_manager = None
+
     estimator = Estimator(
         backend=backend,
         circuits=circuits,
@@ -1152,10 +1255,9 @@ def main(
         skip_transpilation=skip_transpilation,
         pauli_twirled_mitigation=mitigation,
         circuit_ids=circuit_ids,
+        bound_pass_manager=bound_pass_manager,
     )
 
-    transpile_options = transpilation_settings.copy()
-    transpile_options["optimization_level"] = optimization_settings.get("level", 1)
     estimator.set_transpile_options(**transpile_options)
 
     if "shots" not in run_options:

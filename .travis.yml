@@ -33,15 +33,23 @@ jobs:
     - stage: "Run unit tests"
       <<: *stage_linux
       python: 3.7
+      env:
+        - PRIMITIVES_DEBUG=true
       script: make unit-test
     - <<: *stage_linux
       python: 3.8
+      env:
+        - PRIMITIVES_DEBUG=true
       script: make unit-test
     - <<: *stage_linux
       python: 3.9
+      env:
+        - PRIMITIVES_DEBUG=true
       script: make unit-test
     - <<: *stage_linux
       python: "3.10"
+      env:
+        - PRIMITIVES_DEBUG=true
       script: make unit-test
 
     - stage: "Deploy to staging and run integration tests"

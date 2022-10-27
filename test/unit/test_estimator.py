@@ -12,26 +12,43 @@
 
 """Unit tests for Estimator."""
 
+import unittest
 from math import ceil
 from test.unit import combine
-import unittest
+from typing import Optional
 
-from ddt import ddt
 import numpy as np
-from qiskit import Aer, QuantumCircuit
+from ddt import ddt
+from qiskit import QuantumCircuit
 from qiskit.circuit import Parameter
 from qiskit.circuit.library import RealAmplitudes
 from qiskit.exceptions import QiskitError
 from qiskit.opflow import PauliSumOp
 from qiskit.primitives import Estimator as RefEstimator
 from qiskit.primitives import EstimatorResult
+from qiskit.providers import Backend
 from qiskit.providers.fake_provider import FakeBogota, FakeMontreal
 from qiskit.quantum_info import Operator, SparsePauliOp
 from qiskit.quantum_info.random import random_pauli_list
 from qiskit_aer import AerSimulator
 
-from programs.estimator import Estimator, PauliTwirledMitigation, main, CircuitCache
+from programs.estimator import CircuitCache, Estimator, PauliTwirledMitigation, main
+
 from .mock.mock_cache import MockCache
+
+
+def get_simulator(backend: Optional[Backend] = None) -> AerSimulator:
+    """Get Aer simulator with a noise model if specified.
+
+    Args:
+        backend (Optional[Backend], optional): a backend from which the noise model is extracted.
+            Defaults to None.
+
+    Returns:
+        AerSimulator: aer simulator
+    """
+    return AerSimulator.from_backend(backend) if backend else AerSimulator()
+
 
 # TODO: remove this class when non-flexible interface is no longer supported in provider
 @ddt
@@ -62,7 +79,8 @@ class TestEstimatorCircuitIndices(unittest.TestCase):
                 [0.1809312, 0.0, 0.0, -1.06365335],
             ]
         )
-        est = Estimator(Aer.get_backend("aer_simulator"), [circuit], [matrix])
+        backend = get_simulator()
+        est = Estimator(backend, [circuit], [matrix])
         est.set_run_options(seed_simulator=15, shots=10000)
         result = est.run(circuit_indices=[0], observable_indices=[0])
         self.assertIsInstance(result, EstimatorResult)
@@ -71,7 +89,7 @@ class TestEstimatorCircuitIndices(unittest.TestCase):
 
     def test_estimate(self):
         """test to estimate"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         est = Estimator(backend, [self.ansatz], [self.observable])
         est.set_transpile_options(seed_transpiler=15)
         est.set_run_options(seed_simulator=15, shots=10000)
@@ -84,7 +102,7 @@ class TestEstimatorCircuitIndices(unittest.TestCase):
 
     def test_estimate_without_grouping(self):
         """test to estimate without grouping"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         est = Estimator(backend, [self.ansatz], [self.observable], abelian_grouping=False)
         est.set_transpile_options(seed_transpiler=15)
         est.set_run_options(seed_simulator=15, shots=10000)
@@ -98,7 +116,7 @@ class TestEstimatorCircuitIndices(unittest.TestCase):
 
     def test_estimate_multi_params(self):
         """test to estimate with multiple parameters"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         est = Estimator(backend, [self.ansatz], [self.observable])
         est.set_transpile_options(seed_transpiler=15)
         est.set_run_options(seed_simulator=15, shots=10000)
@@ -113,7 +131,7 @@ class TestEstimatorCircuitIndices(unittest.TestCase):
 
     def test_estimate_no_params(self):
         """test to estimate without parameters"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         circuit = self.ansatz.bind_parameters([0, 1, 1, 2, 3, 5])
         est = Estimator(backend, [circuit], [self.observable])
         est.set_transpile_options(seed_transpiler=15)
@@ -125,7 +143,7 @@ class TestEstimatorCircuitIndices(unittest.TestCase):
 
     def test_run_with_multiple_observables_and_none_parameters(self):
         """test to estimate without parameters"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         circuit = QuantumCircuit(3)
         circuit.h(0)
         circuit.cx(0, 1)
@@ -140,7 +158,7 @@ class TestEstimatorCircuitIndices(unittest.TestCase):
 
     def test_estimate_with_ndarray(self):
         """test to estimate"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         param = np.array([[0, 1, 1, 2, 3, 5]])
         est = Estimator(backend, [self.ansatz], [self.observable])
         est.set_transpile_options(seed_transpiler=15)
@@ -152,7 +170,7 @@ class TestEstimatorCircuitIndices(unittest.TestCase):
 
     def test_skip_transpilation(self):
         """test for ``skip_transpilation`` option"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         est = Estimator(backend, [self.ansatz], [self.observable], skip_transpilation=False)
         self.assertEqual(len(est.transpiled_circuits[0]), 12)
 
@@ -167,7 +185,8 @@ class TestEstimatorCircuitIndices(unittest.TestCase):
         op1 = SparsePauliOp.from_list([("I", 1)])
         op2 = SparsePauliOp.from_list([("II", 1)])
 
-        est = Estimator(Aer.get_backend("aer_simulator"), [qc1, qc2], [op1, op2], [[]] * 2)
+        backend = get_simulator()
+        est = Estimator(backend, [qc1, qc2], [op1, op2], [[]] * 2)
         with self.assertRaises(QiskitError):
             est.run([0], [1], [[]])
         with self.assertRaises(QiskitError):
@@ -196,7 +215,7 @@ class TestEstimatorCircuitIndices(unittest.TestCase):
         with RefEstimator(circuits=[circ], observables=[obs]) as ref_est:
             result = ref_est([0] * len(params), [0] * len(params), params)
             targets = result.values
-        backend = FakeMontreal() if noise else Aer.get_backend("aer_simulator")
+        backend = get_simulator(FakeMontreal() if noise else None)
         mit = PauliTwirledMitigation(
             backend=backend,
             seed=seed,
@@ -251,8 +270,9 @@ class TestEstimatorCircuitIds(unittest.TestCase):
                 [0.1809312, 0.0, 0.0, -1.06365335],
             ]
         )
+        backend = get_simulator()
         est = Estimator(
-            backend=Aer.get_backend("aer_simulator"),
+            backend=backend,
             circuits={circuit_id: circuit},
             observables=[matrix],
             circuit_ids=[circuit_id],
@@ -265,7 +285,7 @@ class TestEstimatorCircuitIds(unittest.TestCase):
 
     def test_estimate(self):
         """test to estimate"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         est = Estimator(
             backend=backend,
             circuits={self.circuit_id: self.ansatz},
@@ -281,7 +301,7 @@ class TestEstimatorCircuitIds(unittest.TestCase):
 
     def test_estimate_without_grouping(self):
         """test to estimate without grouping"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         est = Estimator(
             backend=backend,
             circuits={self.circuit_id: self.ansatz},
@@ -299,7 +319,7 @@ class TestEstimatorCircuitIds(unittest.TestCase):
 
     def test_estimate_multi_params(self):
         """test to estimate with multiple parameters"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         est = Estimator(
             backend=backend,
             circuits={self.circuit_id: self.ansatz},
@@ -318,7 +338,7 @@ class TestEstimatorCircuitIds(unittest.TestCase):
 
     def test_estimate_no_params(self):
         """test to estimate without parameters"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         circuit = self.ansatz.bind_parameters([0, 1, 1, 2, 3, 5])
         circuit_id = str(id(circuit))
         est = Estimator(
@@ -336,7 +356,7 @@ class TestEstimatorCircuitIds(unittest.TestCase):
 
     def test_run_with_multiple_observables_and_none_parameters(self):
         """test to estimate without parameters"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         circuit = QuantumCircuit(3)
         circuit.h(0)
         circuit.cx(0, 1)
@@ -357,7 +377,7 @@ class TestEstimatorCircuitIds(unittest.TestCase):
 
     def test_estimate_with_ndarray(self):
         """test to estimate"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         param = np.array([[0, 1, 1, 2, 3, 5]])
         est = Estimator(
             backend=backend,
@@ -374,7 +394,7 @@ class TestEstimatorCircuitIds(unittest.TestCase):
 
     def test_skip_transpilation(self):
         """test for ``skip_transpilation`` option"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         est = Estimator(
             backend=backend,
             circuits={self.circuit_id: self.ansatz},
@@ -401,8 +421,9 @@ class TestEstimatorCircuitIds(unittest.TestCase):
         op1 = SparsePauliOp.from_list([("I", 1)])
         op2 = SparsePauliOp.from_list([("II", 1)])
 
+        backend = get_simulator()
         est1 = Estimator(
-            backend=Aer.get_backend("aer_simulator"),
+            backend=backend,
             circuits={qc1_id: qc1, qc2_id: qc2},
             observables=[op1, op2],
             parameters=[[]] * 2,
@@ -413,7 +434,7 @@ class TestEstimatorCircuitIds(unittest.TestCase):
         with self.assertRaises(QiskitError):
             est1.run(observable_indices=[0], parameter_values=[[1e4]])
         est2 = Estimator(
-            backend=Aer.get_backend("aer_simulator"),
+            backend=backend,
             circuits={qc1_id: qc1, qc2_id: qc2},
             observables=[op1, op2],
             parameters=[[]] * 2,
@@ -444,7 +465,7 @@ class TestEstimatorCircuitIds(unittest.TestCase):
         with RefEstimator(circuits=[circ], observables=[obs]) as ref_est:
             result = ref_est([0] * len(params), [0] * len(params), params)
             targets = result.values
-        backend = FakeMontreal() if noise else Aer.get_backend("aer_simulator")
+        backend = get_simulator(FakeMontreal() if noise else None)
         mit = PauliTwirledMitigation(
             backend=backend,
             seed=seed,
@@ -494,7 +515,7 @@ class TestEstimatorMainCircuitIndices(unittest.TestCase):
     @combine(resilience_level=[0, 1])
     def test_no_noise_single_param(self, resilience_level):
         """Test for main without noise with single parameter set"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         shots = 10000
         circuits = [0]
         observables = [0]
@@ -527,7 +548,7 @@ class TestEstimatorMainCircuitIndices(unittest.TestCase):
     @combine(resilience_level=[0, 1])
     def test_no_noise_multiple_params(self, resilience_level):
         """Test for main without noise with multiple parameter sets"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         shots = 10000
         circuits = [0, 0]
         observables = [0, 0]
@@ -593,7 +614,7 @@ class TestEstimatorMainCircuitIndices(unittest.TestCase):
     @combine(noise=[True, False], resilience_level=[0, 1], shots=[100])
     def test_identity(self, noise, resilience_level, shots):
         """Test for identity observable"""
-        backend = FakeBogota() if noise else Aer.get_backend("aer_simulator")
+        backend = get_simulator(FakeBogota() if noise else None)
         circuit = RealAmplitudes(num_qubits=5, reps=2, entanglement="full")
         num_parameters = circuit.num_parameters
         observable = SparsePauliOp("IIIII")
@@ -625,7 +646,7 @@ class TestEstimatorMainCircuitIndices(unittest.TestCase):
     @combine(noise=[True, False], resilience_level=[0, 1])
     def test_identity_wo_shots(self, noise, resilience_level):
         """Test for identity observable without `shots`"""
-        backend = FakeBogota() if noise else Aer.get_backend("aer_simulator")
+        backend = get_simulator(FakeBogota() if noise else None)
         circuit = RealAmplitudes(num_qubits=5, reps=2, entanglement="full")
         num_parameters = circuit.num_parameters
         observable = SparsePauliOp("IIIII")
@@ -669,7 +690,7 @@ class TestEstimatorMainCircuitIds(unittest.TestCase):
     @combine(resilience_level=[0, 1])
     def test_no_noise_single_param(self, resilience_level):
         """Test for main without noise with single parameter set"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         shots = 10000
         circuits = [0]
         observables = [0]
@@ -702,7 +723,7 @@ class TestEstimatorMainCircuitIds(unittest.TestCase):
     @combine(resilience_level=[0, 1])
     def test_no_noise_multiple_params(self, resilience_level):
         """Test for main without noise with multiple parameter sets"""
-        backend = Aer.get_backend("aer_simulator")
+        backend = get_simulator()
         shots = 10000
         circuits = [0, 0]
         observables = [0, 0]
@@ -768,7 +789,7 @@ class TestEstimatorMainCircuitIds(unittest.TestCase):
     @combine(noise=[True, False], resilience_level=[0, 1], shots=[100])
     def test_identity(self, noise, resilience_level, shots):
         """Test for identity observable"""
-        backend = FakeBogota() if noise else Aer.get_backend("aer_simulator")
+        backend = get_simulator(FakeBogota() if noise else None)
         circuit = RealAmplitudes(num_qubits=5, reps=2, entanglement="full")
         circuit_id = str(id(circuit))
         num_parameters = circuit.num_parameters
@@ -801,7 +822,7 @@ class TestEstimatorMainCircuitIds(unittest.TestCase):
     @combine(noise=[True, False], resilience_level=[0, 1])
     def test_identity_wo_shots(self, noise, resilience_level):
         """Test for identity observable without `shots`"""
-        backend = FakeBogota() if noise else Aer.get_backend("aer_simulator")
+        backend = get_simulator(FakeBogota() if noise else None)
         circuit = RealAmplitudes(num_qubits=5, reps=2, entanglement="full")
         circuit_id = str(id(circuit))
         num_parameters = circuit.num_parameters
