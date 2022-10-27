@@ -16,15 +16,19 @@ combined circuit into OpenQASM3.
 This program can also take and execute one or more OpenQASM3 strings. Note that this
 program can only run on a backend that supports OpenQASM3."""
 
+from dataclasses import dataclass, field
+from enum import Enum
 from time import perf_counter
 from typing import Dict, Iterable, List, Optional, Set, Union
 
 from qiskit.circuit.library import Barrier
 from qiskit.circuit.quantumcircuit import ClassicalRegister, Delay, QuantumCircuit, QuantumRegister
 from qiskit.compiler import transpile
+from qiskit.dagcircuit import DAGCircuit
 from qiskit.qasm3 import Exporter
 from qiskit.result import marginal_counts, Result
 from qiskit.transpiler import PassManager
+from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.transpiler.instruction_durations import InstructionDurations
 from qiskit.transpiler.passes import TimeUnitConversion
 from qiskit_ibm_runtime.utils import RuntimeEncoder
@@ -32,9 +36,26 @@ import mthree
 import numpy as np
 
 
-QASM3_SIM_NAME = "simulator_qasm3"
-QASM2_SIM_NAME = "qasm_simulator"
-SIMULATORS = (QASM3_SIM_NAME, QASM2_SIM_NAME)
+# fix rep_delay in shot loop to 0 since we manually insert
+# TODO: while we await https://github.ibm.com/IBM-Q-Software/ibm-qss-compiler/issues/889
+# set to 1us.
+QSS_COMPILER_REP_DELAY = 10e-6
+
+
+class ConvertNearestMod16Delay(TransformationPass):
+    """Convert delay to the nearest mod 16 delay."""
+
+    def run(self, dag: DAGCircuit):
+        for node in dag.op_nodes():
+            if isinstance(node.op, Delay):
+                node.op = node.op.copy()
+                node.op.duration = self._nearest_mod_16_duration(node.op.duration)
+
+        return dag
+
+    def _nearest_mod_16_duration(self, duration: int) -> int:
+        remainder = duration % 16
+        return duration + (16 - remainder)
 
 
 class CircuitMerger:
@@ -54,11 +75,16 @@ class CircuitMerger:
         self,
         used_qubits: Iterable[int],
         init_num_resets: int,
-        init_delay: int,
+        init_delay: float,
         init_delay_unit: str,
     ) -> QuantumCircuit:
         """Create a parameterized initialization circuit or return the
         user-provided initialization circuit.
+
+        The delay strategy used splits the delay after each round of reset
+        equally. See this experiment notebook for how this strategy and value
+        was chosen.
+        https://github.ibm.com/IBM-Q-Software/ws-dynamic-circuits/blob/c6f1f4995c3311b5cf3cd64d48c7f8f19f02aaf8/docs/experiments/qubit_initialization_strategies.ipynb
         """
         # reset circuit must span all qubits
         n_qubits = self.backend.configuration().n_qubits
@@ -67,16 +93,23 @@ class CircuitMerger:
         # Only reset qubits that are used in the experiment to reduce
         # initialization time and replicate current backend behaviour
         circuit.barrier(used_qubits)
-        for _ in range(0, init_num_resets):
-            circuit.reset(used_qubits)
+        if init_num_resets > 0:
+            delay_per_round = init_delay / init_num_resets
+            for _ in range(0, init_num_resets):
+                circuit.reset(used_qubits)
+                circuit.barrier(used_qubits)
+                if delay_per_round > 0:
+                    circuit.delay(delay_per_round, used_qubits, unit=init_delay_unit)
+                    circuit.barrier(used_qubits)
+        elif init_delay:
+            circuit.delay(init_delay, used_qubits, init_delay_unit)
             circuit.barrier(used_qubits)
-        if init_delay:
-            circuit.delay(init_delay, range(n_qubits), unit=init_delay_unit)
-        circuit.barrier(used_qubits)
 
         if init_delay:
             instruction_durations = InstructionDurations.from_backend(self.backend)
-            pm_ = PassManager([TimeUnitConversion(instruction_durations)])
+            pm_ = PassManager(
+                [TimeUnitConversion(instruction_durations), ConvertNearestMod16Delay()]
+            )
             circuit = pm_.run(circuit)
 
         return circuit
@@ -119,7 +152,7 @@ class CircuitMerger:
         init: bool = True,
         init_num_resets: int = 3,
         init_delay: int = 0,
-        init_delay_unit: str = "us",
+        init_delay_unit: str = "s",
         init_circuit: Optional[QuantumCircuit] = None,
     ) -> QuantumCircuit:
         """Merge circuits into one and return the result.
@@ -255,20 +288,129 @@ class Qasm3Encoder(RuntimeEncoder):
         return super().default(obj)
 
 
+class MeasurementReportingLevel(Enum):
+    """Measurement result reporting level"""
+
+    IQ = 1
+    COUNTS = 2
+
+
+@dataclass
+class QASM3Options:
+    """Options for the qasm3-runner."""
+
+    circuits: Union[QuantumCircuit, List[QuantumCircuit]] = None
+    merge_circuits: bool = True
+    shots: int = 4000
+    # Number of repetitions of each circuit, for sampling.
+    meas_level: MeasurementReportingLevel = MeasurementReportingLevel.COUNTS
+    # meas_level: The reporting level for measurements results:
+    #    Level 2: Discriminated measurement counts
+    #   Level 1: IQ measurement kernel values.
+    init_circuit: Optional[QuantumCircuit] = None
+    rep_delay: float = 100.0e-6
+    # The number of seconds of delay to insert before each circuit execution.
+    # These will be interspersed with resets.
+    # See https://github.ibm.com/IBM-Q-Software/ws-dynamic-circuits/blob/c6f1f4995c3311b5cf3cd64d48c7f8f19f02aaf8/docs/experiments/qubit_initialization_strategies.ipynb # pylint: disable=line-too-long
+    # for how this default value was chosen.
+    init_num_resets: int = 3
+    # The number of qubit resets to insert before each circuit execution.
+    run_config: Optional[Dict] = field(default_factory=dict)
+    # DEPRECATED Extra execution time configuration options not supported as top-level inputs.
+    exporter_config: Optional[Dict] = None
+    # DEPRECATED QASM3 exporter configurations.
+    skip_transpilation: Optional[bool] = True
+    # DEPRECATED Skip transpiling of circuits.
+    transpiler_config: Optional[Dict] = None
+    # DEPRECATED Transpiler configurations.
+    use_measurement_mitigation: Optional[bool] = False
+    # DEPRECATED Whether to perform measurement error mitigation.
+    qasm3_args: Optional[Union[Dict, List]] = None
+    # DEPRECATED Arguments to pass to the QASM3 program loop.
+
+    @classmethod
+    def build_from_runtime(cls, **kwargs) -> "QASM3Options":
+        """Built the options class from the default runtime input
+        overriding the fields that are set to ``None`` with their
+        defaults.
+        """
+        non_none = (
+            "shots",
+            "meas_level",
+            "init_delay",
+            "init_num_resets",
+            "run_config",
+            "skip_transpilation",
+            "use_measurement_mitigation",
+        )
+
+        for key in non_none:
+            if key in kwargs and kwargs[key] is None:
+                del kwargs[key]
+
+        run_config = kwargs.get("run_config", {})
+        # For backwards compatibility extract shots from
+        # run_config. Shots through the run_config
+        # should be deprecated shortly.
+        shots = run_config.pop("shots", None)
+        if shots is not None:
+            kwargs.setdefault("shots", shots)
+
+        # For backwards compatibility extract init_delay
+        # and convert to rep_delay. # Both init_delay
+        # and rep_delay are not allowed to be set simultaneously
+        # init_delay through the run_config
+        # should be deprecated shortly after the rollout
+        # of the qiskit-ibm-provider
+        init_delay = kwargs.pop("init_delay", None)
+        rep_delay = kwargs.get("rep_delay", None)
+        if init_delay is not None:
+            init_delay = init_delay * 1e-6  # convert to seconds.
+            if rep_delay is None:
+                kwargs["rep_delay"] = init_delay
+            elif rep_delay != init_delay:
+                raise RuntimeError(
+                    'Both "init_delay" and "rep_delay" may not be simultaneously set. '
+                    ' "init_delay" is deprecated and "rep_delay" should be used instead.'
+                )
+
+        # Configure reset settings for the "init_qubits" argument.
+        # To disable qubit initialization.
+        if not kwargs.pop("init_qubits", True):
+            kwargs["init_delay"] = 0.0
+            kwargs["init_num_resets"] = 0.0
+            kwargs["init_circuit"] = None
+
+        return QASM3Options(**kwargs)
+
+    def prepare_run_config(self, qasm3_metadata=None):
+        """Prepare an externally safe run configuration."""
+        # Pop as this is not safe for the user to have direct access
+        self.run_config.pop("extra_compile_args", None)
+
+        extra_compile_args = []
+
+        # Counts is the default so don't set unless overridden
+        # as older compiler versions do not support.
+        if self.meas_level != MeasurementReportingLevel.COUNTS:
+            extra_compile_args.append(f"--lp-measure-report-level={int(self.meas_level)}")
+
+        filtered_run_config = {
+            "extra_compile_args": extra_compile_args,
+            "shots": self.shots,
+            "rep_delay": QSS_COMPILER_REP_DELAY,
+        }
+        if qasm3_metadata:
+            filtered_run_config["qasm3_metadata"] = qasm3_metadata
+
+        return filtered_run_config
+
+
 def main(
     backend,
     user_messenger,  # pylint: disable=unused-argument
     circuits,
-    transpiler_config=None,
-    exporter_config=None,
-    run_config=None,
-    qasm3_args=None,
-    skip_transpilation=True,
-    use_measurement_mitigation=False,
-    merge_circuits=True,
-    init_num_resets=3,
-    init_delay=0,
-    init_circuit=None,
+    **kwargs,
 ):
     """Execute
 
@@ -276,21 +418,6 @@ def main(
         backend: Backend to execute circuits on.
         user_messenger (UserMessenger): Used to communicate with the program user.
         circuits: Circuits to execute.
-        transpiler_config: Transpiler configurations.
-        exporter_config: QASM3 exporter configurations.
-        run_config: Execution time configurations.
-        qasm3_args: Arguments to pass to the QASM3 program loop.
-        skip_transpilation: Skip transpiling of circuits.
-        use_measurement_mitigation: Whether to perform measurement error
-            mitigation.
-        merge_circuits: whether to merge submitted QuantumCircuits into one
-            before execution.
-        init_num_resets: The number of qubit resets to insert before each
-            circuit execution.
-        init_delay: The number of microseconds of delay to insert before each
-            circuit execution.
-        init_circuit: Custom circuit for initializing qubits between merged
-            circuits.
 
     Returns:
         Program result.
@@ -308,32 +435,32 @@ def main(
         )
 
     # TODO Better validation once we can query for input_allowed
-    if backend.configuration().simulator and backend.name() not in SIMULATORS:
+    if backend.configuration().simulator:
         raise ValueError(
             f"The selected backend ({backend.name()}) does not support dynamic circuit capabilities"
         )
 
     is_qc = isinstance(circuits[0], QuantumCircuit)
 
-    if use_measurement_mitigation and (not is_qc or backend.name() != QASM3_SIM_NAME):
-        raise NotImplementedError(
-            "Measurement error mitigation is only supported for "
-            "QuantumCircuit inputs and non-simulator backends."
-        )
+    options = QASM3Options.build_from_runtime(**kwargs)
 
-    run_config = run_config or {}
     use_merging = False
 
+    # Submit circuits for testing of standard circuit merger
+    qasm3_metadata = []
     if is_qc:
-        if merge_circuits and use_measurement_mitigation:
+        if options.merge_circuits and options.use_measurement_mitigation:
             raise NotImplementedError(
                 "Measurement error mitigation cannot be used together with circuit merging."
             )
 
-        if merge_circuits:
-            if init_circuit is not None and not isinstance(init_circuit, QuantumCircuit):
+        if options.merge_circuits:
+            if options.init_circuit is not None and not isinstance(
+                options.init_circuit, QuantumCircuit
+            ):
                 raise ValueError(
-                    f"init_circuit must be of type QuantumCircuit but is {init_circuit.__class__}."
+                    "init_circuit must be of type QuantumCircuit but is "
+                    f"{options.init_circuit.__class__}."
                 )
             merger = CircuitMerger(
                 circuits,
@@ -342,22 +469,21 @@ def main(
             use_merging = True
             circuits = [
                 merger.merge_circuits(
-                    init_num_resets=init_num_resets,
-                    init_delay=init_delay,
-                    init_delay_unit="us",
-                    init_circuit=init_circuit,
+                    init_num_resets=options.init_num_resets,
+                    init_delay=options.rep_delay,
+                    init_delay_unit="s",
+                    init_circuit=options.init_circuit,
                 )
             ]
 
-        if not skip_transpilation:
+        if not options.skip_transpilation:
             # Transpile the circuits using given transpile options
             transpiler_config = transpiler_config or {}
             circuits = transpile(circuits, backend=backend, **transpiler_config)
 
         # Convert circuits to qasm3
         qasm3_strs = []
-        qasm3_metadata = []
-        exporter_config = exporter_config or {
+        exporter_config = options.exporter_config or {
             "includes": (),
             "disable_constants": True,
             "basis_gates": backend.configuration().basis_gates,
@@ -366,14 +492,9 @@ def main(
             qasm3_strs.append(Exporter(**exporter_config).dumps(circ))
             qasm3_metadata.append(get_circuit_metadata(circ))
 
-        # Submit circuits for testing of standard circuit merger
-        if backend.name() != QASM2_SIM_NAME:
-            payload = qasm3_strs
-            run_config["qasm3_metadata"] = qasm3_metadata
-        else:
-            payload = circuits
+        payload = qasm3_strs
 
-        if use_measurement_mitigation:
+        if options.use_measurement_mitigation:
             # get final meas mappings
             mappings = []
             all_meas_qubits = []
@@ -389,26 +510,18 @@ def main(
             mit = mthree.M3Mitigation(backend)
             mit.tensored_cals_from_system(all_meas_qubits)
     else:
-        if backend.name() == QASM2_SIM_NAME:
-            raise ValueError(
-                "This simulator backend does not support OpenQASM 3 source strings as input. "
-                "Please submit a quantum circuit instead."
-            )
         payload = circuits
 
-    if backend.name() == QASM3_SIM_NAME:
-        if len(payload) > 1:
-            raise ValueError("QASM3 simulator only supports a single circuit.")
-        result = backend.run(payload[0], args=qasm3_args, shots=run_config.get("shots", None))
-        return Qasm3Encoder().encode(result)
+    # Prepare safe run_config
+    filtered_run_config = options.prepare_run_config(qasm3_metadata=qasm3_metadata)
 
-    result = backend.run(payload, **run_config).result()
+    result = backend.run(payload, **filtered_run_config).result()
 
     if use_merging:
         result = merger.unwrap_results(result)
 
     # Do the actual mitigation here
-    if use_measurement_mitigation:
+    if options.use_measurement_mitigation:
         quasi_probs = []
         mit_times = []
         for idx, circ in enumerate(circuits):

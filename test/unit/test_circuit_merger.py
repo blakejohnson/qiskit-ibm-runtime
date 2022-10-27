@@ -121,14 +121,16 @@ class TestCircuitMerger(unittest.TestCase):
         merger = CircuitMerger([qc1, qc2], backend=backend)
         merged_circuit = merger.merge_circuits(init_delay=1e-6, init_delay_unit="s")
 
-        delay_found = False
+        delays_found = 0
         for inst in merged_circuit.data:
             operation = inst.operation
             if isinstance(operation, Delay):
-                delay_found = True
-                self.assertEqual(operation.duration, 4500)
+                delays_found += 1
+                # 4500 cycle delay split between three resets
+                # and aligned to mod 16 == 0 boundary.
+                self.assertEqual(operation.duration, 1504)
                 self.assertEqual(operation.unit, "dt")
-        self.assertTrue(delay_found)
+        self.assertEqual(delays_found, 30)
 
     def test_reset_only_on_used_qubits(self):
         """Test that we only insert resets on qubits we use in the circuit."""
