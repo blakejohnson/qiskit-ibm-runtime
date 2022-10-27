@@ -581,7 +581,7 @@ class TestEstimatorMainCircuitIndices(unittest.TestCase):
                 "enable_pec": True,
             },
         )
-        np.testing.assert_allclose(result["values"], target, rtol=1e-2)
+        np.testing.assert_allclose(result["values"], target, rtol=2e-2)
         self.assertEqual(len(result["metadata"]), 2)
         if resilience_level == 0:
             self.assertEqual(result["metadata"][0]["shots"], shots)
@@ -788,7 +788,7 @@ class TestEstimatorMainCircuitIds(unittest.TestCase):
                 "enable_pec": True,
             },
         )
-        np.testing.assert_allclose(result["values"], target, rtol=1e-2)
+        np.testing.assert_allclose(result["values"], target, rtol=2e-2)
         self.assertEqual(len(result["metadata"]), 2)
         if resilience_level == 0:
             self.assertEqual(result["metadata"][0]["shots"], shots)
