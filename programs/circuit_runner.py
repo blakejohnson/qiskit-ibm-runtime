@@ -52,16 +52,23 @@ def main(
         if isinstance(circuit, str) and "OPENQASM 2.0" in circuit:
             circuits[i] = QuantumCircuit.from_qasm_str(circuit)
 
-    # transpiling the circuits using given transpile options
-    transpiler_options = transpiler_options or {}
-    circuits = transpile(
-        circuits,
-        initial_layout=initial_layout,
-        seed_transpiler=seed_transpiler,
-        optimization_level=optimization_level,
-        backend=backend,
-        **transpiler_options,
-    )
+    noise_model = kwargs.pop("noise_model", None)
+    seed_simulator = kwargs.pop("seed_simulator", None)
+    if backend.configuration().simulator:
+        backend.set_options(noise_model=noise_model, seed_simulator=seed_simulator)
+
+    # transpiling the circuits using given transpile options (deprecated).
+    skip_transpilation = kwargs.pop("skip_transpilation", False)
+    if not skip_transpilation:
+        transpiler_options = transpiler_options or {}
+        circuits = transpile(
+            circuits,
+            initial_layout=initial_layout,
+            seed_transpiler=seed_transpiler,
+            optimization_level=optimization_level,
+            backend=backend,
+            **transpiler_options,
+        )
 
     if schedule_circuit:
         circuits = schedule(
