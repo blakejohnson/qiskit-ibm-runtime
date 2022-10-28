@@ -71,22 +71,47 @@ class CircuitMerger:
         self.circuits = circuits
         self.backend = backend
 
+    class InitStrategy(Enum):
+        """Available initialization strategies.
+
+        See this experiment notebook for how this strategy and value
+        was chosen.
+        https://github.ibm.com/IBM-Q-Software/ws-dynamic-circuits/blob/c6f1f4995c3311b5cf3cd64d48c7f8f19f02aaf8/docs/experiments/qubit_initialization_strategies.ipynb
+        """
+
+        BEFORE = "before"
+        INTERSPERSED_AFTER = "interspersed_after"
+
     def _create_init_circuit(
         self,
         used_qubits: Iterable[int],
         init_num_resets: int,
         init_delay: float,
         init_delay_unit: str,
+        init_strategy: InitStrategy = InitStrategy.INTERSPERSED_AFTER,
     ) -> QuantumCircuit:
         """Create a parameterized initialization circuit or return the
         user-provided initialization circuit.
-
-        The delay strategy used splits the delay after each round of reset
-        equally. See this experiment notebook for how this strategy and value
-        was chosen.
-        https://github.ibm.com/IBM-Q-Software/ws-dynamic-circuits/blob/c6f1f4995c3311b5cf3cd64d48c7f8f19f02aaf8/docs/experiments/qubit_initialization_strategies.ipynb
         """
-        # reset circuit must span all qubits
+        if init_strategy == self.InitStrategy.BEFORE:
+            return self._init_strategy_before(
+                used_qubits, init_num_resets, init_delay, init_delay_unit
+            )
+        elif init_strategy == self.InitStrategy.INTERSPERSED_AFTER:
+            return self._init_strategy_interspersed_after(
+                used_qubits, init_num_resets, init_delay, init_delay_unit
+            )
+        else:
+            raise ValueError(f"Initialization strategy of {init_strategy} is not recognized.")
+
+    def _init_strategy_interspersed_after(
+        self,
+        used_qubits: Iterable[int],
+        init_num_resets: int,
+        init_delay: float,
+        init_delay_unit: str,
+    ) -> QuantumCircuit:
+        """Intersperse delay after resets."""
         n_qubits = self.backend.configuration().n_qubits
         circuit = QuantumCircuit(n_qubits)
 
@@ -103,6 +128,36 @@ class CircuitMerger:
                     circuit.barrier(used_qubits)
         elif init_delay:
             circuit.delay(init_delay, used_qubits, init_delay_unit)
+            circuit.barrier(used_qubits)
+
+        if init_delay:
+            instruction_durations = InstructionDurations.from_backend(self.backend)
+            pm_ = PassManager(
+                [TimeUnitConversion(instruction_durations), ConvertNearestMod16Delay()]
+            )
+            circuit = pm_.run(circuit)
+
+        return circuit
+
+    def _init_strategy_before(
+        self,
+        used_qubits: Iterable[int],
+        init_num_resets: int,
+        init_delay: float,
+        init_delay_unit: str,
+    ) -> QuantumCircuit:
+        """Add full delay before reset rounds."""
+        n_qubits = self.backend.configuration().n_qubits
+        circuit = QuantumCircuit(n_qubits)
+
+        # Only reset qubits that are used in the experiment to reduce
+        # initialization time and replicate current backend behaviour
+        circuit.barrier(used_qubits)
+        if init_delay:
+            circuit.delay(init_delay, used_qubits, init_delay_unit)
+            circuit.barrier(used_qubits)
+        for _ in range(0, init_num_resets):
+            circuit.reset(used_qubits)
             circuit.barrier(used_qubits)
 
         if init_delay:
