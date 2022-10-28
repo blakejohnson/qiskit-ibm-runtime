@@ -41,6 +41,10 @@ import numpy as np
 # set to 1us.
 QSS_COMPILER_REP_DELAY = 10e-6
 
+QASM3_SIM_NAME = "simulator_qasm3"
+QASM2_SIM_NAME = "qasm_simulator"
+SIMULATORS = (QASM3_SIM_NAME, QASM2_SIM_NAME)
+
 
 class ConvertNearestMod16Delay(TransformationPass):
     """Convert delay to the nearest mod 16 delay."""
@@ -490,7 +494,7 @@ def main(
         )
 
     # TODO Better validation once we can query for input_allowed
-    if backend.configuration().simulator:
+    if backend.configuration().simulator and backend.name() not in SIMULATORS:
         raise ValueError(
             f"The selected backend ({backend.name()}) does not support dynamic circuit capabilities"
         )
@@ -499,9 +503,16 @@ def main(
 
     options = QASM3Options.build_from_runtime(**kwargs)
 
+    if options.use_measurement_mitigation and ((not is_qc) or (backend.name() == QASM3_SIM_NAME)):
+        raise NotImplementedError(
+            "Measurement error mitigation is only supported for "
+            "QuantumCircuit inputs and non-simulator backends."
+        )
+
     use_merging = False
 
     # Submit circuits for testing of standard circuit merger
+    qasm2_sim = backend.name() == QASM2_SIM_NAME
     qasm3_metadata = []
     if is_qc:
         if options.merge_circuits and options.use_measurement_mitigation:
@@ -547,7 +558,10 @@ def main(
             qasm3_strs.append(Exporter(**exporter_config).dumps(circ))
             qasm3_metadata.append(get_circuit_metadata(circ))
 
-        payload = qasm3_strs
+        if not qasm2_sim:
+            payload = qasm3_strs
+        else:
+            payload = circuits
 
         if options.use_measurement_mitigation:
             # get final meas mappings
@@ -565,10 +579,17 @@ def main(
             mit = mthree.M3Mitigation(backend)
             mit.tensored_cals_from_system(all_meas_qubits)
     else:
+        if backend.name() == QASM2_SIM_NAME:
+            raise ValueError(
+                "This simulator backend does not support OpenQASM 3 source strings as input. "
+                "Please submit a quantum circuit instead."
+            )
         payload = circuits
 
     # Prepare safe run_config
-    filtered_run_config = options.prepare_run_config(qasm3_metadata=qasm3_metadata)
+    filtered_run_config = options.prepare_run_config(
+        qasm3_metadata=qasm3_metadata if not qasm2_sim else None,
+    )
 
     result = backend.run(payload, **filtered_run_config).result()
 
