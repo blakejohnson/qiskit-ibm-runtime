@@ -13,6 +13,14 @@ stage_generic: &stage_linux
 
 jobs:
   include:
+    - if: type = pull_request
+      stage: "ASoC Security Scan"
+      env: OS=linux
+      os: linux
+      before_script:
+        - docker login -u iamapikey -p ${IBM_CLOUD_API_KEY} us.icr.io
+      script:
+        - docker run -e KeyId=${ASOC_KEY_ID} -e KeySecret=${ASOC_KEY_SECRET} -e GitToken=${ASOC_GIT_TOKEN} -v $(pwd)/AsocConfig:/asoc/AsocConfig -v $(pwd):/asoc/StaticScan -v $(pwd)/DAST_CurlCommands.sh:/asoc/DAST_CurlCommands.sh -w /asoc us.icr.io/quantum-computing/asoc-automation:latest /asoc/appscanBash.sh
     - stage: "Run code quality checks"
       <<: *stage_linux
       name: "Run black"
