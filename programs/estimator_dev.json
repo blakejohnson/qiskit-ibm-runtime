@@ -61,7 +61,7 @@
       "required": [
         "circuits",
         "circuit_indices",
-        "observable",
+        "observables",
         "observable_indices"
       ]
     },
