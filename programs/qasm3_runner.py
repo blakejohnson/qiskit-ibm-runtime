@@ -135,7 +135,7 @@ class CircuitMerger:
             circuit.barrier(used_qubits)
 
         if init_delay:
-            instruction_durations = InstructionDurations.from_backend(self.backend)
+            instruction_durations = InstructionDurations(dt=self.backend.configuration().dt)
             pm_ = PassManager(
                 [TimeUnitConversion(instruction_durations), ConvertNearestMod16Delay()]
             )
@@ -165,7 +165,7 @@ class CircuitMerger:
             circuit.barrier(used_qubits)
 
         if init_delay:
-            instruction_durations = InstructionDurations.from_backend(self.backend)
+            instruction_durations = InstructionDurations(dt=self.backend.configuration().dt)
             pm_ = PassManager(
                 [TimeUnitConversion(instruction_durations), ConvertNearestMod16Delay()]
             )
@@ -436,7 +436,7 @@ class QASM3Options:
         # Configure reset settings for the "init_qubits" argument.
         # To disable qubit initialization.
         if not kwargs.pop("init_qubits", True):
-            kwargs["init_delay"] = 0.0
+            kwargs["rep_delay"] = 0.0
             kwargs["init_num_resets"] = 0.0
             kwargs["init_circuit"] = None
 

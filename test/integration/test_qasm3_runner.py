@@ -160,6 +160,10 @@ class TestQASM3Runner(BaseTestCase):
 
     def test_meas_level(self):
         """Test setting the measurement level for an input circuit."""
+        if self._check_backend(self.backend_name).configuration().simulator:
+            self.skipTest(
+                "Currently we cannot determine qubit initialization delay for a simulator."
+            )
         qc1, qc2 = _create_test_circuits()
 
         result = self._run_program(
@@ -249,7 +253,7 @@ class TestQASM3Runner(BaseTestCase):
         if meas_level is not None:
             program_inputs["meas_level"] = meas_level
         if shots is not None:
-            program_inputs["shots"] = meas_level
+            program_inputs["shots"] = shots
 
         options = {"backend_name": self.backend_name}
 

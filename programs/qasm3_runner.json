@@ -28,7 +28,7 @@
           "default": 2
         },
         "init_qubits": {
-          "description": "Enable qubit initialization.",
+          "description": "Enable qubit initialization. If disabled this sets rep_delay and init_num_resets to 0.",
           "type": [
             "boolean"
           ],
