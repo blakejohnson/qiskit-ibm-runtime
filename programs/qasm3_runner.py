@@ -108,6 +108,13 @@ class CircuitMerger:
         else:
             raise ValueError(f"Initialization strategy of {init_strategy} is not recognized.")
 
+    def _get_dt(self) -> float:
+        """Get the dt conversion factor for the target backend."""
+        try:
+            return self.backend.configuration().dt
+        except AttributeError:
+            return 1e-9
+
     def _init_strategy_interspersed_after(
         self,
         used_qubits: Iterable[int],
@@ -135,7 +142,7 @@ class CircuitMerger:
             circuit.barrier(used_qubits)
 
         if init_delay:
-            instruction_durations = InstructionDurations(dt=self.backend.configuration().dt)
+            instruction_durations = InstructionDurations(dt=self._get_dt())
             pm_ = PassManager(
                 [TimeUnitConversion(instruction_durations), ConvertNearestMod16Delay()]
             )
@@ -165,7 +172,7 @@ class CircuitMerger:
             circuit.barrier(used_qubits)
 
         if init_delay:
-            instruction_durations = InstructionDurations(dt=self.backend.configuration().dt)
+            instruction_durations = InstructionDurations(dt=self._get_dt())
             pm_ = PassManager(
                 [TimeUnitConversion(instruction_durations), ConvertNearestMod16Delay()]
             )
