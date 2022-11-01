@@ -551,7 +551,7 @@ def main(
 
         if not options.skip_transpilation:
             # Transpile the circuits using given transpile options
-            transpiler_config = transpiler_config or {}
+            transpiler_config = options.transpiler_config or {}
             circuits = transpile(circuits, backend=backend, **transpiler_config)
 
         # Convert circuits to qasm3
