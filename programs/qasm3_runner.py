@@ -39,7 +39,7 @@ import numpy as np
 # fix rep_delay in shot loop to 0 since we manually insert
 # TODO: while we await https://github.ibm.com/IBM-Q-Software/ibm-qss-compiler/issues/889
 # set to 1us.
-QSS_COMPILER_REP_DELAY = 10e-6
+QSS_COMPILER_REP_DELAY = 1000e-6
 
 QASM3_SIM_NAME = "simulator_qasm3"
 QASM2_SIM_NAME = "qasm_simulator"
