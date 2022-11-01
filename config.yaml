@@ -29,5 +29,14 @@ production:
     programs: *iqx_programs
   - url: https://runtime.de.quantum-computing.ibm.com
     token_key: QE_TOKEN_DE
-    programs: *iqx_programs
-
+      - circuit-runner
+      - estimator
+      - hello-world
+      - qaoa
+      - qasm3-runner
+      - quantum-kernel-alignment
+      - sample-expval
+      - sampler
+      - torch-infer
+      - torch-train
+      - vqe
