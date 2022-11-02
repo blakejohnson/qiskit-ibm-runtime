@@ -29,6 +29,7 @@ production:
     programs: *iqx_programs
   - url: https://runtime.de.quantum-computing.ibm.com
     token_key: QE_TOKEN_DE
+    programs:
       - circuit-runner
       - estimator
       - hello-world
