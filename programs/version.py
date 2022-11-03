@@ -17,6 +17,7 @@ import subprocess
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 QISKIT_DIR = os.path.dirname(ROOT_DIR)
+VERSION_PATH = os.path.join(ROOT_DIR, "VERSION.txt")
 
 
 def _minimal_ext_cmd(cmd):
@@ -57,7 +58,7 @@ def git_version():
     return git_revision
 
 
-with open(os.path.join(ROOT_DIR, "VERSION.txt"), "r", encoding="utf8") as version_file:
+with open(VERSION_PATH, "r", encoding="utf8") as version_file:
     VERSION = version_file.read().strip()
 
 
