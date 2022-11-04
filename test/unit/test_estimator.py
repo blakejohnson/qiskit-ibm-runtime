@@ -32,22 +32,31 @@ from qiskit.quantum_info import Operator, SparsePauliOp
 from qiskit.quantum_info.random import random_pauli_list
 from qiskit_aer import AerSimulator
 
-from programs.estimator import CircuitCache, Estimator, PauliTwirledMitigation, main
+from programs.estimator import CircuitCache, Constant, Estimator, PauliTwirledMitigation, main
 
 from .mock.mock_cache import MockCache
 
 
-def get_simulator(backend: Optional[Backend] = None) -> AerSimulator:
+def get_simulator(
+    resilience_level: int = 0, noise: bool = False, backend: Optional[Backend] = None
+) -> AerSimulator:
     """Get Aer simulator with a noise model if specified.
 
     Args:
+        resilience_level: the resilience level used in the test.
+        noise: whether to use a noise simulator or not.
         backend (Optional[Backend], optional): a backend from which the noise model is extracted.
             Defaults to None.
 
     Returns:
         AerSimulator: aer simulator
     """
-    return AerSimulator.from_backend(backend) if backend else AerSimulator()
+    if noise:
+        return AerSimulator.from_backend(backend)
+    elif resilience_level == Constant.PEC_RESILIENCE_LEVEL:
+        return AerSimulator.from_backend(backend if backend else FakeBogota(), noise_model=None)
+    else:
+        return AerSimulator()
 
 
 # TODO: remove this class when non-flexible interface is no longer supported in provider
@@ -512,10 +521,10 @@ class TestEstimatorMainCircuitIndices(unittest.TestCase):
             ]
         )
 
-    @combine(resilience_level=[0, 1])
+    @combine(resilience_level=[0, 1, 2])
     def test_no_noise_single_param(self, resilience_level):
         """Test for main without noise with single parameter set"""
-        backend = get_simulator()
+        backend = get_simulator(resilience_level)
         shots = 10000
         circuits = [0]
         observables = [0]
@@ -537,18 +546,30 @@ class TestEstimatorMainCircuitIndices(unittest.TestCase):
                 "pauli_twirled_mitigation": {"seed_mitigation": 15, "seed_simulator": 15},
             },
         )
-        np.testing.assert_allclose(result["values"], target, rtol=1e-2)
+        np.testing.assert_allclose(
+            result["values"],
+            target,
+            rtol=1e-2 if resilience_level < Constant.ZNE_RESILIENCE_LEVEL else 2e-1,
+        )
         self.assertEqual(len(result["metadata"]), 1)
         if resilience_level == 0:
             self.assertEqual(result["metadata"][0]["shots"], shots)
-        else:
+        elif resilience_level == Constant.TREX_RESILIENCE_LEVEL:
             div = result["metadata"][0]["readout_mitigation_num_twirled_circuits"]
             self.assertEqual(result["metadata"][0]["shots"], int(ceil(shots / div)) * div)
+        elif resilience_level == Constant.PEC_RESILIENCE_LEVEL:
+            metadata = result["metadata"][0]
+            self.assertGreater(metadata["standard_error"], 0)
+            self.assertEqual(metadata["layout_qubits"], [0, 1])
+            self.assertEqual(metadata["mitigation_noise_scale"], 0)
+            self.assertEqual(metadata["shots"], shots)
+            self.assertEqual(metadata["samples"], Constant.PEC_DEFAULT_NUM_SAMPLES)
+            self.assertEqual(metadata["mitigation_overhead"], 1.0)
 
-    @combine(resilience_level=[0, 1])
+    @combine(resilience_level=[0, 1, 2])
     def test_no_noise_multiple_params(self, resilience_level):
         """Test for main without noise with multiple parameter sets"""
-        backend = get_simulator()
+        backend = get_simulator(resilience_level)
         shots = 10000
         circuits = [0, 0]
         observables = [0, 0]
@@ -570,19 +591,31 @@ class TestEstimatorMainCircuitIndices(unittest.TestCase):
                 "pauli_twirled_mitigation": {"seed_mitigation": 15, "seed_simulator": 15},
             },
         )
-        np.testing.assert_allclose(result["values"], target, rtol=1e-2)
+        np.testing.assert_allclose(
+            result["values"],
+            target,
+            rtol=1e-2 if resilience_level < Constant.ZNE_RESILIENCE_LEVEL else 2e-1,
+        )
         self.assertEqual(len(result["metadata"]), 2)
         if resilience_level == 0:
             self.assertEqual(result["metadata"][0]["shots"], shots)
             self.assertEqual(result["metadata"][1]["shots"], shots)
-        else:
+        elif resilience_level == Constant.TREX_RESILIENCE_LEVEL:
             div = result["metadata"][0]["readout_mitigation_num_twirled_circuits"]
             self.assertEqual(result["metadata"][0]["shots"], int(ceil(shots / div)) * div)
             self.assertEqual(result["metadata"][1]["shots"], int(ceil(shots / div)) * div)
+        elif resilience_level == Constant.PEC_RESILIENCE_LEVEL:
+            metadata = result["metadata"][0]
+            self.assertGreater(metadata["standard_error"], 0)
+            self.assertEqual(metadata["layout_qubits"], [0, 1])
+            self.assertEqual(metadata["mitigation_noise_scale"], 0)
+            self.assertEqual(metadata["shots"], shots)
+            self.assertEqual(metadata["samples"], Constant.PEC_DEFAULT_NUM_SAMPLES)
+            self.assertEqual(metadata["mitigation_overhead"], 1.0)
 
     @combine(noise=[True, False], shots=[10000, 20000])
-    def test_mitigation(self, noise, shots):
-        """Test for mitigation w/ and w/o noise"""
+    def test_trex_mitigation(self, noise, shots):
+        """Test for T-Rex mitigation w/ and w/o noise"""
         backend = AerSimulator.from_backend(FakeBogota()) if noise else AerSimulator()
         resilience_level = 1
         circuits = [0, 0]
@@ -611,10 +644,10 @@ class TestEstimatorMainCircuitIndices(unittest.TestCase):
         self.assertEqual(result["metadata"][0]["shots"], int(ceil(shots / div)) * div)
         self.assertEqual(result["metadata"][1]["shots"], int(ceil(shots / div)) * div)
 
-    @combine(noise=[True, False], resilience_level=[0, 1], shots=[100])
+    @combine(noise=[True, False], resilience_level=[0, 1, 2], shots=[100])
     def test_identity(self, noise, resilience_level, shots):
         """Test for identity observable"""
-        backend = get_simulator(FakeBogota() if noise else None)
+        backend = get_simulator(resilience_level, noise, FakeBogota())
         circuit = RealAmplitudes(num_qubits=5, reps=2, entanglement="full")
         num_parameters = circuit.num_parameters
         observable = SparsePauliOp("IIIII")
@@ -638,15 +671,23 @@ class TestEstimatorMainCircuitIndices(unittest.TestCase):
         if resilience_level == 0:
             self.assertEqual(result["metadata"][0]["shots"], shots)
             self.assertEqual(result["metadata"][1]["shots"], shots)
-        else:
+        elif resilience_level == Constant.TREX_RESILIENCE_LEVEL:
             div = result["metadata"][0]["readout_mitigation_num_twirled_circuits"]
             self.assertEqual(result["metadata"][0]["shots"], int(ceil(shots / div)) * div)
             self.assertEqual(result["metadata"][1]["shots"], int(ceil(shots / div)) * div)
+        elif resilience_level == Constant.PEC_RESILIENCE_LEVEL:
+            metadata = result["metadata"][0]
+            self.assertGreater(metadata["standard_error"], 0)
+            self.assertEqual(metadata["layout_qubits"], [0, 1])
+            self.assertEqual(metadata["mitigation_noise_scale"], 0)
+            self.assertEqual(metadata["shots"], shots)
+            self.assertEqual(metadata["samples"], Constant.PEC_DEFAULT_NUM_SAMPLES)
+            self.assertEqual(metadata["mitigation_overhead"], 1.0)
 
-    @combine(noise=[True, False], resilience_level=[0, 1])
+    @combine(noise=[True, False], resilience_level=[0, 1, 2])
     def test_identity_wo_shots(self, noise, resilience_level):
         """Test for identity observable without `shots`"""
-        backend = get_simulator(FakeBogota() if noise else None)
+        backend = get_simulator(resilience_level, noise, FakeBogota())
         circuit = RealAmplitudes(num_qubits=5, reps=2, entanglement="full")
         num_parameters = circuit.num_parameters
         observable = SparsePauliOp("IIIII")
@@ -687,10 +728,10 @@ class TestEstimatorMainCircuitIds(unittest.TestCase):
         )
         self.circuit_id = str(id(self.ansatz))
 
-    @combine(resilience_level=[0, 1])
+    @combine(resilience_level=[0, 1, 2])
     def test_no_noise_single_param(self, resilience_level):
         """Test for main without noise with single parameter set"""
-        backend = get_simulator()
+        backend = get_simulator(resilience_level)
         shots = 10000
         circuits = [0]
         observables = [0]
@@ -712,18 +753,30 @@ class TestEstimatorMainCircuitIds(unittest.TestCase):
                 "pauli_twirled_mitigation": {"seed_mitigation": 15, "seed_simulator": 15},
             },
         )
-        np.testing.assert_allclose(result["values"], target, rtol=1e-2)
+        np.testing.assert_allclose(
+            result["values"],
+            target,
+            rtol=1e-2 if resilience_level < Constant.ZNE_RESILIENCE_LEVEL else 2e-1,
+        )
         self.assertEqual(len(result["metadata"]), 1)
         if resilience_level == 0:
             self.assertEqual(result["metadata"][0]["shots"], shots)
-        else:
+        elif resilience_level == Constant.TREX_RESILIENCE_LEVEL:
             div = result["metadata"][0]["readout_mitigation_num_twirled_circuits"]
             self.assertEqual(result["metadata"][0]["shots"], int(ceil(shots / div)) * div)
+        elif resilience_level == Constant.PEC_RESILIENCE_LEVEL:
+            metadata = result["metadata"][0]
+            self.assertGreater(metadata["standard_error"], 0)
+            self.assertEqual(metadata["layout_qubits"], [0, 1])
+            self.assertEqual(metadata["mitigation_noise_scale"], 0)
+            self.assertEqual(metadata["shots"], shots)
+            self.assertEqual(metadata["samples"], Constant.PEC_DEFAULT_NUM_SAMPLES)
+            self.assertEqual(metadata["mitigation_overhead"], 1.0)
 
-    @combine(resilience_level=[0, 1])
+    @combine(resilience_level=[0, 1, 2])
     def test_no_noise_multiple_params(self, resilience_level):
         """Test for main without noise with multiple parameter sets"""
-        backend = get_simulator()
+        backend = get_simulator(resilience_level)
         shots = 10000
         circuits = [0, 0]
         observables = [0, 0]
@@ -745,19 +798,31 @@ class TestEstimatorMainCircuitIds(unittest.TestCase):
                 "pauli_twirled_mitigation": {"seed_mitigation": 15, "seed_simulator": 15},
             },
         )
-        np.testing.assert_allclose(result["values"], target, rtol=1e-2)
+        np.testing.assert_allclose(
+            result["values"],
+            target,
+            rtol=1e-2 if resilience_level < Constant.ZNE_RESILIENCE_LEVEL else 2e-1,
+        )
         self.assertEqual(len(result["metadata"]), 2)
         if resilience_level == 0:
             self.assertEqual(result["metadata"][0]["shots"], shots)
             self.assertEqual(result["metadata"][1]["shots"], shots)
-        else:
+        elif resilience_level == Constant.TREX_RESILIENCE_LEVEL:
             div = result["metadata"][0]["readout_mitigation_num_twirled_circuits"]
             self.assertEqual(result["metadata"][0]["shots"], int(ceil(shots / div)) * div)
             self.assertEqual(result["metadata"][1]["shots"], int(ceil(shots / div)) * div)
+        elif resilience_level == Constant.PEC_RESILIENCE_LEVEL:
+            metadata = result["metadata"][0]
+            self.assertGreater(metadata["standard_error"], 0)
+            self.assertEqual(metadata["layout_qubits"], [0, 1])
+            self.assertEqual(metadata["mitigation_noise_scale"], 0)
+            self.assertEqual(metadata["shots"], shots)
+            self.assertEqual(metadata["samples"], Constant.PEC_DEFAULT_NUM_SAMPLES)
+            self.assertEqual(metadata["mitigation_overhead"], 1.0)
 
     @combine(noise=[True, False], shots=[10000, 20000])
-    def test_mitigation(self, noise, shots):
-        """Test for mitigation w/ and w/o noise"""
+    def test_trex_mitigation(self, noise, shots):
+        """Test for T-Rex mitigation w/ and w/o noise"""
         backend = AerSimulator.from_backend(FakeBogota()) if noise else AerSimulator()
         resilience_level = 1
         circuits = [0, 0]
@@ -786,10 +851,10 @@ class TestEstimatorMainCircuitIds(unittest.TestCase):
         self.assertEqual(result["metadata"][0]["shots"], int(ceil(shots / div)) * div)
         self.assertEqual(result["metadata"][1]["shots"], int(ceil(shots / div)) * div)
 
-    @combine(noise=[True, False], resilience_level=[0, 1], shots=[100])
+    @combine(noise=[True, False], resilience_level=[0, 1, 2], shots=[100])
     def test_identity(self, noise, resilience_level, shots):
         """Test for identity observable"""
-        backend = get_simulator(FakeBogota() if noise else None)
+        backend = get_simulator(resilience_level, noise, FakeBogota())
         circuit = RealAmplitudes(num_qubits=5, reps=2, entanglement="full")
         circuit_id = str(id(circuit))
         num_parameters = circuit.num_parameters
@@ -814,15 +879,23 @@ class TestEstimatorMainCircuitIds(unittest.TestCase):
         if resilience_level == 0:
             self.assertEqual(result["metadata"][0]["shots"], shots)
             self.assertEqual(result["metadata"][1]["shots"], shots)
-        else:
+        elif resilience_level == Constant.TREX_RESILIENCE_LEVEL:
             div = result["metadata"][0]["readout_mitigation_num_twirled_circuits"]
             self.assertEqual(result["metadata"][0]["shots"], int(ceil(shots / div)) * div)
             self.assertEqual(result["metadata"][1]["shots"], int(ceil(shots / div)) * div)
+        elif resilience_level == Constant.PEC_RESILIENCE_LEVEL:
+            metadata = result["metadata"][0]
+            self.assertGreater(metadata["standard_error"], 0)
+            self.assertEqual(metadata["layout_qubits"], [0, 1])
+            self.assertEqual(metadata["mitigation_noise_scale"], 0)
+            self.assertEqual(metadata["shots"], shots)
+            self.assertEqual(metadata["samples"], Constant.PEC_DEFAULT_NUM_SAMPLES)
+            self.assertEqual(metadata["mitigation_overhead"], 1.0)
 
-    @combine(noise=[True, False], resilience_level=[0, 1])
+    @combine(noise=[True, False], resilience_level=[0, 1, 2])
     def test_identity_wo_shots(self, noise, resilience_level):
         """Test for identity observable without `shots`"""
-        backend = get_simulator(FakeBogota() if noise else None)
+        backend = get_simulator(resilience_level, noise, FakeBogota())
         circuit = RealAmplitudes(num_qubits=5, reps=2, entanglement="full")
         circuit_id = str(id(circuit))
         num_parameters = circuit.num_parameters

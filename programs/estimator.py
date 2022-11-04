@@ -33,7 +33,7 @@ from qiskit.circuit.parametertable import ParameterView
 from qiskit.compiler import transpile
 from qiskit.exceptions import QiskitError
 from qiskit.opflow import PauliSumOp
-from qiskit.primitives import EstimatorResult
+from qiskit.primitives import BackendEstimator, EstimatorResult
 from qiskit.primitives.utils import init_observable
 from qiskit.providers import Backend, BackendV1, Options
 from qiskit.quantum_info import Pauli, PauliList, SparsePauliOp
@@ -51,6 +51,12 @@ from qiskit.transpiler.passes import (
 from qiskit.transpiler.timing_constraints import TimingConstraints
 from qiskit_ibm_runtime import RuntimeDecoder, RuntimeEncoder
 
+from zne import zne, ZNEStrategy
+from zne.noise_amplification import NoiseAmplifier, NOISE_AMPLIFIER_LIBRARY
+from zne.extrapolation import Extrapolator, EXTRAPOLATOR_LIBRARY
+
+from pec_runtime.primitives import Estimator as PEC_Estimator
+
 logger = logging.getLogger(__name__)
 
 # If PRIMITIVES_DEBUG is True, metadata includes bound circuits, coeffs and, paulis.
@@ -58,6 +64,9 @@ logger = logging.getLogger(__name__)
 DEBUG = environ.get("PRIMITIVES_DEBUG", "false") == "true"
 
 
+################################################################################
+## ESTIMATOR
+################################################################################
 def run_circuits(
     circuits: QuantumCircuit | list[QuantumCircuit],
     backend: Backend,
@@ -812,159 +821,6 @@ def _pauli_expval_with_variance(counts: Counts, paulis: PauliList) -> tuple[np.n
     return expvals, variances
 
 
-class PauliTwirledMitigation:
-    """
-    Pauli twirled readout error mitigation (T-Rex)
-    """
-
-    def __init__(
-        self,
-        backend: Backend,
-        num_twirled_circuits: int = 16,
-        shots_calibration: int = 8192,
-        seed: int | None = None,
-        **cal_run_options,
-    ):
-        self._backend = backend
-        self._num_twirled_circuits = num_twirled_circuits
-        self._shots_calibration = shots_calibration
-        if seed is None or isinstance(seed, int):
-            self._rng = np.random.default_rng(seed)
-        else:
-            raise QiskitError(f"Invalid random number seed: {seed}")
-        self._cal_run_options = cal_run_options
-        self._counts_identity: dict[Sequence[int], Counts] = {}
-
-    @property
-    def num_twirled_circuits(self):
-        """Number of Pauli twirled circuits for each circuit"""
-        return self._num_twirled_circuits
-
-    @property
-    def calibrated_counts(self):
-        """Calibrate counts for identity circuits"""
-        return self._counts_identity
-
-    @property
-    def shots_calibration(self):
-        """Number of shots for calibration"""
-        return self._num_twirled_circuits * self._subdivide_shots(
-            self._shots_calibration, self._num_twirled_circuits
-        )
-
-    def cals_from_system(self, mappings: list[dict[int, int]]):
-        """Calibrate count data
-
-        Args:
-            mappings: The qubit mapping
-        """
-        for mapping in mappings:
-            qubits_to_measure = tuple(mapping)
-            if qubits_to_measure not in self._counts_identity:
-                self._counts_identity[qubits_to_measure] = self._calibrate(qubits_to_measure)
-
-    @staticmethod
-    def _bitflip(bitstring: str, flip_qubits: list[int]):
-        lst = list(bitstring[::-1])
-        conv = {"0": "1", "1": "0"}
-        for i in flip_qubits:
-            lst[i] = conv[lst[i]]
-        return "".join(lst[::-1])
-
-    @classmethod
-    def combine_counts(cls, counts: list[Counts], flips: list[list[int]]) -> Counts:
-        """Combine count data by flipping bits
-
-        Args:
-            counts: The count data
-            flips: The flip data
-
-        Returns:
-            The sum of the count data that are flipped at corresponding bits to the flip data.
-
-        """
-        total: dict[str, int] = defaultdict(int)
-        for count, flip in zip(counts, flips):
-            for key, num in count.items():
-                total[cls._bitflip(key, flip)] += num
-        return Counts(total)
-
-    def _append_random_x_and_measure(self, circ: QuantumCircuit, qubits: Sequence[int]):
-        flip = np.where(self._rng.choice(2, len(qubits)) == 1)[0]
-        if len(flip) > 0:
-            circ.x(np.asarray(qubits)[flip])
-        meas = QuantumCircuit(circ.num_qubits, len(qubits))
-        meas.measure(qubits, range(len(qubits)))
-        for creg in meas.cregs:
-            circ.add_register(creg)
-        circ.compose(meas, inplace=True)
-        qubits = tuple(qubits)
-        if circ.metadata:
-            circ.metadata["flip"] = flip
-            circ.metadata["qubits"] = qubits
-        else:
-            circ.metadata = {"flip": flip, "qubits": qubits}
-        return circ
-
-    @staticmethod
-    def _subdivide_shots(shots: int, div: int) -> int:
-        """Subdivide shots
-
-        Args:
-            shots: The total number of shots to be subdivided
-            div: The divisor
-
-        Returns:
-            The number of subdivided shots. The sum of the shots should be equal to or larger than
-            the total number of shots.
-
-        Reference:
-            https://datagy.io/python-ceiling/ ("Python Ceiling Division" section)
-        """
-        return -(-shots // div)
-
-    def _calibrate(self, qubits: Sequence[int]):
-        circuits = []
-        for _ in range(self._num_twirled_circuits):
-            circ = QuantumCircuit(max(qubits) + 1)
-            circ = self._append_random_x_and_measure(circ, qubits)
-            circuits.append(circ)
-        shots = self._subdivide_shots(self._shots_calibration, self._num_twirled_circuits)
-        result, metadata = run_circuits(
-            circuits, self._backend, shots=shots, **self._cal_run_options
-        )
-
-        counts = result.get_counts()
-        if not isinstance(counts, list):
-            counts = [counts]
-
-        flips = [meta["flip"] for meta in metadata]
-
-        return self.combine_counts(counts, flips)
-
-    def run_circuits(self, circuits, shots, **options):
-        """Generate Pauli twirled circuits and run them
-
-        Args:
-            circuits: The circuits to run.
-            shots: The number of shots.
-            **options: The run options of the backend.
-
-        Returns:
-            The result data of the circuits generated by applying Pauli twirling to the input circuits.
-
-        """
-        circuits2 = []
-        for circ in circuits:
-            qubits = list(final_measurement_mapping(circ))
-            circ.remove_final_measurements(inplace=True)
-            for _ in range(self._num_twirled_circuits):
-                circ2 = self._append_random_x_and_measure(circ.copy(), qubits)
-                circuits2.append(circ2)
-        shots2 = self._subdivide_shots(shots, self._num_twirled_circuits)
-        return run_circuits(circuits2, backend=self._backend, shots=shots2, **options)
-
-
 class CircuitCache:
     """
     Class to cache circuits in in-memory data store
@@ -1128,6 +984,9 @@ class CircuitCache:
         return self._transpiled_circuits_map.get(circuit_digest)
 
 
+################################################################################
+## DYNAMICAL DECOUPLING
+################################################################################
 def dynamical_decoupling_pass(backend: BackendV1) -> Optional[PassManager]:
     """Generates a pass manager of the dynamical decoupling
 
@@ -1182,6 +1041,263 @@ def dynamical_decoupling_pass(backend: BackendV1) -> Optional[PassManager]:
     )
 
 
+################################################################################
+## PEC
+################################################################################
+
+
+################################################################################
+## T-REX (logic in Estimator as well)
+################################################################################
+class PauliTwirledMitigation:
+    """
+    Pauli twirled readout error mitigation (T-Rex)
+    """
+
+    def __init__(
+        self,
+        backend: Backend,
+        num_twirled_circuits: int = 16,
+        shots_calibration: int = 8192,
+        seed: int | None = None,
+        **cal_run_options,
+    ):
+        self._backend = backend
+        self._num_twirled_circuits = num_twirled_circuits
+        self._shots_calibration = shots_calibration
+        if seed is None or isinstance(seed, int):
+            self._rng = np.random.default_rng(seed)
+        else:
+            raise QiskitError(f"Invalid random number seed: {seed}")
+        self._cal_run_options = cal_run_options
+        self._counts_identity: dict[Sequence[int], Counts] = {}
+
+    @property
+    def num_twirled_circuits(self):
+        """Number of Pauli twirled circuits for each circuit"""
+        return self._num_twirled_circuits
+
+    @property
+    def calibrated_counts(self):
+        """Calibrate counts for identity circuits"""
+        return self._counts_identity
+
+    @property
+    def shots_calibration(self):
+        """Number of shots for calibration"""
+        return self._num_twirled_circuits * self._subdivide_shots(
+            self._shots_calibration, self._num_twirled_circuits
+        )
+
+    def cals_from_system(self, mappings: list[dict[int, int]]):
+        """Calibrate count data
+
+        Args:
+            mappings: The qubit mapping
+        """
+        for mapping in mappings:
+            qubits_to_measure = tuple(mapping)
+            if qubits_to_measure not in self._counts_identity:
+                self._counts_identity[qubits_to_measure] = self._calibrate(qubits_to_measure)
+
+    @staticmethod
+    def _bitflip(bitstring: str, flip_qubits: list[int]):
+        lst = list(bitstring[::-1])
+        conv = {"0": "1", "1": "0"}
+        for i in flip_qubits:
+            lst[i] = conv[lst[i]]
+        return "".join(lst[::-1])
+
+    @classmethod
+    def combine_counts(cls, counts: list[Counts], flips: list[list[int]]) -> Counts:
+        """Combine count data by flipping bits
+
+        Args:
+            counts: The count data
+            flips: The flip data
+
+        Returns:
+            The sum of the count data that are flipped at corresponding bits to the flip data.
+
+        """
+        total: dict[str, int] = defaultdict(int)
+        for count, flip in zip(counts, flips):
+            for key, num in count.items():
+                total[cls._bitflip(key, flip)] += num
+        return Counts(total)
+
+    def _append_random_x_and_measure(self, circ: QuantumCircuit, qubits: Sequence[int]):
+        flip = np.where(self._rng.choice(2, len(qubits)) == 1)[0]
+        if len(flip) > 0:
+            circ.x(np.asarray(qubits)[flip])
+        meas = QuantumCircuit(circ.num_qubits, len(qubits))
+        meas.measure(qubits, range(len(qubits)))
+        for creg in meas.cregs:
+            circ.add_register(creg)
+        circ.compose(meas, inplace=True)
+        qubits = tuple(qubits)
+        if circ.metadata:
+            circ.metadata["flip"] = flip
+            circ.metadata["qubits"] = qubits
+        else:
+            circ.metadata = {"flip": flip, "qubits": qubits}
+        return circ
+
+    @staticmethod
+    def _subdivide_shots(shots: int, div: int) -> int:
+        """Subdivide shots
+
+        Args:
+            shots: The total number of shots to be subdivided
+            div: The divisor
+
+        Returns:
+            The number of subdivided shots. The sum of the shots should be equal to or larger than
+            the total number of shots.
+
+        Reference:
+            https://datagy.io/python-ceiling/ ("Python Ceiling Division" section)
+        """
+        return -(-shots // div)
+
+    def _calibrate(self, qubits: Sequence[int]):
+        circuits = []
+        for _ in range(self._num_twirled_circuits):
+            circ = QuantumCircuit(max(qubits) + 1)
+            circ = self._append_random_x_and_measure(circ, qubits)
+            circuits.append(circ)
+        shots = self._subdivide_shots(self._shots_calibration, self._num_twirled_circuits)
+        result, metadata = run_circuits(
+            circuits, self._backend, shots=shots, **self._cal_run_options
+        )
+
+        counts = result.get_counts()
+        if not isinstance(counts, list):
+            counts = [counts]
+
+        flips = [meta["flip"] for meta in metadata]
+
+        return self.combine_counts(counts, flips)
+
+    def run_circuits(self, circuits, shots, **options):
+        """Generate Pauli twirled circuits and run them
+
+        Args:
+            circuits: The circuits to run.
+            shots: The number of shots.
+            **options: The run options of the backend.
+
+        Returns:
+            The result data of the circuits generated by applying Pauli twirling to the input circuits.
+
+        """
+        circuits2 = []
+        for circ in circuits:
+            qubits = list(final_measurement_mapping(circ))
+            circ.remove_final_measurements(inplace=True)
+            for _ in range(self._num_twirled_circuits):
+                circ2 = self._append_random_x_and_measure(circ.copy(), qubits)
+                circuits2.append(circ2)
+        shots2 = self._subdivide_shots(shots, self._num_twirled_circuits)
+        return run_circuits(circuits2, backend=self._backend, shots=shots2, **options)
+
+
+################################################################################
+## ZNE
+################################################################################
+DEFAULT_NOISE_FACTORS: Sequence[float] = (1, 3, 5)
+DEFAULT_AMPLIFIER_SETTING: str = "TwoQubitAmplifier"
+DEFAULT_EXTRAPOLATOR_SETTING: str = "LinearExtrapolator"
+
+
+def zne_strategy_from_settings(settings: dict) -> ZNEStrategy:
+    """Build ZNEStrategy object from client settings."""
+    noise_factors: Sequence[float] = settings.get("noise_factors") or DEFAULT_NOISE_FACTORS
+    amplifier_setting: str = settings.get("noise_amplifier") or DEFAULT_AMPLIFIER_SETTING
+    noise_amplifier: NoiseAmplifier = noise_amplifier_from_setting(amplifier_setting)
+    extrapolator_setting: str = settings.get("extrapolator") or DEFAULT_EXTRAPOLATOR_SETTING
+    extrapolator: Extrapolator = extrapolator_from_setting(extrapolator_setting)
+    if len(noise_factors) < extrapolator.min_points:
+        raise ValueError(
+            f"Invalid setting: '{extrapolator.__name__}' requires at least "
+            f"{extrapolator.min_points} noise factors but only {len(noise_factors)} were given."
+        )
+    return ZNEStrategy(
+        noise_factors=noise_factors,
+        noise_amplifier=noise_amplifier,
+        extrapolator=extrapolator,
+    )
+
+
+def noise_amplifier_from_setting(setting: str) -> NoiseAmplifier:
+    """Build NoiseAmplifier object from str setting."""
+    if not isinstance(setting, str):
+        raise TypeError(
+            f"Expected `str` type for noise amplifier setting, got `{type(setting)}` instead."
+        )
+    cls = NOISE_AMPLIFIER_LIBRARY.get(setting)
+    if cls is None:
+        raise ValueError(f"Invalid noise amplifier setting '{setting}'.")
+    return cls()
+
+
+def extrapolator_from_setting(setting: str) -> Extrapolator:
+    """Build Extrapolator object from str setting."""
+    if not isinstance(setting, str):
+        raise TypeError(
+            f"Expected `str` type for extrapolator setting, got `{type(setting)}` instead."
+        )
+    cls = EXTRAPOLATOR_LIBRARY.get(setting)
+    if cls is None:
+        raise ValueError(f"Invalid extrapolator setting '{setting}'.")
+    return cls()
+
+
+################################################################################
+## CONSTANTS
+################################################################################
+class Constant:
+    """Class to capture Primitives constants"""
+
+    TREX_RESILIENCE_LEVEL: int = 1
+    ZNE_RESILIENCE_LEVEL: int = 2
+    PEC_RESILIENCE_LEVEL: int = 3
+
+    DEFAULT_RESILIENCE_LEVEL: int = TREX_RESILIENCE_LEVEL
+
+    PEC_DEFAULT_NUM_SAMPLES: int = 1024
+
+
+################################################################################
+## MAIN
+################################################################################
+def _restore_circuits(circuits, circuit_indices, circuit_ids, backend) -> list[QuantumCircuit]:
+    if isinstance(circuits, dict):
+        circuit_list = _circuit_dict_to_list(circuits, backend, circuit_ids)
+    elif circuit_indices and isinstance(circuits, list):
+        circuit_list = [circuits[i] for i in circuit_indices]
+    else:
+        circuit_list = [circuits]
+    return circuit_list
+
+
+def _circuit_dict_to_list(circuits: dict, backend, circuit_ids) -> list:
+    try:
+        cache = backend.provider().cache()
+
+        for circuit_id in circuit_ids:
+            if circuit_id not in circuits:
+                hash_str = cache.get(circuit_id)
+                hash_obj = json.loads(hash_str, cls=RuntimeDecoder)
+                circuit = hash_obj.get("circuit")
+                circuits[circuit_id] = circuit
+    except AttributeError:
+        # Unit tests use AerProvider which doesn't have cache() method
+        pass
+
+    return [circuits[circuit_id] for circuit_id in circuit_ids]
+
+
 def main(
     backend,
     user_messenger,  # pylint: disable=unused-argument
@@ -1220,54 +1336,127 @@ def main(
     """
     if DEBUG:
         logger.info("Debug mode")
+
+    # Settings and options
     transpilation_settings = transpilation_settings or {}
     skip_transpilation = transpilation_settings.pop("skip_transpilation", skip_transpilation)
     optimization_settings = transpilation_settings.pop("optimization_settings", {})
     resilience_settings = resilience_settings or {}
     run_options = run_options or {}
+    if "shots" not in run_options:
+        run_options["shots"] = backend.options.shots
 
-    # Configure noise model.
+    # Configure noise model
     noise_model = run_options.pop("noise_model", None)
     seed_simulator = run_options.pop("seed_simulator", None)
     if backend.configuration().simulator:
         backend.set_options(noise_model=noise_model, seed_simulator=seed_simulator)
 
-    mitigation = None
-    if resilience_settings.get("level", 0) == 1:
-        options = resilience_settings.pop("pauli_twirled_mitigation", {})
-        seed = options.pop("seed_mitigation", None)
-        mitigation = PauliTwirledMitigation(backend=backend, seed=seed, **options)
-
+    # Configure transpilation
     transpile_options = transpilation_settings.copy()
     optimization_level = optimization_settings.get("level", 1)
     transpile_options["optimization_level"] = optimization_level
-
     if optimization_level >= 1 and not skip_transpilation:
         bound_pass_manager = dynamical_decoupling_pass(backend)
     else:
         bound_pass_manager = None
 
-    estimator = Estimator(
-        backend=backend,
-        circuits=circuits,
-        observables=observables,
-        parameters=parameters,
-        skip_transpilation=skip_transpilation,
-        pauli_twirled_mitigation=mitigation,
-        circuit_ids=circuit_ids,
-        bound_pass_manager=bound_pass_manager,
-    )
+    # Execute for different resilience levels
+    resilience_level = resilience_settings.get("level", Constant.DEFAULT_RESILIENCE_LEVEL)
+    if resilience_level == 0:  # None
+        estimator = Estimator(
+            backend=backend,
+            circuits=circuits,
+            observables=observables,
+            parameters=parameters,
+            skip_transpilation=skip_transpilation,
+            pauli_twirled_mitigation=None,
+            circuit_ids=circuit_ids,
+            bound_pass_manager=bound_pass_manager,
+        )
+        estimator.set_transpile_options(**transpile_options)
+        result = estimator.run(
+            circuit_indices=circuit_indices,
+            observable_indices=observable_indices,
+            parameter_values=parameter_values,
+            **run_options,
+        )
+    elif resilience_level == Constant.TREX_RESILIENCE_LEVEL:  # T-REX
+        options = resilience_settings.pop("pauli_twirled_mitigation", {})
+        seed = options.pop("seed_mitigation", None)
+        mitigation = PauliTwirledMitigation(backend=backend, seed=seed, **options)
+        estimator = Estimator(
+            backend=backend,
+            circuits=circuits,
+            observables=observables,
+            parameters=parameters,
+            skip_transpilation=skip_transpilation,
+            pauli_twirled_mitigation=mitigation,
+            circuit_ids=circuit_ids,
+            bound_pass_manager=bound_pass_manager,
+        )
+        estimator.set_transpile_options(**transpile_options)
+        result = estimator.run(
+            circuit_indices=circuit_indices,
+            observable_indices=observable_indices,
+            parameter_values=parameter_values,
+            **run_options,
+        )
+    elif resilience_level == Constant.ZNE_RESILIENCE_LEVEL:  # ZNE
+        ZNEEstimator = zne(BackendEstimator)  # pylint: disable=invalid-name
+        zne_strategy = zne_strategy_from_settings(resilience_settings)
+        estimator = ZNEEstimator(
+            backend=backend,
+            skip_transpilation=skip_transpilation,
+            bound_pass_manager=bound_pass_manager,
+            zne_strategy=zne_strategy,
+        )
+        estimator.set_transpile_options(**transpile_options)
+        circuit_list = _restore_circuits(circuits, circuit_indices, circuit_ids, backend)
+        observable_list = [observables[i] for i in observable_indices]
+        job = estimator.run(
+            circuits=circuit_list,
+            observables=observable_list,
+            parameter_values=parameter_values,
+            **run_options,
+        )
+        result = job.result()
+        for metadatum in result.metadata:
+            zne_md = metadatum.get("zne")
+            if zne_md:
+                zne_md["noise_amplification"]["noise_amplifier"] = repr(
+                    zne_md["noise_amplification"]["noise_amplifier"]
+                )
+                zne_md["extrapolation"]["extrapolator"] = repr(
+                    zne_md["extrapolation"]["extrapolator"]
+                )
+    elif resilience_level == Constant.PEC_RESILIENCE_LEVEL:  # PEC
+        transpilation_settings["basis_gates"] = backend.configuration().basis_gates
+        circuit_list = _restore_circuits(circuits, circuit_indices, circuit_ids, backend)
+        observable_list = [observables[i] for i in observable_indices]
+        estimator = PEC_Estimator(
+            backend=backend,
+            circuits=circuit_list,
+            observables=observable_list,
+            parameters=parameters,
+            skip_transpilation=skip_transpilation,
+            resilience_settings=resilience_settings,
+            transpilation_settings=transpilation_settings,
+            user_messenger=user_messenger,
+        )
 
-    estimator.set_transpile_options(**transpile_options)
+        # No need to set traspile options here,PEC transpile options are set in
+        # the class constructor
 
-    if "shots" not in run_options:
-        run_options["shots"] = backend.options.shots
+        result = estimator.run(
+            circuit_indices=circuit_indices,
+            observable_indices=observable_indices,
+            parameter_values=parameter_values,
+            **run_options,
+        )
 
-    result = estimator.run(
-        circuit_indices=circuit_indices,
-        observable_indices=observable_indices,
-        parameter_values=parameter_values,
-        **run_options,
-    )
+        result = EstimatorResult(result["values"], result["metadata"])
+    else:
+        raise QiskitError(f"Resilience level {resilience_level} not supported.")
 
     return result.__dict__

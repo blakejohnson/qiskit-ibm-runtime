@@ -10,7 +10,6 @@ staging:
     programs: &iqx_programs
       - circuit-runner
       - estimator
-      - estimator_dev
       - hello-world
       - qaoa
       - qasm3-runner
