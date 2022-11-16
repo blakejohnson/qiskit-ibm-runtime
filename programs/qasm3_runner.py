@@ -38,8 +38,9 @@ import numpy as np
 
 # fix rep_delay in shot loop to 0 since we manually insert
 # TODO: while we await https://github.ibm.com/IBM-Q-Software/ibm-qss-compiler/issues/889
-# set to 1us.
-QSS_COMPILER_REP_DELAY = 1000e-6
+# set to 200us see:
+# https://ibm-quantumcomputing.slack.com/archives/G01C867NNT1/p1667482191568199
+QSS_COMPILER_REP_DELAY = 200e-6
 
 QASM3_SIM_NAME = "simulator_qasm3"
 QASM2_SIM_NAME = "qasm_simulator"
@@ -135,10 +136,12 @@ class CircuitMerger:
                 circuit.reset(used_qubits)
                 circuit.barrier(used_qubits)
                 if delay_per_round > 0:
-                    circuit.delay(delay_per_round, used_qubits, unit=init_delay_unit)
+                    for qubit in used_qubits:
+                        circuit.delay(delay_per_round, qubit, unit=init_delay_unit)
                     circuit.barrier(used_qubits)
         elif init_delay:
-            circuit.delay(init_delay, used_qubits, init_delay_unit)
+            for qubit in used_qubits:
+                circuit.delay(delay_per_round, qubit, unit=init_delay_unit)
             circuit.barrier(used_qubits)
 
         if init_delay:
@@ -165,7 +168,8 @@ class CircuitMerger:
         # initialization time and replicate current backend behaviour
         circuit.barrier(used_qubits)
         if init_delay:
-            circuit.delay(init_delay, used_qubits, init_delay_unit)
+            for qubit in used_qubits:
+                circuit.delay(init_delay, qubit, unit=init_delay_unit)
             circuit.barrier(used_qubits)
         for _ in range(0, init_num_resets):
             circuit.reset(used_qubits)
@@ -197,7 +201,7 @@ class CircuitMerger:
 
     def _compose_circuits(
         self, merged_circuit: QuantumCircuit, init_circuit: QuantumCircuit, init: bool
-    ):
+    ) -> QuantumCircuit:
         """Compose merged circuit."""
         bit_offset = 0
         for circuit in self.circuits:
@@ -305,7 +309,6 @@ class CircuitMerger:
 
         for circuit in self.circuits:
             res = combined_res.copy()
-            assert "header" in res
             assert "data" in res
 
             res["header"] = res["header"].copy()
@@ -313,6 +316,8 @@ class CircuitMerger:
 
             header = res["header"]
             header["name"] = res["name"] = circuit.name
+
+            header["metadata"] = circuit.metadata
 
             # see qiskit/assembler/assemble_circuits.py for how Qiskit builds
             # the information about classical bits and registers in a
@@ -449,7 +454,7 @@ class QASM3Options:
 
         return QASM3Options(**kwargs)
 
-    def prepare_run_config(self, qasm3_metadata=None):
+    def prepare_run_config(self):
         """Prepare an externally safe run configuration."""
         # Pop as this is not safe for the user to have direct access
         self.run_config.pop("extra_compile_args", None)
@@ -466,8 +471,6 @@ class QASM3Options:
             "shots": self.shots,
             "rep_delay": QSS_COMPILER_REP_DELAY,
         }
-        if qasm3_metadata:
-            filtered_run_config["qasm3_metadata"] = qasm3_metadata
 
         return filtered_run_config
 
@@ -520,7 +523,6 @@ def main(
 
     # Submit circuits for testing of standard circuit merger
     qasm2_sim = backend.name() == QASM2_SIM_NAME
-    qasm3_metadata = []
     if is_qc:
         if options.merge_circuits and options.use_measurement_mitigation:
             raise NotImplementedError(
@@ -563,7 +565,6 @@ def main(
         }
         for circ in circuits:
             qasm3_strs.append(Exporter(**exporter_config).dumps(circ))
-            qasm3_metadata.append(get_circuit_metadata(circ))
 
         if not qasm2_sim:
             payload = qasm3_strs
@@ -594,9 +595,7 @@ def main(
         payload = circuits
 
     # Prepare safe run_config
-    filtered_run_config = options.prepare_run_config(
-        qasm3_metadata=qasm3_metadata if not qasm2_sim else None,
-    )
+    filtered_run_config = options.prepare_run_config()
 
     result = backend.run(payload, **filtered_run_config).result()
 
@@ -630,41 +629,6 @@ def main(
             res.header.measurement_mitigation_time = mit_times[idx]
 
     return result.to_dict()
-
-
-def get_circuit_metadata(circuit: QuantumCircuit):
-    """Get the circuit metadata."""
-
-    # header data
-    num_qubits = 0
-    memory_slots = 0
-    qubit_labels = []
-    clbit_labels = []
-
-    qreg_sizes = []
-    creg_sizes = []
-    for qreg in circuit.qregs:
-        qreg_sizes.append([qreg.name, qreg.size])
-        for j in range(qreg.size):
-            qubit_labels.append([qreg.name, j])
-        num_qubits += qreg.size
-    for creg in circuit.cregs:
-        creg_sizes.append([creg.name, creg.size])
-        for j in range(creg.size):
-            clbit_labels.append([creg.name, j])
-        memory_slots += creg.size
-
-    return {
-        "qubit_labels": qubit_labels,
-        "n_qubits": num_qubits,
-        "qreg_sizes": qreg_sizes,
-        "clbit_labels": clbit_labels,
-        "memory_slots": memory_slots,
-        "creg_sizes": creg_sizes,
-        "name": circuit.name,
-        "global_phase": float(circuit.global_phase),
-        "metadata": circuit.metadata or {},
-    }
 
 
 def final_measurement_mapping(circuit):

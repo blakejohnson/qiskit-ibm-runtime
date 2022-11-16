@@ -178,3 +178,22 @@ class TestCircuitMerger(unittest.TestCase):
                 reset_found = True
                 self.assertIn(inst.qubits[0].index, (0,))
         self.assertTrue(reset_found)
+
+    def test_metadata(self):
+        """Test adding of metadata to the result"""
+        num_circuits = 2
+        num_shots = 100
+        qc1, _ = _create_test_circuits()
+        circuits = [qc1.copy() for i in range(num_circuits)]
+        circuits[0].metadata = {"foo": 1}
+        circuits[1].metadata = {"bar": 1}
+        merger = CircuitMerger(circuits, backend=self.sim_backend)
+        merged_circuit = merger.merge_circuits()
+
+        result_merged = execute(
+            merged_circuit, backend=self.sim_backend, num_shots=num_shots
+        ).result()
+        unwrapped_result = merger.unwrap_results(result_merged)
+
+        self.assertEqual(unwrapped_result.results[0].header.metadata["foo"], 1)
+        self.assertEqual(unwrapped_result.results[1].header.metadata["bar"], 1)
