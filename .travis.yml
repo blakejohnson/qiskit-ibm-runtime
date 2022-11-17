@@ -4,6 +4,7 @@ sudo: false
 
 stage_generic: &stage_linux
   os: linux
+  dist: bionic
   language: python
   python: 3.9
   install:
@@ -13,59 +14,78 @@ stage_generic: &stage_linux
 
 jobs:
   include:
-    - if: type = pull_request
+    - if: type IN (cron, api)
       stage: "ASoC Security Scan"
-      env: OS=linux
       os: linux
+      language: minimal
+      services:
+        - docker
       before_script:
         - docker login -u iamapikey -p ${IBM_CLOUD_API_KEY} us.icr.io
       script:
         - docker run -e KeyId=${ASOC_KEY_ID} -e KeySecret=${ASOC_KEY_SECRET} -e GitToken=${ASOC_GIT_TOKEN} -v $(pwd)/AsocConfig:/asoc/AsocConfig -v $(pwd):/asoc/StaticScan -v $(pwd)/DAST_CurlCommands.sh:/asoc/DAST_CurlCommands.sh -w /asoc us.icr.io/quantum-computing/asoc-automation:latest /asoc/appscanBash.sh
+
     - stage: "Run code quality checks"
       <<: *stage_linux
       name: "Run black"
       env:
         - NAME=Run black
-      script: make style
+      script:
+        - make style
+
     - name: "Run lint"
       <<: *stage_linux
       env:
         - NAME=Run lint
-      script: make lint
+      script:
+        - make lint
+
     - name: "Run mypy"
       <<: *stage_linux
       env:
         - NAME=Run mypy
-      script: make mypy
+      script:
+        - make mypy
 
     - stage: "Run unit tests"
       <<: *stage_linux
       python: 3.8
       env:
+        - NAME=Unit tests
         - PRIMITIVES_DEBUG=true
-      script: make unit-test
+      script:
+        - make unit-test
+
     - <<: *stage_linux
       python: 3.9
       env:
+        - NAME=Unit tests
         - PRIMITIVES_DEBUG=true
-      script: make unit-test
+      script:
+        - make unit-test
+
     - <<: *stage_linux
       python: "3.10"
       env:
+        - NAME=Unit tests
         - PRIMITIVES_DEBUG=true
-      script: make unit-test
+      script:
+        - make unit-test
 
     - stage: "Deploy to staging and run integration tests"
       <<: *stage_linux
       if: branch = master AND type = push AND tag IS blank
       env:
+        - NAME=Staging Integration tests
         - QISKIT_IBM_USE_STAGING_CREDENTIALS=true
         - QISKIT_IBM_DEVICE_STAGING=ibmq_qasm_simulator
       script:
-        - make staging && make integration-test
+        - make staging integration-test
 
     - stage: "Deploy to production and run integration tests"
       <<: *stage_linux
       if: tag IS present
+      env:
+        - NAME=Production Integration tests
       script:
-        - make production && make integration-test
+        - make production integration-test
