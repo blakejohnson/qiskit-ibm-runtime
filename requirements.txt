@@ -5,7 +5,7 @@ qiskit-machine-learning[torch,sparse]
 cvxopt
 jupyter
 matplotlib
-numpy
+numpy>=1.22.0
 dill>=0.3.4
 mthree>=0.24
 git+ssh://git@github.ibm.com/IBM-Q-Software/pec-runtime.git@0.0.1
