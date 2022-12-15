@@ -68,11 +68,19 @@ def update(envs=None):
                 }
                 with open(f"programs/{program_name}.json", "r") as metadata_file:
                     metadata = metadata_file.read()
+
+                metadata_json = json.loads(metadata)
+
+                # API expects `max_execution_time` to be sent via the `cost` field
+                max_execution_time = metadata_json.pop("max_execution_time", None)
+                if max_execution_time is not None:
+                    metadata_json.update({"cost": max_execution_time})
+
                 make_request(
                     program_url,
                     requests.patch,
                     headers=headers.copy(),
-                    json=json.loads(metadata),
+                    json=metadata_json,
                 )
 
                 # update data
