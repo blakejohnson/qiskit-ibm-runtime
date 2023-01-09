@@ -17,10 +17,12 @@ and optionally applies measurement error mitigation.
 import json
 import sys
 from time import perf_counter
+from typing import Dict
 
 from qiskit import Aer
 from qiskit.circuit import QuantumCircuit
 from qiskit.compiler import transpile, schedule
+from qiskit.qobj import QasmQobj, PulseQobj
 from qiskit.result import marginal_counts
 from qiskit_ibm_runtime.utils import RuntimeDecoder
 from qiskit_ibm_runtime.program import UserMessenger
@@ -44,13 +46,21 @@ def main(
 ):
     """Circuit runner program"""
 
-    if not isinstance(circuits, list):
+    # Support Qobj
+    if isinstance(circuits, Dict) and "type" in circuits:
+        if circuits["type"] == "PULSE":
+            circuits = PulseQobj.from_dict(circuits)
+        else:
+            circuits = QasmQobj.from_dict(circuits)
+        kwargs["skip_transpilation"] = True
+    elif not isinstance(circuits, list):
         circuits = [circuits]
 
-    for i, circuit in enumerate(circuits):
-        # Support QASM 2.0 strings
-        if isinstance(circuit, str) and "OPENQASM 2.0" in circuit:
-            circuits[i] = QuantumCircuit.from_qasm_str(circuit)
+    if isinstance(circuits, list):
+        for i, circuit in enumerate(circuits):
+            # Support QASM 2.0 strings
+            if isinstance(circuit, str) and "OPENQASM 2.0" in circuit:
+                circuits[i] = QuantumCircuit.from_qasm_str(circuit)
 
     noise_model = kwargs.pop("noise_model", None)
     seed_simulator = kwargs.pop("seed_simulator", None)
