@@ -13,6 +13,7 @@
 """Test VQE."""
 
 import os
+from unittest import skip
 import numpy as np
 
 from qiskit.algorithms.minimum_eigensolvers import NumPyMinimumEigensolver
@@ -148,6 +149,7 @@ class TestVQE(BaseTestCase):
         result = vqe.compute_minimum_eigenvalue(self.hamiltonian, aux_operators=self.observables)
         self.log.info("VQE program result: %s", result.eigenvalue)
 
+    @skip("Skip until #333 is fixed")
     def test_nature_full_workflow(self):
         """Test the ground state search workflow from Qiskit Nature."""
         current_dir = os.path.dirname(__file__)
