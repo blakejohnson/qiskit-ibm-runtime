@@ -15,7 +15,7 @@
 import os
 import numpy as np
 
-from qiskit.algorithms import NumPyMinimumEigensolver
+from qiskit.algorithms.minimum_eigensolvers import NumPyMinimumEigensolver
 from qiskit.algorithms.optimizers import SPSA, COBYLA, QNSPSA
 from qiskit.circuit.library import EfficientSU2, RealAmplitudes
 from qiskit.opflow import X, Z, I
@@ -23,17 +23,12 @@ from qiskit.providers.basicaer import QasmSimulatorPy
 
 import qiskit_nature
 from qiskit_nature.runtime import VQEClient
-from qiskit_nature.algorithms import GroundStateEigensolver
-from qiskit_nature.drivers.second_quantization import HDF5Driver
-from qiskit_nature.problems.second_quantization.electronic import (
-    ElectronicStructureProblem,
-)
-from qiskit_nature.converters.second_quantization import QubitConverter
-from qiskit_nature.mappers.second_quantization import ParityMapper
-from qiskit_nature.properties.second_quantization.electronic import ParticleNumber
-from qiskit_nature.transformers.second_quantization.electronic import (
-    ActiveSpaceTransformer,
-)
+from qiskit_nature.second_q.algorithms import GroundStateEigensolver
+from qiskit_nature.second_q.mappers import QubitConverter
+from qiskit_nature.second_q.mappers import ParityMapper
+from qiskit_nature.second_q.transformers import ActiveSpaceTransformer
+from qiskit_nature.second_q.formats.qcschema_translator import qcschema_to_problem
+from qiskit_nature.second_q.formats.qcschema import QCSchema
 
 from programs.vqe import main
 
@@ -156,16 +151,15 @@ class TestVQE(BaseTestCase):
     def test_nature_full_workflow(self):
         """Test the ground state search workflow from Qiskit Nature."""
         current_dir = os.path.dirname(__file__)
-        hdf5_file = os.path.join(current_dir, "lih_sto3g.hdf5")
-        driver = HDF5Driver(hdf5_file)
+        qcschema_file = os.path.join(current_dir, "qcschema_lih_sto3g.npy")
+        qcschema_dict = np.load(qcschema_file, allow_pickle=True).item()
+        qcschema = QCSchema.from_dict(qcschema_dict)
+        problem = qcschema_to_problem(qcschema)
 
-        properties = driver.run()
-        particle_number = properties.get_property(ParticleNumber)
         active_space_trafo = ActiveSpaceTransformer(
-            num_electrons=particle_number.num_particles, num_molecular_orbitals=3
+            num_electrons=problem.num_particles, num_spatial_orbitals=3
         )
-
-        problem = ElectronicStructureProblem(driver, transformers=[active_space_trafo])
+        problem = active_space_trafo.transform(problem)
         qubit_converter = QubitConverter(ParityMapper(), two_qubit_reduction=True)
 
         ansatz = EfficientSU2(4, reps=1, entanglement="linear")
