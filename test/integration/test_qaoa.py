@@ -18,7 +18,7 @@ from qiskit import Aer
 from qiskit.algorithms import NumPyMinimumEigensolver, QAOA
 from qiskit.algorithms.optimizers import SPSA, QNSPSA
 from qiskit.opflow import Z, I
-from qiskit_optimization.runtime import QAOAProgram
+from qiskit_optimization.runtime import QAOAClient
 
 import numpy as np
 
@@ -60,7 +60,7 @@ class TestQAOA(BaseTestCase):
         local_result = local_qaoa.compute_minimum_eigenvalue(hamiltonian)
         self.log.info("Local simulator: %s", local_result.eigenvalue)
 
-        qaoa = QAOAProgram(
+        qaoa = QAOAClient(
             optimizer=optimizer,
             reps=reps,
             initial_point=initial_point,
