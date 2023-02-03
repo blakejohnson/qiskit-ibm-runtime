@@ -196,7 +196,7 @@ class CircuitMerger:
                     continue
                 if isinstance(data.operation, Barrier):
                     continue
-                qubits.update(qubit.index for qubit in data[1])
+                qubits.update(circuit.find_bit(qubit).index for qubit in data[1])
         return qubits
 
     def _compose_circuits(

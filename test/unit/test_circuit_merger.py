@@ -17,7 +17,7 @@ import unittest
 from typing import Tuple
 
 from qiskit import BasicAer, QuantumCircuit, QuantumRegister, ClassicalRegister, execute, transpile
-from qiskit.circuit import Delay, Reset
+from qiskit.circuit import Delay, Reset, Qubit, Clbit
 from qiskit.providers.fake_provider import FakeBogota
 
 from programs.qasm3_runner import CircuitMerger
@@ -197,3 +197,34 @@ class TestCircuitMerger(unittest.TestCase):
 
         self.assertEqual(unwrapped_result.results[0].header.metadata["foo"], 1)
         self.assertEqual(unwrapped_result.results[1].header.metadata["bar"], 1)
+
+    def test_merger_works_on_unowned_bits(self):
+        """The Terra data model has bits as the fundamental object, which are not owned by
+        registers.  This has not historically been the case, however, and the circuit merger used to
+        make bad assumptions."""
+        backend = FakeBogota()
+        # This creates fundamental bits.  They are put _in_ a register, but the register doesn't own
+        # them.
+        qubits, clbits = [Qubit() for _ in [None] * 5], [Clbit() for _ in [None] * 5]
+        qreg = QuantumRegister(name="q", bits=qubits)
+        creg = ClassicalRegister(name="c", bits=clbits)
+
+        qc1 = QuantumCircuit(qreg, creg)
+        qc1.cx(0, 1)
+        qc1.measure(0, 0)
+        qc1.measure(1, 1)
+
+        qc2 = QuantumCircuit(qreg, creg)
+        qc2.cx(2, 3)
+        qc2.cx(3, 4)
+        qc2.measure(2, 2)
+        qc2.measure(3, 3)
+        qc2.measure(4, 4)
+
+        merger = CircuitMerger([qc1, qc2], backend=backend)
+        merged_circuit = merger.merge_circuits()
+
+        ops = merged_circuit.count_ops()
+        received = {"cx": ops.get("cx"), "measure": ops.get("measure")}
+        expected = {"cx": 3, "measure": 5}
+        self.assertEqual(received, expected)
