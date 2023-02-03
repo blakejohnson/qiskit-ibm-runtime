@@ -8,9 +8,9 @@ stage_generic: &stage_linux
   language: python
   python: "3.9.13"
   install:
-    - pip install --prefer-binary orjson
-    - pip install -U -r requirements.txt
-    - pip install -U -c constraints.txt -r requirements-dev.txt
+    - python -m pip install --upgrade pip wheel setuptools
+    - python -m pip install --prefer-binary orjson
+    - python -m pip install --upgrade -c constraints.txt -r requirements.txt -r requirements-dev.txt
 
 jobs:
   include:
