@@ -15,6 +15,7 @@
 from unittest import TestCase
 import logging
 import os
+import warnings
 
 
 class BaseTestCase(TestCase):
@@ -26,6 +27,17 @@ class BaseTestCase(TestCase):
         cls.log = logging.getLogger(cls.__name__)
         level = os.getenv("LOG_LEVEL", "DEBUG")
         cls._setup_test_logging(cls.log, level)
+
+        # Suppress warnings caused by ibmq-provider still using deprecated paths in Terra to import
+        # QPY.  ibmq-provider is itself deprecated, so we're avoiding pushing further changes to it.
+        # TODO: remove all usage of ibmq-provider from this package before the complete removal of
+        # that package and the release of Terra 0.25 in July 2023.
+        warnings.filterwarnings(
+            "ignore",
+            r".*qiskit\.circuit\.qpy_serialization.*",
+            DeprecationWarning,
+            "qiskit.providers.ibmq",
+        )
 
     @classmethod
     def _setup_test_logging(cls, logger, log_level):

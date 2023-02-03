@@ -6,7 +6,7 @@ stage_generic: &stage_linux
   os: linux
   dist: bionic
   language: python
-  python: 3.9
+  python: "3.9.13"
   install:
     - pip install --prefer-binary orjson
     - pip install -U -r requirements.txt
@@ -57,7 +57,7 @@ jobs:
         - make unit-test
 
     - <<: *stage_linux
-      python: 3.9
+      python: "3.9.13"
       env:
         - NAME=Unit tests
         - PRIMITIVES_DEBUG=true
