@@ -1298,6 +1298,22 @@ def _circuit_dict_to_list(circuits: dict, backend, circuit_ids) -> list:
     return [circuits[circuit_id] for circuit_id in circuit_ids]
 
 
+def result_to_dict(result: EstimatorResult):
+    """Convert ``EstimatorResult`` to a dictionary
+
+    Args:
+        result: The result of ``Estimator``
+
+    Returns:
+        A dictionary representing the result.
+
+    """
+    values = tuple(result.values.tolist())
+    ret = result.__dict__
+    ret["values"] = values
+    return ret
+
+
 def main(
     backend,
     user_messenger,  # pylint: disable=unused-argument
@@ -1459,4 +1475,4 @@ def main(
     else:
         raise QiskitError(f"Resilience level {resilience_level} not supported.")
 
-    return result.__dict__
+    return result_to_dict(result)

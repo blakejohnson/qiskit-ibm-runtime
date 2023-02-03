@@ -18,7 +18,7 @@ from test.unit import combine
 from typing import Optional
 
 import numpy as np
-from ddt import ddt
+from ddt import data, ddt
 from qiskit import QuantumCircuit
 from qiskit.circuit import Parameter
 from qiskit.circuit.library import RealAmplitudes
@@ -917,6 +917,28 @@ class TestEstimatorMainCircuitIds(unittest.TestCase):
         )
         np.testing.assert_allclose(result["values"], [1, 1], rtol=1e-2)
         self.assertEqual(len(result["metadata"]), 2)
+
+    @data(0, 1, 2)
+    def test_estimator_return_type(self, resilience_level):
+        """Test estimator return type"""
+        backend = get_simulator(resilience_level=resilience_level)
+        params = [[0, 1, 1, 2, 3, 5]]
+        result = main(
+            backend=backend,
+            user_messenger=None,
+            circuits={self.circuit_id: self.ansatz},
+            observables=[self.observable],
+            circuit_ids=[self.circuit_id],
+            observable_indices=[0],
+            parameter_values=params,
+            resilience_settings={"level": resilience_level},
+        )
+        self.assertIsInstance(result["values"], tuple)
+        for val in result["values"]:
+            self.assertIsInstance(val, float)
+        self.assertIsInstance(result["metadata"], (list, tuple))
+        for val in result["metadata"]:
+            self.assertIsInstance(val, dict)
 
 
 @ddt
