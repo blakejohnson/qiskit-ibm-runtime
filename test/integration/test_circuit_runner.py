@@ -12,6 +12,8 @@
 
 """Test circuit runner."""
 
+import requests
+
 from qiskit import QuantumCircuit
 from qiskit.compiler import assemble, transpile
 from qiskit.test.reference_circuits import ReferenceCircuits
@@ -41,6 +43,8 @@ class TestCircuitRunner(BaseTestCase):
         super().setUpClass()
         cls.provider = provider
         cls.backend_name = backend_name
+        cls.runtime_url = provider.credentials.runtime_url
+        cls.token = provider.credentials.token
 
     def setUp(self) -> None:
         """Test case setup."""
@@ -71,6 +75,35 @@ class TestCircuitRunner(BaseTestCase):
         self.log.debug("Job ID: %s", job.job_id())
         job.wait_for_final_state()
         self.assertEqual(job.status(), JobStatus.DONE, job.error_message())
+
+    def test_circuit_runner_save_transpiled_circuits(self):
+        """Test circuit_runner program save transpiled circuits in COS."""
+        program_inputs = {
+            "circuits": ReferenceCircuits.bell(),
+        }
+
+        options = {"backend_name": self.backend_name}
+
+        job = self.provider.runtime.run(
+            program_id="circuit-runner-rw0meLXgGN",
+            options=options,
+            inputs=program_inputs,
+        )
+        self.log.debug("Job ID: %s", job.job_id())
+        job.wait_for_final_state()
+        self.assertEqual(job.status(), JobStatus.DONE, job.error_message())
+        # Check if presigned url is returned
+        transpiled_circuits_url = self.runtime_url + f"/jobs/{job.job_id()}/transpiled_circuits"
+        resp = requests.get(
+            transpiled_circuits_url, headers={"Authorization": f"Bearer {self.token}"}
+        )
+        presigned_url = resp.json()["url"]
+        self.assertIsNotNone(presigned_url)
+        # Check if transpiled circuits are downloaded using presigned url
+        json_resp = requests.get(presigned_url).json()
+        self.assertIsNotNone(json_resp["transpiled_circuits"])
+        self.assertIsNotNone(json_resp["transpiled_circuits"]["qpy"])
+        self.assertIsNotNone(json_resp["transpiled_circuits"]["qasm2"])
 
     def test_circuit_runner_qasm_2(self):
         """Test circuit_runner program with QASM 2.0 input."""
