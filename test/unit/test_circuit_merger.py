@@ -152,7 +152,7 @@ class TestCircuitMerger(unittest.TestCase):
             operation = inst.operation
             if isinstance(operation, Reset):
                 reset_found = True
-                self.assertIn(inst.qubits[0].index, (0, 1))
+                self.assertIn(merged_circuit.find_bit(inst.qubits[0]).index, (0, 1))
         self.assertTrue(reset_found)
 
     def test_reset_only_on_used_qubits_non_nop(self):
@@ -176,7 +176,7 @@ class TestCircuitMerger(unittest.TestCase):
             operation = inst.operation
             if isinstance(operation, Reset):
                 reset_found = True
-                self.assertIn(inst.qubits[0].index, (0,))
+                self.assertIn(merged_circuit.find_bit(inst.qubits[0]).index, (0,))
         self.assertTrue(reset_found)
 
     def test_metadata(self):

@@ -152,32 +152,28 @@ def final_measurement_mapping(circuit):
     """
     if len(circuit.qregs) > 1 or len(circuit.qregs) > 1:
         raise ValueError("Number of quantum or classical registers is greater than one.")
-    num_qubits = circuit.num_qubits
-    num_clbits = circuit.num_clbits
-    active_qubits = list(range(num_qubits))
-    active_cbits = list(range(num_clbits))
+    active_qubits = set(circuit.qubits)
+    active_cbits = set(circuit.clbits)
     qmap = []
     cmap = []
-    for item in circuit._data[::-1]:
-        if item[0].name == "measure":
-            cbit = item[2][0].index
-            qbit = item[1][0].index
+    for instruction in circuit.data[::-1]:
+        if instruction.operation.name == "measure":
+            cbit = instruction.clbits[0]
+            qbit = instruction.qubits[0]
             if cbit in active_cbits and qbit in active_qubits:
                 qmap.append(qbit)
                 cmap.append(cbit)
                 active_cbits.remove(cbit)
                 active_qubits.remove(qbit)
-        elif item[0].name != "barrier":
-            for q_q in item[1]:
-                if q_q.index in active_qubits:
-                    active_qubits.remove(q_q.index)
+        elif instruction.operation.name != "barrier":
+            active_qubits -= instruction.qubits
 
         if len(active_cbits) == 0 or len(active_qubits) == 0:
             break
     if cmap and qmap:
         mapping = {}
         for idx, qubit in enumerate(qmap):
-            mapping[qubit] = cmap[idx]
+            mapping[circuit.find_bit(qubit).index] = cmap[idx]
     else:
         raise ValueError("Measurement not found in circuits.")
 
