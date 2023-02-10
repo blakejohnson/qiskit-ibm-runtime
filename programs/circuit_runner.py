@@ -80,16 +80,16 @@ def main(
             **transpiler_options,
         )
 
-    job_object_storage = backend.provider().job_object_storage()
-    if job_object_storage:
-        job_object_storage.save_transpiled_circuits(
-            transpiled_circuits={
-                "transpiled_circuits": {
-                    "qpy": circuits,
-                    "qasm2": [circuit.qasm() for circuit in circuits],
-                }
-            },
-        )
+        job_object_storage = backend.provider().job_object_storage()
+        if job_object_storage:
+            job_object_storage.save_transpiled_circuits(
+                transpiled_circuits={
+                    "transpiled_circuits": {
+                        "qpy": circuits,
+                        "qasm2": [circuit.qasm() for circuit in circuits],
+                    }
+                },
+            )
 
     if schedule_circuit:
         circuits = schedule(
