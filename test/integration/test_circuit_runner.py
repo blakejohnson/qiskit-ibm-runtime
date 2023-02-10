@@ -85,7 +85,7 @@ class TestCircuitRunner(BaseTestCase):
         options = {"backend_name": self.backend_name}
 
         job = self.provider.runtime.run(
-            program_id="circuit-runner-rw0meLXgGN",
+            program_id="circuit-runner",
             options=options,
             inputs=program_inputs,
         )
