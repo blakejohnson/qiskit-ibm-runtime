@@ -26,7 +26,6 @@ from os import environ
 from typing import Dict, List, Optional, cast
 
 import numpy as np
-from mthree.utils import final_measurement_mapping
 from qiskit.circuit import Parameter, QuantumCircuit
 from qiskit.circuit.library import RZGate, XGate
 from qiskit.circuit.parametertable import ParameterView
@@ -34,7 +33,7 @@ from qiskit.compiler import transpile
 from qiskit.exceptions import QiskitError
 from qiskit.opflow import PauliSumOp
 from qiskit.primitives import BackendEstimator, EstimatorResult
-from qiskit.primitives.utils import init_observable
+from qiskit.primitives.utils import init_observable, final_measurement_mapping
 from qiskit.providers import Backend, BackendV1, Options
 from qiskit.quantum_info import Pauli, PauliList, SparsePauliOp
 from qiskit.quantum_info.operators.base_operator import BaseOperator

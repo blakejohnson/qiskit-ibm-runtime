@@ -23,7 +23,7 @@ from qiskit.circuit.library import RealAmplitudes
 from qiskit.exceptions import QiskitError
 from qiskit.providers.fake_provider import FakeBogota
 
-from programs.sampler import CircuitCache, MidcircuitMeasurementError, Sampler, main
+from programs.sampler import CircuitCache, Sampler, main
 
 from .mock.mock_cache import MockCache
 from .test_estimator import get_simulator
@@ -771,11 +771,12 @@ class TestSamplerMainCircuitIds(unittest.TestCase):
 
     @combine(resilience_level=[0, 1])
     def test_sampler_separated_cregs_unused_clbits(self, resilience_level):
-        """test sampler with separated cregs with unused clbits"""
+        """test sampler with separated cregs and unused clbits"""
         backend = get_simulator()
         circ = QuantumCircuit(2, 2)
         circ.h(0)
         circ.cx(0, 1)
+        # clbits[0] and clbits[1] are not used
         circ.measure_all()
         result = main(
             backend=backend,
@@ -791,40 +792,51 @@ class TestSamplerMainCircuitIds(unittest.TestCase):
         self._compare_probs(result["quasi_dists"], targets)
 
     @combine(resilience_level=[0, 1])
-    def test_sampler_multiple_measurements(self, resilience_level):
-        """test sampler with multiple measurements of the same qubit to raise an error
-        if readout error mitigation is enabled"""
+    def test_sampler_midcircuit_measurements(self, resilience_level):
+        """test sampler with mid-circuit measurements of the same qubit"""
         backend = get_simulator()
         circ = QuantumCircuit(1, 2)
         circ.h(0)
         circ.measure(0, 0)
+        circ.x(0)
         circ.measure(0, 1)
 
-        if resilience_level == 0:
-            result = main(
-                backend=backend,
-                user_messenger=None,
-                circuits=[circ],
-                circuit_indices=[0],
-                parameter_values=[[]],
-                run_options={"shots": 10000, "seed_simulator": 123},
-                transpilation_settings={"seed_transpiler": 15},
-                resilience_settings={"level": resilience_level},
-            )
-            targets = [{"00": 0.5, "11": 0.5}]
-            self._compare_probs(result["quasi_dists"], targets)
-        else:
-            with self.assertRaises(MidcircuitMeasurementError):
-                _ = main(
-                    backend=backend,
-                    user_messenger=None,
-                    circuits=[circ],
-                    circuit_indices=[0],
-                    parameter_values=[[]],
-                    run_options={"shots": 10000, "seed_simulator": 123},
-                    transpilation_settings={"seed_transpiler": 15},
-                    resilience_settings={"level": resilience_level},
-                )
+        result = main(
+            backend=backend,
+            user_messenger=None,
+            circuits=[circ],
+            circuit_indices=[0],
+            parameter_values=[[]],
+            run_options={"shots": 10000, "seed_simulator": 123},
+            transpilation_settings={"seed_transpiler": 15},
+            resilience_settings={"level": resilience_level},
+        )
+        targets = [{"10": 0.5, "01": 0.5}]
+        self._compare_probs(result["quasi_dists"], targets)
+
+    @combine(resilience_level=[0, 1])
+    def test_sampler_sep_unused_mid(self, resilience_level):
+        """test sampler with separated cregs, unused clbits, and mid-circuit measurements"""
+        backend = get_simulator()
+        circ = QuantumCircuit(2, 2)
+        circ.h(0)
+        circ.cx(0, 1)
+        circ.measure(0, 0)
+        # clbit[1] is not used
+        circ.x([0, 1])
+        circ.measure_all()
+        result = main(
+            backend=backend,
+            user_messenger=None,
+            circuits=[circ],
+            circuit_indices=[0],
+            parameter_values=[[]],
+            run_options={"shots": 10000, "seed_simulator": 123},
+            transpilation_settings={"seed_transpiler": 15},
+            resilience_settings={"level": resilience_level},
+        )
+        targets = [{"1100": 0.5, "0001": 0.5}]
+        self._compare_probs(result["quasi_dists"], targets)
 
 
 @ddt

@@ -108,6 +108,7 @@ class TestNoiseModel(unittest.TestCase):
         fake_backend = FakeGuadalupe()
         noise_model = NoiseModel.from_backend(fake_backend)
         seed_simulator = 42
+        seed_mitigation = 42
         shots = 100
         backend = Aer.get_backend("aer_simulator")
 
@@ -126,6 +127,12 @@ class TestNoiseModel(unittest.TestCase):
             transpilation_settings={
                 "coupling_map": fake_backend.configuration().coupling_map,
                 "basis_gates": fake_backend.configuration().basis_gates,
+            },
+            resilience_settings={
+                "pauli_twirled_mitigation": {
+                    "seed_mitigation": seed_mitigation,
+                    "seed_simulator": seed_simulator,
+                },
             },
         )
 

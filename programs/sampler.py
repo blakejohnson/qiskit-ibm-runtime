@@ -56,12 +56,6 @@ logger = logging.getLogger(__name__)
 DEBUG = environ.get("PRIMITIVES_DEBUG", "false") == "true"
 
 
-class MidcircuitMeasurementError(QiskitError):
-    """Error related to midcircuit measurements"""
-
-    pass
-
-
 class Sampler:
     """
     Sampler class
@@ -459,23 +453,17 @@ class Sampler:
         self, counts: Counts, circuit: QuantumCircuit
     ) -> tuple[M3QuasiDistribution, dict]:
         mapping = final_measurement_mapping(circuit)
-        used_clbits = set(mapping.values())
+        used_clbits = set(mapping.keys())
         all_clbits = set(range(circuit.num_clbits))
         if used_clbits != all_clbits:
             unused_clbits = list(all_clbits - used_clbits)
-            unused_counts = marginal_distribution(counts, unused_clbits)
-            if len(unused_counts) > 1 or set(next(iter(unused_counts))) != {"0"}:
-                raise MidcircuitMeasurementError(
-                    "Sampler does not currently support mid-circuit measurements "
-                    "when resilience_level is not 0"
-                )
             reduced_counts, reduced_mapping = marginal_distribution(
                 counts, sorted(used_clbits), mapping
             )
             quasi, details = self._m3_mitigation.apply_correction(
                 reduced_counts, reduced_mapping, return_mitigation_overhead=True, details=True
             )
-            quasi = self._expand_keys(quasi, unused_clbits, circuit.num_clbits)
+            quasi = self._expand_keys(quasi, unused_clbits)
         else:
             quasi, details = self._m3_mitigation.apply_correction(
                 counts, mapping, return_mitigation_overhead=True, details=True
@@ -483,19 +471,15 @@ class Sampler:
         return quasi, details
 
     def _expand_keys(
-        self, quasi: M3QuasiDistribution, unused_clbits: list[int], num_clbits: int
+        self, quasi: M3QuasiDistribution, unused_clbits: list[int]
     ) -> M3QuasiDistribution:
+        """fill '0' to unused qubits"""
+
         def _expand(key: str):
-            lst = [""] * num_clbits
-            for i in unused_clbits:
-                lst[num_clbits - i - 1] = "0"
-            i = 0
-            for char in key:
-                while lst[i]:
-                    i += 1
-                lst[i] = char
-                i += 1
-            return "".join(lst)
+            lst = list(key[::-1])
+            for i in sorted(unused_clbits):
+                lst.insert(i, "0")
+            return "".join(lst[::-1])
 
         return M3QuasiDistribution(
             {_expand(key): val for key, val in quasi.items()},
