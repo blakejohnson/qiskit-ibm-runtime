@@ -1,6 +1,6 @@
 # This code is part of Qiskit.
 #
-# (C) Copyright IBM 2022.
+# (C) Copyright IBM 2022, 2023.
 #
 # This code is licensed under the Apache License, Version 2.0. You may
 # obtain a copy of this license in the LICENSE.txt file in the root directory
@@ -1062,6 +1062,12 @@ class PauliTwirledMitigation:
         **cal_run_options,
     ):
         self._backend = backend
+        if num_twirled_circuits % 2 == 1:
+            logger.warning(
+                "Number of twirled circuits should be even, but it is (%d). It will be increased by 1.",
+                num_twirled_circuits,
+            )
+            num_twirled_circuits += 1
         self._num_twirled_circuits = num_twirled_circuits
         self._shots_calibration = shots_calibration
         if seed is None or isinstance(seed, int):
@@ -1125,8 +1131,14 @@ class PauliTwirledMitigation:
                 total[cls._bitflip(key, flip)] += num
         return Counts(total)
 
-    def _append_random_x_and_measure(self, circ: QuantumCircuit, qubits: Sequence[int]):
-        flip = np.where(self._rng.choice(2, len(qubits)) == 1)[0]
+    def _random_bits(self, qubits: Sequence[int]):
+        bits = self._rng.choice(2, (self._num_twirled_circuits // 2, len(qubits)))
+        bits = np.concatenate([bits, 1 - bits])
+        return bits
+
+    def _append_x_and_measure(self, circ: QuantumCircuit, qubits: Sequence[int], bits: np.ndarray):
+        # `bits` represents a list of integers (0 or 1)
+        flip = np.where(bits == 1)[0]
         if len(flip) > 0:
             circ.x(np.asarray(qubits)[flip])
         meas = QuantumCircuit(circ.num_qubits, len(qubits))
@@ -1161,9 +1173,9 @@ class PauliTwirledMitigation:
 
     def _calibrate(self, qubits: Sequence[int]):
         circuits = []
-        for _ in range(self._num_twirled_circuits):
+        for bits in self._random_bits(qubits):
             circ = QuantumCircuit(max(qubits) + 1)
-            circ = self._append_random_x_and_measure(circ, qubits)
+            circ = self._append_x_and_measure(circ, qubits, bits)
             circuits.append(circ)
         shots = self._subdivide_shots(self._shots_calibration, self._num_twirled_circuits)
         result, metadata = run_circuits(
@@ -1194,8 +1206,8 @@ class PauliTwirledMitigation:
         for circ in circuits:
             qubits = list(final_measurement_mapping(circ))
             circ.remove_final_measurements(inplace=True)
-            for _ in range(self._num_twirled_circuits):
-                circ2 = self._append_random_x_and_measure(circ.copy(), qubits)
+            for bits in self._random_bits(qubits):
+                circ2 = self._append_x_and_measure(circ.copy(), qubits, bits)
                 circuits2.append(circ2)
         shots2 = self._subdivide_shots(shots, self._num_twirled_circuits)
         return run_circuits(circuits2, backend=self._backend, shots=shots2, **options)
