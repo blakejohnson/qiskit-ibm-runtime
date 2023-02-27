@@ -141,7 +141,7 @@ class CircuitMerger:
                     circuit.barrier(used_qubits)
         elif init_delay:
             for qubit in used_qubits:
-                circuit.delay(delay_per_round, qubit, unit=init_delay_unit)
+                circuit.delay(init_delay, qubit, unit=init_delay_unit)
             circuit.barrier(used_qubits)
 
         if init_delay:

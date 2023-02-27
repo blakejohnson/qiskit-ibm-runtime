@@ -228,3 +228,26 @@ class TestCircuitMerger(unittest.TestCase):
         received = {"cx": ops.get("cx"), "measure": ops.get("measure")}
         expected = {"cx": 3, "measure": 5}
         self.assertEqual(received, expected)
+
+    def test_single_circuit_with_init_delay_no_resets(self):
+        """Test single circuit with initialization delay and no resets.
+
+        A regression test for issue #343.
+        """
+
+        qc1, _ = _create_test_circuits()
+        merger = CircuitMerger([qc1], backend=self.sim_backend)
+        merged_circuit = merger.merge_circuits(
+            init_num_resets=0,
+            init_delay=1e-4,
+            init_delay_unit="s",
+        )
+
+        delays_found = 0
+        for inst in merged_circuit.data:
+            operation = inst.operation
+            if isinstance(operation, Delay):
+                delays_found += 1
+                self.assertEqual(operation.duration, 100016)
+                self.assertEqual(operation.unit, "dt")
+        self.assertEqual(delays_found, 4)
