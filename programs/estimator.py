@@ -1230,8 +1230,9 @@ def zne_strategy_from_settings(settings: dict) -> ZNEStrategy:
     extrapolator: Extrapolator = extrapolator_from_setting(extrapolator_setting)
     if len(noise_factors) < extrapolator.min_points:
         raise ValueError(
-            f"Invalid setting: '{extrapolator.__name__}' requires at least "
-            f"{extrapolator.min_points} noise factors but only {len(noise_factors)} were given."
+            f"Invalid setting: {extrapolator_setting!r} requires at least "
+            f"{extrapolator.min_points} noise factors but only {len(noise_factors)} were given: "
+            f"{noise_factors}."
         )
     return ZNEStrategy(
         noise_factors=noise_factors,
