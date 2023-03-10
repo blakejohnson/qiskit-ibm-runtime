@@ -438,8 +438,8 @@ class Sampler:
                 mitigation_times.append(details["time"])
 
         metadata = []
-        for idx, res in enumerate(result.results):
-            _temp_dict = {"header_metadata": res.header.metadata, "shots": shots}
+        for idx, _ in enumerate(result.results):
+            _temp_dict = {"shots": shots}
             if self._m3_mitigation:
                 _temp_dict["readout_mitigation_overhead"] = mitigation_overheads[idx]
                 _temp_dict["readout_mitigation_time"] = mitigation_times[idx]
