@@ -24,7 +24,7 @@ from qiskit.providers.fake_provider import FakeNairobi, FakeVigo, FakeMontreal
 from qiskit.quantum_info import SparsePauliOp
 from qiskit_aer import AerSimulator
 
-from programs.estimator import main, Constant
+from programs.estimator import main, EstimatorConstant
 from .mock.mock_user_messenger import MockUserMessenger
 
 
@@ -34,7 +34,7 @@ class TestPEC(unittest.TestCase):
 
     def test_result(self):
         """Test for main without noise with single parameter set"""
-        resilience_level = Constant.PEC_RESILIENCE_LEVEL
+        resilience_level = EstimatorConstant.PEC_RESILIENCE_LEVEL
         backend = AerSimulator.from_backend(FakeMontreal())
         ansatz = RealAmplitudes(num_qubits=2, reps=2)
         observable = PauliSumOp.from_list(
@@ -95,7 +95,7 @@ class TestPEC(unittest.TestCase):
             run_options={"seed_simulator": 15},
             transpilation_settings={"seed_transpiler": 15},
             resilience_settings={
-                "level": Constant.PEC_RESILIENCE_LEVEL,
+                "level": EstimatorConstant.PEC_RESILIENCE_LEVEL,
             },
         )
 
@@ -124,7 +124,7 @@ class TestPEC(unittest.TestCase):
             run_options={"seed_simulator": 15},
             transpilation_settings={"seed_transpiler": 15},
             resilience_settings={
-                "level": Constant.PEC_RESILIENCE_LEVEL,
+                "level": EstimatorConstant.PEC_RESILIENCE_LEVEL,
                 "num_samples": 35,
             },
         )
@@ -152,11 +152,13 @@ class TestPEC(unittest.TestCase):
             run_options={"seed_simulator": 15},
             transpilation_settings={"seed_transpiler": 15},
             resilience_settings={
-                "level": Constant.PEC_RESILIENCE_LEVEL,
+                "level": EstimatorConstant.PEC_RESILIENCE_LEVEL,
             },
         )
 
-        self.assertEqual(result["metadata"][0]["samples"], Constant.PEC_DEFAULT_NUM_SAMPLES)
+        self.assertEqual(
+            result["metadata"][0]["samples"], EstimatorConstant.PEC_DEFAULT_NUM_SAMPLES
+        )
 
     @unittest.skip("We are not letting the user pass the number of max layers for now")
     def test_max_learning_layers(self):
@@ -177,7 +179,7 @@ class TestPEC(unittest.TestCase):
             run_options={"seed_simulator": 15},
             transpilation_settings={"seed_transpiler": 15},
             resilience_settings={
-                "level": Constant.PEC_RESILIENCE_LEVEL,
+                "level": EstimatorConstant.PEC_RESILIENCE_LEVEL,
                 "max_learning_layers": 3,
             },
         )

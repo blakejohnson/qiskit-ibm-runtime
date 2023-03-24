@@ -19,11 +19,12 @@ import copy
 import hashlib
 import json
 import logging
+import re
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from itertools import accumulate
 from os import environ
-from typing import Dict, List, Optional, cast
+from typing import Dict, List, Optional, cast, Union
 
 import numpy as np
 from qiskit.circuit import Parameter, QuantumCircuit
@@ -35,6 +36,7 @@ from qiskit.opflow import PauliSumOp
 from qiskit.primitives import BackendEstimator, EstimatorResult
 from qiskit.primitives.utils import init_observable, final_measurement_mapping
 from qiskit.providers import Backend, BackendV1, Options
+from qiskit.qasm3 import loads as qasm3_loads
 from qiskit.quantum_info import Pauli, PauliList, SparsePauliOp
 from qiskit.quantum_info.operators.base_operator import BaseOperator
 from qiskit.result import Counts, Result
@@ -55,6 +57,8 @@ from zne.noise_amplification import NoiseAmplifier, NOISE_AMPLIFIER_LIBRARY
 from zne.extrapolation import Extrapolator, EXTRAPOLATOR_LIBRARY
 
 from pec_runtime.primitives import Estimator as PEC_Estimator
+
+QuantumProgram = Union[QuantumCircuit, str]
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +109,7 @@ class Estimator:
     def __init__(
         self,
         backend: Backend,
-        circuits: QuantumCircuit | Iterable[QuantumCircuit] | Mapping[str, QuantumCircuit],
+        circuits: QuantumProgram | Iterable[QuantumProgram] | Mapping[str, QuantumProgram],
         observables: BaseOperator | PauliSumOp | Iterable[BaseOperator | PauliSumOp],
         parameters: Iterable[Iterable[Parameter]] | None = None,
         abelian_grouping: bool = True,
@@ -123,7 +127,7 @@ class Estimator:
         self._backend = backend
         self._circuit_ids: Sequence[str] = circuit_ids
         self._transpile_options = Options()
-        self._circuits_map: Dict[str, QuantumCircuit] = {}
+        self._circuits_map: Dict[str, QuantumProgram] = {}
         self._circuits = self._get_circuits(circuits=circuits)
         self._observables = self._get_observables(observables=observables)
         self._parameters = parameters
@@ -139,9 +143,25 @@ class Estimator:
         self._mitigation = pauli_twirled_mitigation
 
     def _get_circuits(
-        self, circuits: QuantumCircuit | Iterable[QuantumCircuit] | Mapping[str, QuantumCircuit]
+        self, circuits: QuantumProgram | Iterable[QuantumProgram] | Mapping[str, QuantumProgram]
     ) -> list[QuantumCircuit]:
         """Return list of circuits."""
+
+        # Convert from QASM to QauntumCircuit, if needed.
+        if isinstance(circuits, str):
+            circuits = (str_to_quantum_circuit(circuits),)
+        elif isinstance(circuits, Dict):
+            circuits = {
+                k: (str_to_quantum_circuit(v) if isinstance(v, str) else v)
+                for k, v in circuits.items()
+            }
+        elif isinstance(circuits, Iterable):
+            circuits = [
+                str_to_quantum_circuit(circuit) if isinstance(circuit, str) else circuit
+                for circuit in circuits
+            ]
+
+        # Return list of QuantumCircuit objects.
         if isinstance(circuits, QuantumCircuit):
             return [circuits]
         elif isinstance(circuits, dict) or self._circuit_ids is not None:
@@ -1266,9 +1286,9 @@ def extrapolator_from_setting(setting: str) -> Extrapolator:
 
 
 ################################################################################
-## CONSTANTS
+## ESTIMATOR CONSTANTS
 ################################################################################
-class Constant:
+class EstimatorConstant:
     """Class to capture Primitives constants"""
 
     TREX_RESILIENCE_LEVEL: int = 1
@@ -1279,10 +1299,46 @@ class Constant:
 
     PEC_DEFAULT_NUM_SAMPLES: int = 1024
 
+    INVALID_QASM_VERSION_MESSAGE = (
+        "OpenQASM version invalid or not specified in program, will use OpenQASM 3."
+    )
+
 
 ################################################################################
 ## MAIN
 ################################################################################
+
+# Move this function to a "commons" file when in new repo
+def str_to_quantum_circuit(program: str) -> QuantumCircuit:
+    """Converts a QASM program to a QuantumCircuit object. Depending on the
+    OpenQASM version of the program, it will use either
+    `QuantumCircuit.from_qasm_str` or `qiskit.qasm3.loads`.
+    If no OpenQASM version is specified in the header of the program, then it's
+    assumed to be an OpenQASM3 program.
+    Args:
+        program: a OpenQASM program as a string
+    Returns:
+        QuantumCircuit: the input OpenQASM program as a quantum circuit object
+    """
+    match = re.search(r"OPENQASM\s+(\d+)(\.(\d+))*", program)
+    try:
+        if match is None:
+            # Issue a warning and try using OpenQASM3 if version was invalid or not specified
+            logger.warning(EstimatorConstant.INVALID_QASM_VERSION_MESSAGE)
+            return qasm3_loads(program)
+        else:
+            qasm_version = match.group(1)
+            if float(qasm_version) == 2:
+                # OpenQASM2
+                return QuantumCircuit.from_qasm_str(program)
+            else:  # version 3 and other versions
+                # use default OpenQASM3 loads
+                return qasm3_loads(program)
+    # catch all exceptions from openqasm3.parser.*, qiskit.qasm.exceptions.*, qiskit.qasm3.exceptions.*
+    except Exception as qasm_error:  #  pylint: disable=broad-except
+        raise QiskitError(f"Error parsing OpenQASM program. {getattr(qasm_error, 'msg', '')}")
+
+
 def _restore_circuits(circuits, circuit_indices, circuit_ids, backend) -> list[QuantumCircuit]:
     if isinstance(circuits, dict):
         circuit_list = _circuit_dict_to_list(circuits, backend, circuit_ids)
@@ -1390,7 +1446,7 @@ def main(
         bound_pass_manager = None
 
     # Execute for different resilience levels
-    resilience_level = resilience_settings.get("level", Constant.DEFAULT_RESILIENCE_LEVEL)
+    resilience_level = resilience_settings.get("level", EstimatorConstant.DEFAULT_RESILIENCE_LEVEL)
     if resilience_level == 0:  # None
         estimator = Estimator(
             backend=backend,
@@ -1409,7 +1465,7 @@ def main(
             parameter_values=parameter_values,
             **run_options,
         )
-    elif resilience_level == Constant.TREX_RESILIENCE_LEVEL:  # T-REX
+    elif resilience_level == EstimatorConstant.TREX_RESILIENCE_LEVEL:  # T-REX
         options = resilience_settings.pop("pauli_twirled_mitigation", {})
         seed = options.pop("seed_mitigation", None)
         mitigation = PauliTwirledMitigation(backend=backend, seed=seed, **options)
@@ -1430,7 +1486,7 @@ def main(
             parameter_values=parameter_values,
             **run_options,
         )
-    elif resilience_level == Constant.ZNE_RESILIENCE_LEVEL:  # ZNE
+    elif resilience_level == EstimatorConstant.ZNE_RESILIENCE_LEVEL:  # ZNE
         ZNEEstimator = zne(BackendEstimator)  # pylint: disable=invalid-name
         zne_strategy = zne_strategy_from_settings(resilience_settings)
         estimator = ZNEEstimator(
@@ -1458,7 +1514,7 @@ def main(
                 zne_md["extrapolation"]["extrapolator"] = repr(
                     zne_md["extrapolation"]["extrapolator"]
                 )
-    elif resilience_level == Constant.PEC_RESILIENCE_LEVEL:  # PEC
+    elif resilience_level == EstimatorConstant.PEC_RESILIENCE_LEVEL:  # PEC
         transpilation_settings["basis_gates"] = backend.configuration().basis_gates
         circuit_list = _restore_circuits(circuits, circuit_indices, circuit_ids, backend)
         observable_list = [observables[i] for i in observable_indices]

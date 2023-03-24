@@ -1,6 +1,6 @@
 # This code is part of Qiskit.
 #
-# (C) Copyright IBM 2022.
+# (C) Copyright IBM 2022, 2023.
 #
 # This code is licensed under the Apache License, Version 2.0. You may
 # obtain a copy of this license in the LICENSE.txt file in the root directory
@@ -18,9 +18,10 @@ import copy
 import hashlib
 import json
 import logging
+import re
 from collections.abc import Iterable, Sequence
 from os import environ
-from typing import Dict, List, Optional, cast
+from typing import Dict, List, Optional, cast, Union
 
 import numpy as np
 from mthree import M3Mitigation
@@ -34,6 +35,7 @@ from qiskit.exceptions import QiskitError
 from qiskit.primitives import SamplerResult
 from qiskit.providers import BackendV1, Options
 from qiskit.providers.backend import BackendV1 as Backend
+from qiskit.qasm3 import loads as qasm3_loads
 from qiskit.result import Counts, QuasiDistribution, Result
 from qiskit.transpiler import InstructionDurations, PassManager
 from qiskit.transpiler.passes import (
@@ -45,6 +47,8 @@ from qiskit.transpiler.passes import (
 )
 from qiskit.transpiler.timing_constraints import TimingConstraints
 from qiskit_ibm_runtime import RuntimeDecoder, RuntimeEncoder
+
+QuantumProgram = Union[QuantumCircuit, str]
 
 # Number of effective shots per measurement error rate
 DEFAULT_SHOTS = 25000
@@ -64,7 +68,7 @@ class Sampler:
     def __init__(
         self,
         backend: Backend,
-        circuits: QuantumCircuit | Iterable[QuantumCircuit] | Dict[str, QuantumCircuit],
+        circuits: QuantumProgram | Iterable[QuantumProgram] | Dict[str, QuantumProgram],
         parameters: Iterable[Iterable[Parameter]] | None = None,
         bound_pass_manager: PassManager | None = None,
         skip_transpilation: bool = False,
@@ -81,22 +85,37 @@ class Sampler:
         self._backend = backend
         self._circuit_ids: Sequence[str] = circuit_ids
         self._transpile_options = Options()
-        self._circuits_map: Dict[str, QuantumCircuit] = {}
+        self._circuits_map: Dict[str, QuantumProgram] = {}
         self._circuits = self._get_circuits(circuits=circuits)
         self._parameters = parameters
         self._circuit_cache = CircuitCache(cache=self._get_cache())
         self._run_options = Options()
         self._is_closed = False
         self._bound_pass_manager = bound_pass_manager
-        self._preprocessed_circuits: list[QuantumCircuit] | None = None
         self._transpiled_circuits: list[QuantumCircuit] | None = None
         self._skip_transpilation = skip_transpilation
         self._m3_mitigation: M3Mitigation | None = None
 
     def _get_circuits(
-        self, circuits: QuantumCircuit | Iterable[QuantumCircuit] | Dict[str, QuantumCircuit]
+        self, circuits: QuantumProgram | Iterable[QuantumProgram] | Dict[str, QuantumProgram]
     ):
-        """Return list of circuits."""
+        """Return list of QuanutmCircuit circuits."""
+
+        # Convert from QASM to QauntumCircuit, if needed.
+        if isinstance(circuits, str):
+            circuits = (str_to_quantum_circuit(circuits),)
+        elif isinstance(circuits, Dict):
+            circuits = {
+                k: (str_to_quantum_circuit(v) if isinstance(v, str) else v)
+                for k, v in circuits.items()
+            }
+        elif isinstance(circuits, Iterable):
+            circuits = [
+                str_to_quantum_circuit(circuit) if isinstance(circuit, str) else circuit
+                for circuit in circuits
+            ]
+
+        # Return list of QuantumCircuit objects.
         if isinstance(circuits, QuantumCircuit):
             circuits = (circuits,)
             return list(circuits)
@@ -364,7 +383,7 @@ class Sampler:
             for i, circuit in enumerate(circuits):
                 if circuit.num_parameters != 0:
                     raise QiskitError(
-                        f"The {i}-th circuit ({len(circuits)}) is parameterized,"
+                        f"The {i}-th circuit ({len(circuits)}) is parameterized, "
                         "but parameter values are not given."
                     )
             return [[]] * circuits_len
@@ -747,6 +766,51 @@ def dynamical_decoupling_pass(backend: BackendV1) -> Optional[PassManager]:
                 pulse_alignment=timing_constraints.pulse_alignment,
             ),
         ]
+    )
+
+
+# Move this function to a "commons" file when in new repo
+def str_to_quantum_circuit(program: str) -> QuantumCircuit:
+    """Converts a QASM program to a QuantumCircuit object. Depending on the
+    OpenQASM version of the program, it will use either
+    `QuantumCircuit.from_qasm_str` or `qiskit.qasm3.loads`.
+    If no OpenQASM version is specified in the header of the program, then it's
+    assumed to be an OpenQASM3 program.
+
+    Args:
+        program: a OpenQASM program as a string
+
+    Returns:
+        QuantumCircuit: the input OpenQASM program as a quantum circuit object
+
+    """
+    match = re.search(r"OPENQASM\s+(\d+)(\.(\d+))*", program)
+    try:
+        if match is None:
+            # Issue a warning and try using OpenQASM3 if version was invalid or not specified
+            logger.warning(SamplerConstant.INVALID_QASM_VERSION_MESSAGE)
+            return qasm3_loads(program)
+        else:
+            qasm_version = match.group(1)
+            if float(qasm_version) == 2:
+                # OpenQASM2
+                return QuantumCircuit.from_qasm_str(program)
+            else:  # version 3 and other versions
+                # use default OpenQASM3 loads
+                return qasm3_loads(program)
+    # catch all exceptions from openqasm3.parser.*, qiskit.qasm.exceptions.*, qiskit.qasm3.exceptions.*
+    except Exception as qasm_error:  #  pylint: disable=broad-except
+        raise QiskitError(f"Error parsing OpenQASM program. {getattr(qasm_error, 'msg', '')}")
+
+
+################################################################################
+## SAMPLER CONSTANTS
+################################################################################
+class SamplerConstant:
+    """Class to capture Sampler constants"""
+
+    INVALID_QASM_VERSION_MESSAGE = (
+        "OpenQASM version invalid or not specified in program, will use OpenQASM 3."
     )
 
 

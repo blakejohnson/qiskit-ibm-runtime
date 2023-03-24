@@ -32,7 +32,13 @@ from qiskit.quantum_info import Operator, SparsePauliOp
 from qiskit.quantum_info.random import random_pauli_list
 from qiskit_aer import AerSimulator
 
-from programs.estimator import CircuitCache, Constant, Estimator, PauliTwirledMitigation, main
+from programs.estimator import (
+    CircuitCache,
+    EstimatorConstant,
+    Estimator,
+    PauliTwirledMitigation,
+    main,
+)
 
 from .mock.mock_cache import MockCache
 
@@ -53,7 +59,7 @@ def get_simulator(
     """
     if noise:
         return AerSimulator.from_backend(backend)
-    elif resilience_level == Constant.PEC_RESILIENCE_LEVEL:
+    elif resilience_level == EstimatorConstant.PEC_RESILIENCE_LEVEL:
         return AerSimulator.from_backend(backend if backend else FakeBogota(), noise_model=None)
     else:
         return AerSimulator()
@@ -549,21 +555,21 @@ class TestEstimatorMainCircuitIndices(unittest.TestCase):
         np.testing.assert_allclose(
             result["values"],
             target,
-            rtol=1e-2 if resilience_level < Constant.ZNE_RESILIENCE_LEVEL else 2e-1,
+            rtol=1e-2 if resilience_level < EstimatorConstant.ZNE_RESILIENCE_LEVEL else 2e-1,
         )
         self.assertEqual(len(result["metadata"]), 1)
         if resilience_level == 0:
             self.assertEqual(result["metadata"][0]["shots"], shots)
-        elif resilience_level == Constant.TREX_RESILIENCE_LEVEL:
+        elif resilience_level == EstimatorConstant.TREX_RESILIENCE_LEVEL:
             div = result["metadata"][0]["readout_mitigation_num_twirled_circuits"]
             self.assertEqual(result["metadata"][0]["shots"], int(ceil(shots / div)) * div)
-        elif resilience_level == Constant.PEC_RESILIENCE_LEVEL:
+        elif resilience_level == EstimatorConstant.PEC_RESILIENCE_LEVEL:
             metadata = result["metadata"][0]
             self.assertGreater(metadata["standard_error"], 0)
             self.assertEqual(metadata["layout_qubits"], [0, 1])
             self.assertEqual(metadata["mitigation_noise_scale"], 0)
             self.assertEqual(metadata["shots"], shots)
-            self.assertEqual(metadata["samples"], Constant.PEC_DEFAULT_NUM_SAMPLES)
+            self.assertEqual(metadata["samples"], EstimatorConstant.PEC_DEFAULT_NUM_SAMPLES)
             self.assertEqual(metadata["mitigation_overhead"], 1.0)
 
     @combine(resilience_level=[0, 1, 2])
@@ -594,23 +600,23 @@ class TestEstimatorMainCircuitIndices(unittest.TestCase):
         np.testing.assert_allclose(
             result["values"],
             target,
-            rtol=1e-2 if resilience_level < Constant.ZNE_RESILIENCE_LEVEL else 2e-1,
+            rtol=1e-2 if resilience_level < EstimatorConstant.ZNE_RESILIENCE_LEVEL else 2e-1,
         )
         self.assertEqual(len(result["metadata"]), 2)
         if resilience_level == 0:
             self.assertEqual(result["metadata"][0]["shots"], shots)
             self.assertEqual(result["metadata"][1]["shots"], shots)
-        elif resilience_level == Constant.TREX_RESILIENCE_LEVEL:
+        elif resilience_level == EstimatorConstant.TREX_RESILIENCE_LEVEL:
             div = result["metadata"][0]["readout_mitigation_num_twirled_circuits"]
             self.assertEqual(result["metadata"][0]["shots"], int(ceil(shots / div)) * div)
             self.assertEqual(result["metadata"][1]["shots"], int(ceil(shots / div)) * div)
-        elif resilience_level == Constant.PEC_RESILIENCE_LEVEL:
+        elif resilience_level == EstimatorConstant.PEC_RESILIENCE_LEVEL:
             metadata = result["metadata"][0]
             self.assertGreater(metadata["standard_error"], 0)
             self.assertEqual(metadata["layout_qubits"], [0, 1])
             self.assertEqual(metadata["mitigation_noise_scale"], 0)
             self.assertEqual(metadata["shots"], shots)
-            self.assertEqual(metadata["samples"], Constant.PEC_DEFAULT_NUM_SAMPLES)
+            self.assertEqual(metadata["samples"], EstimatorConstant.PEC_DEFAULT_NUM_SAMPLES)
             self.assertEqual(metadata["mitigation_overhead"], 1.0)
 
     @combine(noise=[True, False], shots=[10000, 20000])
@@ -671,17 +677,17 @@ class TestEstimatorMainCircuitIndices(unittest.TestCase):
         if resilience_level == 0:
             self.assertEqual(result["metadata"][0]["shots"], shots)
             self.assertEqual(result["metadata"][1]["shots"], shots)
-        elif resilience_level == Constant.TREX_RESILIENCE_LEVEL:
+        elif resilience_level == EstimatorConstant.TREX_RESILIENCE_LEVEL:
             div = result["metadata"][0]["readout_mitigation_num_twirled_circuits"]
             self.assertEqual(result["metadata"][0]["shots"], int(ceil(shots / div)) * div)
             self.assertEqual(result["metadata"][1]["shots"], int(ceil(shots / div)) * div)
-        elif resilience_level == Constant.PEC_RESILIENCE_LEVEL:
+        elif resilience_level == EstimatorConstant.PEC_RESILIENCE_LEVEL:
             metadata = result["metadata"][0]
             self.assertGreater(metadata["standard_error"], 0)
             self.assertEqual(metadata["layout_qubits"], [0, 1])
             self.assertEqual(metadata["mitigation_noise_scale"], 0)
             self.assertEqual(metadata["shots"], shots)
-            self.assertEqual(metadata["samples"], Constant.PEC_DEFAULT_NUM_SAMPLES)
+            self.assertEqual(metadata["samples"], EstimatorConstant.PEC_DEFAULT_NUM_SAMPLES)
             self.assertEqual(metadata["mitigation_overhead"], 1.0)
 
     @combine(noise=[True, False], resilience_level=[0, 1, 2])
@@ -756,21 +762,21 @@ class TestEstimatorMainCircuitIds(unittest.TestCase):
         np.testing.assert_allclose(
             result["values"],
             target,
-            rtol=1e-2 if resilience_level < Constant.ZNE_RESILIENCE_LEVEL else 2e-1,
+            rtol=1e-2 if resilience_level < EstimatorConstant.ZNE_RESILIENCE_LEVEL else 2e-1,
         )
         self.assertEqual(len(result["metadata"]), 1)
         if resilience_level == 0:
             self.assertEqual(result["metadata"][0]["shots"], shots)
-        elif resilience_level == Constant.TREX_RESILIENCE_LEVEL:
+        elif resilience_level == EstimatorConstant.TREX_RESILIENCE_LEVEL:
             div = result["metadata"][0]["readout_mitigation_num_twirled_circuits"]
             self.assertEqual(result["metadata"][0]["shots"], int(ceil(shots / div)) * div)
-        elif resilience_level == Constant.PEC_RESILIENCE_LEVEL:
+        elif resilience_level == EstimatorConstant.PEC_RESILIENCE_LEVEL:
             metadata = result["metadata"][0]
             self.assertGreater(metadata["standard_error"], 0)
             self.assertEqual(metadata["layout_qubits"], [0, 1])
             self.assertEqual(metadata["mitigation_noise_scale"], 0)
             self.assertEqual(metadata["shots"], shots)
-            self.assertEqual(metadata["samples"], Constant.PEC_DEFAULT_NUM_SAMPLES)
+            self.assertEqual(metadata["samples"], EstimatorConstant.PEC_DEFAULT_NUM_SAMPLES)
             self.assertEqual(metadata["mitigation_overhead"], 1.0)
 
     @combine(resilience_level=[0, 1, 2])
@@ -801,23 +807,23 @@ class TestEstimatorMainCircuitIds(unittest.TestCase):
         np.testing.assert_allclose(
             result["values"],
             target,
-            rtol=1e-2 if resilience_level < Constant.ZNE_RESILIENCE_LEVEL else 2e-1,
+            rtol=1e-2 if resilience_level < EstimatorConstant.ZNE_RESILIENCE_LEVEL else 2e-1,
         )
         self.assertEqual(len(result["metadata"]), 2)
         if resilience_level == 0:
             self.assertEqual(result["metadata"][0]["shots"], shots)
             self.assertEqual(result["metadata"][1]["shots"], shots)
-        elif resilience_level == Constant.TREX_RESILIENCE_LEVEL:
+        elif resilience_level == EstimatorConstant.TREX_RESILIENCE_LEVEL:
             div = result["metadata"][0]["readout_mitigation_num_twirled_circuits"]
             self.assertEqual(result["metadata"][0]["shots"], int(ceil(shots / div)) * div)
             self.assertEqual(result["metadata"][1]["shots"], int(ceil(shots / div)) * div)
-        elif resilience_level == Constant.PEC_RESILIENCE_LEVEL:
+        elif resilience_level == EstimatorConstant.PEC_RESILIENCE_LEVEL:
             metadata = result["metadata"][0]
             self.assertGreater(metadata["standard_error"], 0)
             self.assertEqual(metadata["layout_qubits"], [0, 1])
             self.assertEqual(metadata["mitigation_noise_scale"], 0)
             self.assertEqual(metadata["shots"], shots)
-            self.assertEqual(metadata["samples"], Constant.PEC_DEFAULT_NUM_SAMPLES)
+            self.assertEqual(metadata["samples"], EstimatorConstant.PEC_DEFAULT_NUM_SAMPLES)
             self.assertEqual(metadata["mitigation_overhead"], 1.0)
 
     @combine(noise=[True, False], shots=[10000, 20000])
@@ -879,17 +885,17 @@ class TestEstimatorMainCircuitIds(unittest.TestCase):
         if resilience_level == 0:
             self.assertEqual(result["metadata"][0]["shots"], shots)
             self.assertEqual(result["metadata"][1]["shots"], shots)
-        elif resilience_level == Constant.TREX_RESILIENCE_LEVEL:
+        elif resilience_level == EstimatorConstant.TREX_RESILIENCE_LEVEL:
             div = result["metadata"][0]["readout_mitigation_num_twirled_circuits"]
             self.assertEqual(result["metadata"][0]["shots"], int(ceil(shots / div)) * div)
             self.assertEqual(result["metadata"][1]["shots"], int(ceil(shots / div)) * div)
-        elif resilience_level == Constant.PEC_RESILIENCE_LEVEL:
+        elif resilience_level == EstimatorConstant.PEC_RESILIENCE_LEVEL:
             metadata = result["metadata"][0]
             self.assertGreater(metadata["standard_error"], 0)
             self.assertEqual(metadata["layout_qubits"], [0, 1])
             self.assertEqual(metadata["mitigation_noise_scale"], 0)
             self.assertEqual(metadata["shots"], shots)
-            self.assertEqual(metadata["samples"], Constant.PEC_DEFAULT_NUM_SAMPLES)
+            self.assertEqual(metadata["samples"], EstimatorConstant.PEC_DEFAULT_NUM_SAMPLES)
             self.assertEqual(metadata["mitigation_overhead"], 1.0)
 
     @combine(noise=[True, False], resilience_level=[0, 1, 2])

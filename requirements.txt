@@ -1,5 +1,5 @@
 retworkx>=0.8.0
-qiskit-terra>=0.22.2
+qiskit-terra[qasm3-import]>=0.22.2
 qiskit-ibm-runtime
 qiskit-machine-learning[torch,sparse]
 cvxopt
