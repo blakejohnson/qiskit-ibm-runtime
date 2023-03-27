@@ -19,7 +19,7 @@ program can only run on a backend that supports OpenQASM3."""
 from dataclasses import dataclass, field
 from enum import Enum
 from time import perf_counter
-from typing import Dict, Iterable, List, Optional, Set, Union
+from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
 
 from qiskit.circuit.library import Barrier
 from qiskit.circuit.quantumcircuit import ClassicalRegister, Delay, QuantumCircuit, QuantumRegister
@@ -284,6 +284,11 @@ class CircuitMerger:
             instance had been executed separately.
         """
         combined_res = result.results[0].to_dict()
+        meas_level = combined_res.get("meas_level")
+        meas_levels = set(combined_res.get("meas_levels", []))
+        meas_levels.add(meas_level)
+        meas_return = combined_res.get("meas_return", "avg")
+
         combined_data = combined_res["data"]
         unwrapped_results = []
         bit_offset = 0
@@ -294,6 +299,19 @@ class CircuitMerger:
             bitstring_as_int >>= bit_position
             mask = (1 << num_bits) - 1
             return hex(bitstring_as_int & mask)
+
+        def extract_kernels_avg(
+            memory: List[Tuple[float, float]], bit_position: int, num_bits: int
+        ) -> List[Tuple[float, float]]:
+            return memory[bit_position : bit_position + num_bits]
+
+        def extract_kernels_single(
+            memory: List[Tuple[float, float]], bit_position: int, num_bits: int
+        ) -> List[Tuple[float, float]]:
+            extracted_results = []
+            for shot_result in memory:
+                extracted_results.append(extract_kernels_avg(shot_result, bit_position, num_bits))
+            return extracted_results
 
         def extract_counts(
             combined_counts: Dict[str, int], bit_offset: int, num_clbits: int
@@ -335,7 +353,21 @@ class CircuitMerger:
                     combined_data["counts"], bit_offset, num_clbits
                 )
 
-            if "memory" in combined_data:
+            if MeasurementReportingLevel.IQ.value in meas_levels:
+                # Handle measurement level 1 memory as IQ data.
+                if meas_return == "avg":
+                    res["data"]["memory"] = extract_kernels_avg(
+                        combined_data["memory"], bit_offset, num_clbits
+                    )
+                elif meas_return == "single":
+                    res["data"]["memory"] = extract_kernels_single(
+                        combined_data["memory"], bit_offset, num_clbits
+                    )
+                else:
+                    raise ValueError(f"Measurement return type {meas_return} is not supported.")
+
+            elif "memory" in combined_data:
+                # Handle measurement level 2 memory as counts.
                 extracted_memory = [
                     extract_bits(bitstring, bit_offset, num_clbits)
                     for bitstring in combined_data["memory"]

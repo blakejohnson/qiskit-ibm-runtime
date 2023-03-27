@@ -16,9 +16,11 @@ import unittest
 
 from typing import Tuple
 
+import numpy as np
 from qiskit import BasicAer, QuantumCircuit, QuantumRegister, ClassicalRegister, execute, transpile
 from qiskit.circuit import Delay, Reset, Qubit, Clbit
 from qiskit.providers.fake_provider import FakeBogota
+from qiskit.result.models import ExperimentResultData
 
 from programs.qasm3_runner import CircuitMerger
 
@@ -251,3 +253,114 @@ class TestCircuitMerger(unittest.TestCase):
                 self.assertEqual(operation.duration, 100016)
                 self.assertEqual(operation.unit, "dt")
         self.assertEqual(delays_found, 4)
+
+    def test_unwrap_results_meas_level_classified(self):
+        """Test unwrapping circuits with measurement level 2."""
+        qc1, qc2 = _create_test_circuits()
+        merger = CircuitMerger([qc1, qc2], backend=self.sim_backend)
+        merged_circuit = merger.merge_circuits()
+        self.assertIsInstance(merged_circuit, QuantumCircuit)
+
+        # check that merged circuit produces the same results
+        result_qc1 = execute(qc1, backend=self.sim_backend, num_shots=100).result()
+        result_qc2 = execute(qc2, backend=self.sim_backend, num_shots=100).result()
+        result_merged = execute(merged_circuit, backend=self.sim_backend, num_shots=100).result()
+        unwrapped_result = merger.unwrap_results(result_merged)
+
+        self.assertEqual(result_qc1.get_counts(0), unwrapped_result.get_counts(0))
+        self.assertEqual(result_qc2.get_counts(0), unwrapped_result.get_counts(1))
+
+    def test_unwrap_results_meas_level_kerneled_avg(self):
+        """Test unwrapping circuits with measurement level 1.
+
+        Based on this test:
+        https://github.com/Qiskit/qiskit-terra/blob/main/test/python/result/test_result.py#L478
+        """
+        qc0, qc1 = _create_test_circuits()
+        merger = CircuitMerger([qc0, qc1], backend=self.sim_backend)
+        merged_circuit = merger.merge_circuits()
+        self.assertIsInstance(merged_circuit, QuantumCircuit)
+
+        # Prepare a merged level 1 result.
+        result_qc0 = execute(qc0, backend=self.sim_backend, num_shots=3).result()
+        result_qc1 = execute(qc1, backend=self.sim_backend, num_shots=3).result()
+
+        result_merged = execute(merged_circuit, backend=self.sim_backend, num_shots=3).result()
+
+        # Dummy IQ data as stored in the transport format
+        raw_memory_0 = [[0.0, 1.0], [1.0, 0.0], [0.5, 0.5], [1.0, 0.0]]
+        raw_memory_1 = [[1.0, 0.0], [0.0, 1.0]]
+
+        result_qc0.results[0].meas_level = 1
+        result_qc0.results[0].meas_return = "avg"
+        result_qc0.results[0].data = ExperimentResultData.from_dict(
+            dict(memory=raw_memory_0, **result_qc0.results[0].data.to_dict())
+        )
+        result_qc1.results[0].meas_level = 1
+        result_qc1.results[0].meas_return = "avg"
+        result_qc1.results[0].data = ExperimentResultData.from_dict(
+            dict(memory=raw_memory_1, **result_qc1.results[0].data.to_dict())
+        )
+
+        raw_memory_merged = raw_memory_0 + raw_memory_1
+        result_merged.results[0].meas_level = 1
+        result_merged.results[0].meas_return = "avg"
+        result_merged.results[0].data = ExperimentResultData.from_dict(
+            dict(memory=raw_memory_merged)
+        )
+
+        # Unwrap and analyze unwrapped results.
+        unwrapped_result = merger.unwrap_results(result_merged)
+
+        np.testing.assert_almost_equal(result_qc0.get_memory(0), unwrapped_result.get_memory(0))
+        np.testing.assert_almost_equal(result_qc1.get_memory(0), unwrapped_result.get_memory(1))
+
+    def test_unwrap_results_meas_level_kerneled_single(self):
+        """Test unwrapping circuits with measurement level 1.
+
+        Based on this test:
+        https://github.com/Qiskit/qiskit-terra/blob/main/test/python/result/test_result.py#L494
+        """
+        qc0, qc1 = _create_test_circuits()
+        merger = CircuitMerger([qc0, qc1], backend=self.sim_backend)
+        merged_circuit = merger.merge_circuits()
+        self.assertIsInstance(merged_circuit, QuantumCircuit)
+
+        # Prepare a merged level 1 result.
+        result_qc0 = execute(qc0, backend=self.sim_backend, num_shots=3).result()
+        result_qc1 = execute(qc1, backend=self.sim_backend, num_shots=3).result()
+
+        result_merged = execute(merged_circuit, backend=self.sim_backend, num_shots=3).result()
+
+        # Dummy IQ data as stored in the transport format
+        raw_memory_0 = [
+            [[0.0, 1.0], [1.0, 0.0], [0.5, 0.5], [1.0, 0.0]],
+            [[0.0, 1.0], [1.0, 0.0], [0.5, 0.5], [1.0, 0.0]],
+        ]
+        raw_memory_1 = [[[1.0, 0.0], [0.0, 1.0]], [[1.0, 0.0], [0.0, 1.0]]]
+
+        result_qc0.results[0].meas_level = 1
+        result_qc0.results[0].meas_return = "single"
+        result_qc0.results[0].data = ExperimentResultData.from_dict(
+            dict(memory=raw_memory_0, **result_qc0.results[0].data.to_dict())
+        )
+        result_qc1.results[0].meas_level = 1
+        result_qc1.results[0].meas_return = "single"
+        result_qc1.results[0].data = ExperimentResultData.from_dict(
+            dict(memory=raw_memory_1, **result_qc1.results[0].data.to_dict())
+        )
+
+        raw_memory_merged = []
+        for i, _ in enumerate(raw_memory_0):
+            raw_memory_merged.append(raw_memory_0[i] + raw_memory_1[i])
+        result_merged.results[0].meas_level = 1
+        result_merged.results[0].meas_return = "single"
+        result_merged.results[0].data = ExperimentResultData.from_dict(
+            dict(memory=raw_memory_merged)
+        )
+
+        # Unwrap and analyze unwrapped results.
+        unwrapped_result = merger.unwrap_results(result_merged)
+
+        np.testing.assert_almost_equal(result_qc0.get_memory(0), unwrapped_result.get_memory(0))
+        np.testing.assert_almost_equal(result_qc1.get_memory(0), unwrapped_result.get_memory(1))
