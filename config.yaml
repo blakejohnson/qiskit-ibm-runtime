@@ -13,11 +13,7 @@ staging:
       - hello-world
       - qaoa
       - qasm3-runner
-      - quantum-kernel-alignment
-      - sample-expval
       - sampler
-      - torch-infer
-      - torch-train
       - vqe
 production:
   - url: https://us-east.quantum-computing.cloud.ibm.com
@@ -34,9 +30,5 @@ production:
       - hello-world
       - qaoa
       - qasm3-runner
-      - quantum-kernel-alignment
-      - sample-expval
       - sampler
-      - torch-infer
-      - torch-train
       - vqe
