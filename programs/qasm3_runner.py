@@ -432,7 +432,7 @@ class QASM3Options:
     # DEPRECATED Arguments to pass to the QASM3 program loop.
 
     @classmethod
-    def build_from_runtime(cls, **kwargs) -> "QASM3Options":
+    def build_from_runtime(cls, backend, **kwargs) -> "QASM3Options":
         """Built the options class from the default runtime input
         overriding the fields that are set to ``None`` with their
         defaults.
@@ -459,23 +459,14 @@ class QASM3Options:
         if shots is not None:
             kwargs.setdefault("shots", shots)
 
-        # For backwards compatibility extract init_delay
-        # and convert to rep_delay. # Both init_delay
-        # and rep_delay are not allowed to be set simultaneously
-        # init_delay through the run_config
-        # should be deprecated shortly after the rollout
-        # of the qiskit-ibm-provider
-        init_delay = kwargs.pop("init_delay", None)
-        rep_delay = kwargs.get("rep_delay", None)
-        if init_delay is not None:
-            init_delay = init_delay * 1e-6  # convert to seconds.
-            if rep_delay is None:
-                kwargs["rep_delay"] = init_delay
-            elif rep_delay != init_delay:
-                raise RuntimeError(
-                    'Both "init_delay" and "rep_delay" may not be simultaneously set. '
-                    ' "init_delay" is deprecated and "rep_delay" should be used instead.'
-                )
+        if "init_delay" in kwargs:
+            raise RuntimeError(
+                'The "init_delay" argument is no longer available. '
+                'Please use "rep_delay" instead. Units are in seconds.'
+            )
+
+        # Use the default rep_delay from the backend
+        kwargs.setdefault("rep_delay", backend.configuration().default_rep_delay)
 
         # Configure reset settings for the "init_qubits" argument.
         # To disable qubit initialization.
@@ -543,7 +534,7 @@ def main(
 
     is_qc = isinstance(circuits[0], QuantumCircuit)
 
-    options = QASM3Options.build_from_runtime(**kwargs)
+    options = QASM3Options.build_from_runtime(backend, **kwargs)
 
     if options.use_measurement_mitigation and ((not is_qc) or (backend.name() == QASM3_SIM_NAME)):
         raise NotImplementedError(
