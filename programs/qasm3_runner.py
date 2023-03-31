@@ -466,7 +466,12 @@ class QASM3Options:
             )
 
         # Use the default rep_delay from the backend
-        kwargs.setdefault("rep_delay", backend.configuration().default_rep_delay)
+        try:
+            # Simulators do not have this available so only set if is present
+            # if not fall back to the default
+            kwargs.setdefault("rep_delay", backend.configuration().default_rep_delay)
+        except KeyError:
+            pass
 
         # Configure reset settings for the "init_qubits" argument.
         # To disable qubit initialization.
