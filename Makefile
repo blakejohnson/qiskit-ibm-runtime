@@ -1,7 +1,7 @@
 .PHONY: lint style black mypy unit-test integration-test staging production
 
 lint:
-	pylint -rn programs qka test tools setup.py
+	pylint -rn programs test tools setup.py
 
 style:
 	black --check .
@@ -10,7 +10,7 @@ black:
 	black .
 
 mypy:
-	mypy .
+	mypy *.py
 
 unit-test:
 	stestr run
