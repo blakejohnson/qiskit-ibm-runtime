@@ -80,8 +80,6 @@ class Sampler:
         Raises:
             TypeError: The given type of arguments is invalid.
         """
-        if not isinstance(backend, Backend):
-            raise TypeError(f"backend should be BackendV1, not {type(backend)}.")
         self._backend = backend
         self._circuit_ids: Sequence[str] = circuit_ids
         self._transpile_options = Options()

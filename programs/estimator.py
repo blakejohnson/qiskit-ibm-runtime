@@ -118,9 +118,6 @@ class Estimator:
         pauli_twirled_mitigation: PauliTwirledMitigation | None = None,
         circuit_ids: Sequence[str] | None = None,
     ):
-        if not isinstance(backend, Backend):
-            raise TypeError(f"backend should be BackendV1, not {type(backend)}.")
-
         if isinstance(observables, (PauliSumOp, BaseOperator)):
             observables = (observables,)
         observables = tuple(init_observable(observable) for observable in observables)
