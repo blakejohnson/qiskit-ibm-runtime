@@ -532,16 +532,17 @@ def main(
         )
 
     # TODO Better validation once we can query for input_allowed
-    if backend.configuration().simulator and backend.name() not in SIMULATORS:
+    _backend_name = backend.name if backend.version == 2 else backend.name()
+    if backend.configuration().simulator and _backend_name not in SIMULATORS:
         raise ValueError(
-            f"The selected backend ({backend.name()}) does not support dynamic circuit capabilities"
+            f"The selected backend ({_backend_name}) does not support dynamic circuit capabilities"
         )
 
     is_qc = isinstance(circuits[0], QuantumCircuit)
 
     options = QASM3Options.build_from_runtime(backend, **kwargs)
 
-    if options.use_measurement_mitigation and ((not is_qc) or (backend.name() == QASM3_SIM_NAME)):
+    if options.use_measurement_mitigation and ((not is_qc) or (_backend_name == QASM3_SIM_NAME)):
         raise NotImplementedError(
             "Measurement error mitigation is only supported for "
             "QuantumCircuit inputs and non-simulator backends."
@@ -550,7 +551,7 @@ def main(
     use_merging = False
 
     # Submit circuits for testing of standard circuit merger
-    qasm2_sim = backend.name() == QASM2_SIM_NAME
+    qasm2_sim = _backend_name == QASM2_SIM_NAME
     if is_qc:
         if options.merge_circuits and options.use_measurement_mitigation:
             raise NotImplementedError(
@@ -615,7 +616,7 @@ def main(
             mit = mthree.M3Mitigation(backend)
             mit.tensored_cals_from_system(all_meas_qubits)
     else:
-        if backend.name() == QASM2_SIM_NAME:
+        if _backend_name == QASM2_SIM_NAME:
             raise ValueError(
                 "This simulator backend does not support OpenQASM 3 source strings as input. "
                 "Please submit a quantum circuit instead."

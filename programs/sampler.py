@@ -158,6 +158,7 @@ class Sampler:
         Raises:
             QiskitError: if the instance has been closed.
         """
+        _backend_name = self._backend.name if self._backend.version == 2 else self._backend.name()
         if not self._transpiled_circuits:
             if self._circuit_ids:
                 # 1. Initialize a list of transpiled circuits from cache and another list of
@@ -165,7 +166,7 @@ class Sampler:
                 self._circuit_cache.initialize_transpiled_and_raw_circuits(
                     circuits_map=self._circuits_map,
                     circuit_ids=self._circuit_ids,
-                    backend_name=self._backend.name(),
+                    backend_name=_backend_name,
                     transpile_options=self._transpile_options.__dict__,
                 )
                 if self._circuit_cache.raw_circuits:

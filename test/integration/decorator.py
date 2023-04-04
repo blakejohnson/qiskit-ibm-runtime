@@ -34,7 +34,8 @@ def get_provider_and_backend(func):
         _enable_account(qe_token, qe_url)
 
         backend = _get_backend()
-        kwargs.update({"backend_name": backend.name(), "provider": backend.provider()})
+        _backend_name = backend.name if backend.version == 2 else backend.name()
+        kwargs.update({"backend_name": _backend_name, "provider": backend.provider()})
         return func(*args, **kwargs)
 
     return _wrapper

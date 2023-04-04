@@ -53,7 +53,7 @@ class TestQASM3Runner(BaseTestCase):
 
         self.provider = _backend.provider()
         self.runtime = self.provider.runtime
-        self.backend_name = _backend.name()
+        self.backend_name = _backend.name if _backend.version == 2 else _backend.name()
         self.n_qubits = _backend.configuration().n_qubits
         return _backend
 

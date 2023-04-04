@@ -119,9 +119,12 @@ class TestQAOARuntime(BaseTestCase):
                     "aux_operators": [Z ^ I ^ I ^ I, I ^ I ^ I ^ Z],
                 }
 
+                _backend_name = (
+                    self.backend.name if self.backend.version == 2 else self.backend.name()
+                )
                 job = self.provider.runtime.run(
                     program_id="qaoa",
-                    options={"backend_name": self.backend.name()},
+                    options={"backend_name": _backend_name},
                     inputs=runtime_inputs,
                     callback=callback,
                 )
