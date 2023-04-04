@@ -35,7 +35,8 @@ def get_provider_and_backend(func):
 
         backend = _get_backend()
         _backend_name = backend.name if backend.version == 2 else backend.name()
-        kwargs.update({"backend_name": _backend_name, "provider": backend.provider()})
+        _provider = backend.provider if backend.version == 2 else backend.provider()
+        kwargs.update({"backend_name": _backend_name, "provider": _provider})
         return func(*args, **kwargs)
 
     return _wrapper

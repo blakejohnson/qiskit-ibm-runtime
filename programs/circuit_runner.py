@@ -79,8 +79,8 @@ def main(
             backend=backend,
             **transpiler_options,
         )
-
-        job_object_storage = backend.provider().job_object_storage()
+        _provider = backend.provider if backend.version == 2 else backend.provider()
+        job_object_storage = _provider.job_object_storage()
         if job_object_storage:
             job_object_storage.save_transpiled_circuits(
                 transpiled_circuits={

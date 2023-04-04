@@ -1352,7 +1352,8 @@ def _restore_circuits(circuits, circuit_indices, circuit_ids, backend) -> list[Q
 
 def _circuit_dict_to_list(circuits: dict, backend, circuit_ids) -> list:
     try:
-        cache = backend.provider().cache()
+        _provider = backend.provider if backend.version == 2 else backend.provider()
+        cache = _provider.cache()
 
         for circuit_id in circuit_ids:
             if circuit_id not in circuits:
