@@ -51,7 +51,7 @@ class TestQASM3Runner(BaseTestCase):
         if not _backend:
             raise SkipTest(f"No access to backend: {backend_name}")
 
-        self.provider = _backend.provider()
+        self.provider = _backend.provider if _backend.version == 2 else _backend.provider()
         self.runtime = self.provider.runtime
         self.backend_name = _backend.name if _backend.version == 2 else _backend.name()
         self.n_qubits = _backend.configuration().n_qubits

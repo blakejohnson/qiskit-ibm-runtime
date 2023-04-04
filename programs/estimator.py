@@ -178,7 +178,10 @@ class Estimator:
     def _get_cache(self):
         """Return instance of Cache class."""
         try:
-            return self._backend.provider().cache()
+            _provider = (
+                self._backend.provider if self._backend.version == 2 else self._backend.provider()
+            )
+            return _provider.cache()
         except AttributeError:
             # Unit tests use AerProvider which doesn't have cache() method
             return None
