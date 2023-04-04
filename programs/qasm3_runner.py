@@ -26,7 +26,7 @@ from qiskit.circuit.quantumcircuit import ClassicalRegister, Delay, QuantumCircu
 from qiskit.compiler import transpile
 from qiskit.dagcircuit import DAGCircuit
 from qiskit.qasm3 import Exporter
-from qiskit.result import marginal_counts, Result
+from qiskit.result import marginal_distribution, Result
 from qiskit.transpiler import PassManager
 from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.transpiler.instruction_durations import InstructionDurations
@@ -640,7 +640,7 @@ def main(
             raw_counts = result.get_counts(idx)
             # check if more bits than measured so need to marginalize
             if num_cbits > num_measured_bits:
-                raw_counts = marginal_counts(raw_counts, list(mappings[idx].values()))
+                raw_counts = marginal_distribution(raw_counts, list(mappings[idx].values()))
             _qubits = list(mappings[idx].keys())
             start_time = perf_counter()
             quasi = mit.apply_correction(raw_counts, _qubits)
