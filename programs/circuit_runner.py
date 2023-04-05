@@ -67,6 +67,10 @@ def main(
     if backend.configuration().simulator:
         backend.set_options(noise_model=noise_model, seed_simulator=seed_simulator)
 
+        # Slight hack until https://github.com/Qiskit/qiskit-aer/issues/1771 is fixed
+        if isinstance(circuits, (QasmQobj, PulseQobj)):
+            circuits.config.__dict__.pop("parameter_binds", None)
+
     # transpiling the circuits using given transpile options (deprecated).
     skip_transpilation = kwargs.pop("skip_transpilation", False)
     if not skip_transpilation:
