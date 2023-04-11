@@ -16,9 +16,8 @@ combined circuit into OpenQASM3.
 This program can also take and execute one or more OpenQASM3 strings. Note that this
 program can only run on a backend that supports OpenQASM3."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from time import perf_counter
 from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
 
 from qiskit.circuit.library import Barrier
@@ -26,13 +25,12 @@ from qiskit.circuit.quantumcircuit import ClassicalRegister, Delay, QuantumCircu
 from qiskit.compiler import transpile
 from qiskit.dagcircuit import DAGCircuit
 from qiskit.qasm3 import Exporter
-from qiskit.result import marginal_distribution, Result
+from qiskit.result import Result
 from qiskit.transpiler import PassManager
 from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.transpiler.instruction_durations import InstructionDurations
 from qiskit.transpiler.passes import TimeUnitConversion
 from qiskit_ibm_runtime.utils import RuntimeEncoder
-import mthree
 import numpy as np
 
 
@@ -244,6 +242,7 @@ class CircuitMerger:
         Returns: All circuits in this instance merged into one and separated
         by qubit initialization circuits.
         """
+
         # Collect all classical registers and mangle their names (to handle potential duplicates)
         def mangle_register_name(idx, register):
             return "qc" + str(idx) + "_" + register.name
@@ -418,18 +417,6 @@ class QASM3Options:
     # for how this default value was chosen.
     init_num_resets: int = 3
     # The number of qubit resets to insert before each circuit execution.
-    run_config: Optional[Dict] = field(default_factory=dict)
-    # DEPRECATED Extra execution time configuration options not supported as top-level inputs.
-    exporter_config: Optional[Dict] = None
-    # DEPRECATED QASM3 exporter configurations.
-    skip_transpilation: Optional[bool] = True
-    # DEPRECATED Skip transpiling of circuits.
-    transpiler_config: Optional[Dict] = None
-    # DEPRECATED Transpiler configurations.
-    use_measurement_mitigation: Optional[bool] = False
-    # DEPRECATED Whether to perform measurement error mitigation.
-    qasm3_args: Optional[Union[Dict, List]] = None
-    # DEPRECATED Arguments to pass to the QASM3 program loop.
 
     @classmethod
     def build_from_runtime(cls, backend, **kwargs) -> "QASM3Options":
@@ -451,18 +438,41 @@ class QASM3Options:
             if key in kwargs and kwargs[key] is None:
                 del kwargs[key]
 
-        run_config = kwargs.get("run_config", {})
-        # For backwards compatibility extract shots from
-        # run_config. Shots through the run_config
-        # should be deprecated shortly.
-        shots = run_config.pop("shots", None)
-        if shots is not None:
-            kwargs.setdefault("shots", shots)
+        if kwargs.get("run_config", None):
+            raise RuntimeError(
+                "Setting the qasm3-runner `run_config` has completed its deprecation period "
+                "and is no longer available for usage. If you are using `rep_delay` or "
+                "`shots` as a `run_config` setting, these are now top-level program "
+                " arguments. If you did not set this argument "
+                "please update your provider to the latest `qiskit_ibm_provider`."
+            )
 
         if "init_delay" in kwargs:
             raise RuntimeError(
-                'The "init_delay" argument is no longer available. '
-                'Please use "rep_delay" instead. Units are in seconds.'
+                "The `init_delay` argument is no longer available. "
+                "Please use `rep_delay` instead. Units are in seconds."
+            )
+
+        if not kwargs.get("skip_transpilation", True):
+            raise RuntimeError(
+                "Transpilation within qasm3-runner has completed its deprecation period "
+                "and is no longer available for usage. If you did not set this argument "
+                "please update your provider to the latest `qiskit_ibm_provider`."
+            )
+
+        if kwargs.get("use_measurement_mitigation", False):
+            raise RuntimeError(
+                "Enabling measurement error mitigation through `use_measurement_mitigation` "
+                "has completed its deprecation period "
+                "and is no longer available for usage. If you did not set this argument "
+                "please update your provider to the latest `qiskit_ibm_provider`."
+            )
+
+        if kwargs.get("exporter_config", False):
+            raise RuntimeError(
+                "Setting the qasm3 exporter config has completed its deprecation period "
+                "and is no longer available for usage. If you did not set this argument "
+                "please update your provider to the latest `qiskit_ibm_provider`."
             )
 
         # Use the default rep_delay from the backend
@@ -484,9 +494,6 @@ class QASM3Options:
 
     def prepare_run_config(self):
         """Prepare an externally safe run configuration."""
-        # Pop as this is not safe for the user to have direct access
-        self.run_config.pop("extra_compile_args", None)
-
         extra_compile_args = []
 
         # Counts is the default so don't set unless overridden
@@ -542,22 +549,11 @@ def main(
 
     options = QASM3Options.build_from_runtime(backend, **kwargs)
 
-    if options.use_measurement_mitigation and ((not is_qc) or (_backend_name == QASM3_SIM_NAME)):
-        raise NotImplementedError(
-            "Measurement error mitigation is only supported for "
-            "QuantumCircuit inputs and non-simulator backends."
-        )
-
     use_merging = False
 
     # Submit circuits for testing of standard circuit merger
     qasm2_sim = _backend_name == QASM2_SIM_NAME
     if is_qc:
-        if options.merge_circuits and options.use_measurement_mitigation:
-            raise NotImplementedError(
-                "Measurement error mitigation cannot be used together with circuit merging."
-            )
-
         if options.merge_circuits:
             if options.init_circuit is not None and not isinstance(
                 options.init_circuit, QuantumCircuit
@@ -580,14 +576,9 @@ def main(
                 )
             ]
 
-        if not options.skip_transpilation:
-            # Transpile the circuits using given transpile options
-            transpiler_config = options.transpiler_config or {}
-            circuits = transpile(circuits, backend=backend, **transpiler_config)
-
         # Convert circuits to qasm3
         qasm3_strs = []
-        exporter_config = options.exporter_config or {
+        exporter_config = {
             "includes": (),
             "disable_constants": True,
             "basis_gates": backend.configuration().basis_gates,
@@ -599,22 +590,6 @@ def main(
             payload = qasm3_strs
         else:
             payload = circuits
-
-        if options.use_measurement_mitigation:
-            # get final meas mappings
-            mappings = []
-            all_meas_qubits = []
-            for idx, circ in enumerate(circuits):
-                mappings.append(final_measurement_mapping(circ))
-                all_meas_qubits.extend(list(mappings[idx].keys()))
-
-            # Collect set of active measured qubits over which to
-            # mitigate.
-            all_meas_qubits = list(set(all_meas_qubits))
-
-            # Get an M3 mitigator and calibrate over all measured qubits
-            mit = mthree.M3Mitigation(backend)
-            mit.tensored_cals_from_system(all_meas_qubits)
     else:
         if _backend_name == QASM2_SIM_NAME:
             raise ValueError(
@@ -630,32 +605,6 @@ def main(
 
     if use_merging:
         result = merger.unwrap_results(result)
-
-    # Do the actual mitigation here
-    if options.use_measurement_mitigation:
-        quasi_probs = []
-        mit_times = []
-        for idx, circ in enumerate(circuits):
-            num_cbits = circ.num_clbits
-            num_measured_bits = len(mappings[idx])
-            raw_counts = result.get_counts(idx)
-            # check if more bits than measured so need to marginalize
-            if num_cbits > num_measured_bits:
-                raw_counts = marginal_distribution(raw_counts, list(mappings[idx].values()))
-            _qubits = list(mappings[idx].keys())
-            start_time = perf_counter()
-            quasi = mit.apply_correction(raw_counts, _qubits)
-            stop_time = perf_counter()
-            mit_times.append(stop_time - start_time)
-            # Convert quasi dist with bitstrings to hex version and append
-            quasi_probs.append(quasi_to_hex(quasi))
-
-        # Attach to results.
-        for idx, res in enumerate(result.results):
-            res.data.quasiprobabilities = quasi_probs[idx]
-            res.data._data_attributes.append("quasiprobabilities")
-            res.header.final_measurement_mapping = mappings[idx]
-            res.header.measurement_mitigation_time = mit_times[idx]
 
     return result.to_dict()
 

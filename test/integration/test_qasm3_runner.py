@@ -70,7 +70,7 @@ class TestQASM3Runner(BaseTestCase):
         job = self._run_program(
             circuits=circuits,
             block_for_result=False,
-            run_config={"shots": 10},
+            shots=10,
         )
         self._check_job_completes(job)
 
@@ -100,7 +100,6 @@ class TestQASM3Runner(BaseTestCase):
             circuits=[qc1, qc2],
             init_delay=100,
             block_for_result=False,
-            skip_transpilation=True,
         )
         self._check_job_completes(job)
 
@@ -117,7 +116,6 @@ class TestQASM3Runner(BaseTestCase):
             circuits=[qc1, qc2],
             init_delay=100e-6,
             block_for_result=False,
-            skip_transpilation=True,
         )
         self._check_job_completes(job)
 
@@ -134,7 +132,6 @@ class TestQASM3Runner(BaseTestCase):
             init_delay=100,
             rep_delay=200 - 6,
             block_for_result=False,
-            skip_transpilation=True,
         )
         job.wait_for_final_state()
         self.assertEqual(job.status(), JobStatus.ERROR)
@@ -190,8 +187,6 @@ class TestQASM3Runner(BaseTestCase):
     def _run_program(
         self,
         circuits,
-        qasm3_args=None,
-        run_config=None,
         block_for_result=True,
         merge_circuits=None,
         init_qubits=True,
@@ -199,7 +194,6 @@ class TestQASM3Runner(BaseTestCase):
         rep_delay=None,
         init_delay=None,
         init_circuit=None,
-        skip_transpilation=None,
         meas_level=None,
         shots=None,
         decode=False,
@@ -209,8 +203,6 @@ class TestQASM3Runner(BaseTestCase):
         Args:
             backend: Backend to run on.
             circuits: Circuit(s) to run.
-            qasm3_args: Args to pass to the QASM3 program.
-            run_config: Execution time configuration.
             block_for_result: Whether to block for result.
             merge_circuits: Whether to merge multiple submitted circuits into
                             one before execution (default is yes).
@@ -221,7 +213,6 @@ class TestQASM3Runner(BaseTestCase):
                 to allow the qubits to idle for.
             init_delay: The number of microseconds of delay to insert
                                  before each circuit execution.
-            skip_transpilation: Whether to skip transpiling the job.
             meas_level: Set the measurement level for the program.
             decode: The result to the Qiskit result format.
         Returns:
@@ -232,10 +223,6 @@ class TestQASM3Runner(BaseTestCase):
 
         self._check_backend(backend_name)
         program_inputs = {"circuits": circuits}
-        if qasm3_args:
-            program_inputs["qasm3_args"] = qasm3_args
-        if run_config:
-            program_inputs["run_config"] = run_config
         if merge_circuits is not None:
             program_inputs["merge_circuits"] = merge_circuits
         if init_qubits is not None:
@@ -248,8 +235,6 @@ class TestQASM3Runner(BaseTestCase):
             program_inputs["init_delay"] = init_delay
         if init_circuit is not None:
             program_inputs["init_circuit"] = init_circuit
-        if skip_transpilation is not None:
-            program_inputs["skip_transpilation"] = skip_transpilation
         if meas_level is not None:
             program_inputs["meas_level"] = meas_level
         if shots is not None:
