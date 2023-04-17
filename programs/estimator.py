@@ -35,7 +35,7 @@ from qiskit.exceptions import QiskitError
 from qiskit.opflow import PauliSumOp
 from qiskit.primitives import BackendEstimator, EstimatorResult
 from qiskit.primitives.utils import init_observable, final_measurement_mapping
-from qiskit.providers import Backend, BackendV1, Options
+from qiskit.providers import Backend, BackendV1, BackendV2, Options
 from qiskit.qasm3 import loads as qasm3_loads
 from qiskit.quantum_info import Pauli, PauliList, SparsePauliOp
 from qiskit.quantum_info.operators.base_operator import BaseOperator
@@ -1007,7 +1007,7 @@ class CircuitCache:
 ################################################################################
 ## DYNAMICAL DECOUPLING
 ################################################################################
-def dynamical_decoupling_pass(backend: BackendV1) -> Optional[PassManager]:
+def dynamical_decoupling_pass(backend: Union[BackendV1, BackendV2]) -> Optional[PassManager]:
     """Generates a pass manager of the dynamical decoupling
 
     Note that this pass is supposed to be applied to bound circuits
@@ -1022,15 +1022,18 @@ def dynamical_decoupling_pass(backend: BackendV1) -> Optional[PassManager]:
     # https://github.ibm.com/IBM-Q-Software/ntc-ibm-programs/issues/213
     # https://github.ibm.com/IBM-Q-Software/pec-runtime/blob/f8f0a49ee18eda9754734dd3260ea8c8812ee342/pec_runtime/utils/dynamical_decoupling.py#L47
     #
-    # Note: ProgramBackend uses BackendV1
+    # Note: ProgramBackend used to be BackendV1
     # https://github.ibm.com/IBM-Q-Software/ntc-provider/blob/efa7eaedc92a7a022aba237a00c63886678c1ac4/programruntime/runtime_backend.py#L31
     # https://github.com/Qiskit/qiskit-ibm-runtime/blob/af308caeb7c261a1fb1a7ca7a45c49f55df02215/qiskit_ibm_runtime/program/program_backend.py#L20
-    #
-    # TODO: When ProgramBackend gets BackendV2, we need to adjust the code accordingly.
 
     try:
-        durations = InstructionDurations.from_backend(backend)
-        timing_constraints = TimingConstraints(**backend.configuration().timing_constraints)
+        if isinstance(backend, BackendV2):
+            target = backend.target
+            durations = target.durations()
+            timing_constraints = target.timing_constraints()
+        else:
+            durations = InstructionDurations.from_backend(backend)
+            timing_constraints = TimingConstraints(**backend.configuration().timing_constraints)
     except AttributeError:
         logger.warning("Backend (%s) does not support dynamical decoupling.", backend)
         return None
@@ -1435,7 +1438,7 @@ def main(
     # Configure noise model
     noise_model = run_options.pop("noise_model", None)
     seed_simulator = run_options.pop("seed_simulator", None)
-    if backend.configuration().simulator:
+    if hasattr(backend, "configuration") and backend.configuration().simulator:
         backend.set_options(noise_model=noise_model, seed_simulator=seed_simulator)
 
     # Configure transpilation
@@ -1517,7 +1520,11 @@ def main(
                     zne_md["extrapolation"]["extrapolator"]
                 )
     elif resilience_level == EstimatorConstant.PEC_RESILIENCE_LEVEL:  # PEC
-        transpilation_settings["basis_gates"] = backend.configuration().basis_gates
+        if isinstance(backend, BackendV1):
+            transpilation_settings["basis_gates"] = backend.configuration().basis_gates
+        else:
+            # BackendV2
+            transpilation_settings["basis_gates"] = list(backend.target.operation_names)
         circuit_list = _restore_circuits(circuits, circuit_indices, circuit_ids, backend)
         observable_list = [observables[i] for i in observable_indices]
         estimator = PEC_Estimator(
