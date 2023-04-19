@@ -13,7 +13,6 @@
 """Test VQE."""
 
 import os
-from unittest import skip
 import numpy as np
 
 from qiskit.algorithms.minimum_eigensolvers import NumPyMinimumEigensolver
@@ -149,7 +148,6 @@ class TestVQE(BaseTestCase):
         result = vqe.compute_minimum_eigenvalue(self.hamiltonian, aux_operators=self.observables)
         self.log.info("VQE program result: %s", result.eigenvalue)
 
-    @skip("Skip until #333 is fixed")
     def test_nature_full_workflow(self):
         """Test the ground state search workflow from Qiskit Nature."""
         current_dir = os.path.dirname(__file__)
@@ -178,7 +176,8 @@ class TestVQE(BaseTestCase):
         reference_result = reference_gse.solve(problem)
 
         if self.backend.configuration().simulator:
-            self.assertLess(abs(result.eigenenergies[0] - reference_result.eigenenergies[0]), 2)
+            difference = abs(result.computed_energies[0] - reference_result.computed_energies[0])
+            self.assertLess(difference, 2)
 
     def test_optimization_program(self):
         """Test vqe optimization program."""
