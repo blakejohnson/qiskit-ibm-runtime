@@ -23,6 +23,7 @@ import re
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from itertools import accumulate
+from datetime import timedelta
 from os import environ
 from typing import Dict, List, Optional, cast, Union
 
@@ -1302,6 +1303,11 @@ class EstimatorConstant:
     DEFAULT_RESILIENCE_LEVEL: int = TREX_RESILIENCE_LEVEL
 
     PEC_DEFAULT_NUM_SAMPLES: int = 1024
+    PEC_DEFAULT_MAX_CIRCUITS: int = 100
+    PEC_DEFAULT_MAX_LEARNING_LAYERS: int = 4
+    PEC_DEFAULT_SHOTS_PER_SAMPLE: int = 128
+    PEC_DEFAULT_MAX_SAMPLING_OVERHEAD: int = 100
+    PEC_DEFAULT_CACHE_TIMEOUT: timedelta = timedelta(hours=2)
 
     INVALID_QASM_VERSION_MESSAGE = (
         "OpenQASM version invalid or not specified in program, will use OpenQASM 3."
@@ -1371,6 +1377,27 @@ def _circuit_dict_to_list(circuits: dict, backend, circuit_ids) -> list:
     return [circuits[circuit_id] for circuit_id in circuit_ids]
 
 
+# TODO: Remove this function when decoder supports numpy types.
+# See https://github.ibm.com/IBM-Q-Software/ntc-provider/issues/600
+def _scrub_numpy(obj):
+    """Remove numpy from an object or container"""
+    # pylint: disable = too-many-return-statements
+    if isinstance(obj, np.number):
+        return obj.item()
+    elif isinstance(obj, np.ndarray):
+        if obj.dtype == object:
+            return _scrub_numpy(obj.tolist())
+        else:
+            return obj.tolist()
+    elif isinstance(obj, dict):
+        return {key: _scrub_numpy(val) for key, val in obj.items()}
+    elif isinstance(obj, list):
+        return [_scrub_numpy(i) for i in obj]
+    elif isinstance(obj, tuple):
+        return tuple(_scrub_numpy(i) for i in obj)
+    return obj
+
+
 def result_to_dict(result: EstimatorResult):
     """Convert ``EstimatorResult`` to a dictionary
 
@@ -1382,7 +1409,7 @@ def result_to_dict(result: EstimatorResult):
 
     """
     values = tuple(result.values.tolist())
-    ret = result.__dict__
+    ret = _scrub_numpy(result.__dict__)
     ret["values"] = values
     return ret
 
@@ -1436,8 +1463,13 @@ def main(
         run_options["shots"] = backend.options.shots
 
     # Configure noise model
-    noise_model = run_options.pop("noise_model", None)
-    seed_simulator = run_options.pop("seed_simulator", None)
+    # TODO: Is this necessary? Aer can be passed seed and noise model as run options
+    # to backend.run, unless the IBM hosted Aer sim does something weird with run
+    # options it should work for it too
+    noise_model = run_options.pop("noise_model", getattr(backend.options, "noise_model", None))
+    seed_simulator = run_options.pop(
+        "seed_simulator", getattr(backend.options, "seed_simulator", None)
+    )
     if hasattr(backend, "configuration") and backend.configuration().simulator:
         backend.set_options(noise_model=noise_model, seed_simulator=seed_simulator)
 
@@ -1527,24 +1559,38 @@ def main(
             transpilation_settings["basis_gates"] = list(backend.target.operation_names)
         circuit_list = _restore_circuits(circuits, circuit_indices, circuit_ids, backend)
         observable_list = [observables[i] for i in observable_indices]
+
+        # PEC default values
+        pec_resilience_settings = {
+            "level": EstimatorConstant.PEC_RESILIENCE_LEVEL,
+            "max_circuits": EstimatorConstant.PEC_DEFAULT_MAX_CIRCUITS,
+            "max_learning_layers": EstimatorConstant.PEC_DEFAULT_MAX_LEARNING_LAYERS,
+            "shots_per_sample": EstimatorConstant.PEC_DEFAULT_SHOTS_PER_SAMPLE,
+            "max_sampling_overhead": EstimatorConstant.PEC_DEFAULT_MAX_SAMPLING_OVERHEAD,
+            "cache_timeout": EstimatorConstant.PEC_DEFAULT_CACHE_TIMEOUT,
+        }
+        # Override with any supplied values
+        pec_resilience_settings.update(**resilience_settings)
+
         estimator = PEC_Estimator(
             backend=backend,
             circuits=circuit_list,
             observables=observable_list,
             parameters=parameters,
             skip_transpilation=skip_transpilation,
-            resilience_settings=resilience_settings,
+            resilience_settings=pec_resilience_settings,
             transpilation_settings=transpilation_settings,
             user_messenger=user_messenger,
         )
 
-        # No need to set traspile options here,PEC transpile options are set in
+        # No need to set traspile options here, PEC transpile options are set in
         # the class constructor
-
+        shots = run_options.pop("shots", EstimatorConstant.PEC_DEFAULT_NUM_SAMPLES)
         result = estimator.run(
             circuit_indices=circuit_indices,
             observable_indices=observable_indices,
             parameter_values=parameter_values,
+            shots=shots,
             **run_options,
         )
 
