@@ -247,11 +247,25 @@ class CircuitMerger:
         def mangle_register_name(idx, register):
             return "qc" + str(idx) + "_" + register.name
 
-        regs = [
-            ClassicalRegister(creg.size, mangle_register_name(idx, creg))
-            for idx, circuit in enumerate(self.circuits)
-            for creg in circuit.cregs
-        ]
+        regs = []
+        for idx, circuit in enumerate(self.circuits):
+            # Qiskit now supports allocating the same clbit to multiple registers
+            # this requires careful handling now. A clbit may also *not*
+            # belong to a register. This is complicated as the result format
+            # requires registers which we must therefore generate.
+            for clbit in circuit.clbits:
+                # Check if clbit belongs to a register
+                bit_locations = circuit.find_bit(clbit)
+                if not bit_locations.registers:
+                    # if we do not belong to a register generate the register for the clbit
+                    # and add it to the circuit
+                    generated_creg = ClassicalRegister(bits=[clbit])
+                    circuit.add_register(generated_creg)
+
+            # now that we have generated registers for clbits without them, we continue.
+            for creg in circuit.cregs:
+                regs.append(ClassicalRegister(creg.size, mangle_register_name(idx, creg)))
+
         regs.insert(0, QuantumRegister(self.backend.configuration().n_qubits))
 
         # create empty circuit into which to merge all others;
@@ -261,6 +275,7 @@ class CircuitMerger:
         )
 
         used_qubits = self._used_qubits(self.circuits)
+
         if not init_circuit and init:
             init_circuit = self._create_init_circuit(
                 used_qubits, init_num_resets, init_delay, init_delay_unit

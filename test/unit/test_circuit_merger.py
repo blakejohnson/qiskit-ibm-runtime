@@ -17,10 +17,11 @@ import unittest
 from typing import Tuple
 
 import numpy as np
-from qiskit import BasicAer, QuantumCircuit, QuantumRegister, ClassicalRegister, execute, transpile
+from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, execute, transpile
 from qiskit.circuit import Delay, Reset, Qubit, Clbit
 from qiskit.providers.fake_provider import FakeBogota
 from qiskit.result.models import ExperimentResultData
+from qiskit_aer import AerSimulator
 
 from programs.qasm3_runner import CircuitMerger
 
@@ -53,7 +54,7 @@ class TestCircuitMerger(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self.sim_backend = BasicAer.get_backend("qasm_simulator")
+        self.sim_backend = AerSimulator()
         self.sim_backend.configuration().n_qubits = 4
 
     def test_basic_merge_two_circuits(self):
@@ -77,10 +78,11 @@ class TestCircuitMerger(unittest.TestCase):
         """Test that merging with parameterized initialization circuit inserts
         the correct number of delays."""
         qc1, qc2 = _create_test_circuits()
-        num_used_qubits = max(len(qc1.qubits), len(qc2.qubits))
+        num_used_qubits = self.sim_backend.configuration().n_qubits
         num_qubit_reset = 10
         merger = CircuitMerger([qc1, qc2], backend=self.sim_backend)
         merged_circuit = merger.merge_circuits(init_num_resets=num_qubit_reset)
+
         self.assertEqual(merged_circuit.count_ops()["reset"], 2 * num_qubit_reset * num_used_qubits)
 
     def test_merge_many_circuits(self):
@@ -252,7 +254,7 @@ class TestCircuitMerger(unittest.TestCase):
                 delays_found += 1
                 self.assertEqual(operation.duration, 100016)
                 self.assertEqual(operation.unit, "dt")
-        self.assertEqual(delays_found, 4)
+        self.assertEqual(delays_found, self.sim_backend.configuration().num_qubits)
 
     def test_unwrap_results_meas_level_classified(self):
         """Test unwrapping circuits with measurement level 2."""
@@ -364,3 +366,34 @@ class TestCircuitMerger(unittest.TestCase):
 
         np.testing.assert_almost_equal(result_qc0.get_memory(0), unwrapped_result.get_memory(0))
         np.testing.assert_almost_equal(result_qc1.get_memory(0), unwrapped_result.get_memory(1))
+
+    def test_using_bits_directly(self):
+        """Tests using bits directly.
+
+        A regression test for:
+            https://github.ibm.com/IBM-Q-Software/vt-qcf/issues/1395
+        """
+        bit = [Qubit(), Clbit(), Clbit()]
+        qc0 = QuantumCircuit(bit)
+        qc0.x(bit[0])
+        qc0.measure(bit[0], bit[1])
+        qc0.measure(bit[0], bit[2])
+
+        qc1 = QuantumCircuit(list(reversed(bit)))
+        qc1.x(bit[0])
+        qc1.measure(bit[0], bit[2])
+        qc1.x(bit[0])
+        qc1.measure(bit[0], bit[1])
+
+        merger = CircuitMerger([qc0, qc1], backend=self.sim_backend)
+        merged_circuit = merger.merge_circuits()
+
+        result_merged = execute(merged_circuit, backend=self.sim_backend).result()
+
+        unwrapped_result = merger.unwrap_results(result_merged)
+
+        # Qiskit Aer does not work with a single isolate Clbit.
+        # https://github.com/Qiskit/qiskit-aer/issues/1783 and
+        # https://github.com/Qiskit/qiskit-terra/issues/9981
+        self.assertEqual({"1 1": 1024}, unwrapped_result.get_counts(0))
+        self.assertEqual({"0 1": 1024}, unwrapped_result.get_counts(1))
