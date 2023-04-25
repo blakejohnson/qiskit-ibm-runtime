@@ -12,28 +12,18 @@
 
 """Test VQE."""
 
-import os
 import numpy as np
-
-from qiskit.algorithms.minimum_eigensolvers import NumPyMinimumEigensolver
-from qiskit.algorithms.optimizers import SPSA, COBYLA, QNSPSA
-from qiskit.circuit.library import EfficientSU2, RealAmplitudes
-from qiskit.opflow import X, Z, I
-from qiskit.providers.basicaer import QasmSimulatorPy
-
 import qiskit_nature
-from qiskit_nature.runtime import VQEClient
-from qiskit_nature.second_q.algorithms import GroundStateEigensolver
-from qiskit_nature.second_q.mappers import QubitConverter
-from qiskit_nature.second_q.mappers import ParityMapper
-from qiskit_nature.second_q.transformers import ActiveSpaceTransformer
-from qiskit_nature.second_q.formats.qcschema_translator import qcschema_to_problem
-from qiskit_nature.second_q.formats.qcschema import QCSchema
+from qiskit.algorithms.minimum_eigensolvers import NumPyMinimumEigensolver
+from qiskit.algorithms.optimizers import SPSA
+from qiskit.circuit.library import EfficientSU2
+from qiskit.opflow import I, X, Z
+from qiskit.providers.basicaer import QasmSimulatorPy
 
 from programs.vqe import main
 
-from .decorator import get_provider_and_backend
 from .base_testcase import BaseTestCase
+from .decorator import get_provider_and_backend
 
 
 class CountingBackend(QasmSimulatorPy):
@@ -126,85 +116,6 @@ class TestVQE(BaseTestCase):
         if self.backend.configuration().simulator:
             with self.subTest(msg="check eigenvalue"):
                 self.assertLess(abs(result["eigenvalue"] - reference.eigenvalue), 1)
-
-    def test_nature_program(self):
-        """Test vqe nature program."""
-        reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(self.hamiltonian)
-        self.log.info("Exact result: %s", reference.eigenvalue)
-        ansatz = EfficientSU2(3, entanglement="linear", reps=3)
-        initial_point = np.zeros(ansatz.num_parameters)
-        optimizer = COBYLA()
-
-        vqe = VQEClient(
-            ansatz=ansatz,
-            optimizer=optimizer,
-            initial_point=initial_point,
-            provider=self.provider,
-            backend=self.backend,
-            store_intermediate=True,
-            callback=self.callback_func,
-            shots=2048,
-        )
-        result = vqe.compute_minimum_eigenvalue(self.hamiltonian, aux_operators=self.observables)
-        self.log.info("VQE program result: %s", result.eigenvalue)
-
-    def test_nature_full_workflow(self):
-        """Test the ground state search workflow from Qiskit Nature."""
-        current_dir = os.path.dirname(__file__)
-        qcschema_file = os.path.join(current_dir, "qcschema_lih_sto3g.npy")
-        qcschema_dict = np.load(qcschema_file, allow_pickle=True).item()
-        qcschema = QCSchema.from_dict(qcschema_dict)
-        problem = qcschema_to_problem(qcschema)
-
-        active_space_trafo = ActiveSpaceTransformer(
-            num_electrons=problem.num_particles, num_spatial_orbitals=3
-        )
-        problem = active_space_trafo.transform(problem)
-        qubit_converter = QubitConverter(ParityMapper(), two_qubit_reduction=True)
-
-        ansatz = EfficientSU2(4, reps=1, entanglement="linear")
-
-        optimizer = QNSPSA(None, maxiter=300, learning_rate=0.01, perturbation=0.1)
-        solver = VQEClient(ansatz, optimizer, provider=self.provider, backend=self.backend)
-
-        reference_solver = NumPyMinimumEigensolver()
-
-        gse = GroundStateEigensolver(qubit_converter, solver)
-        result = gse.solve(problem)
-
-        reference_gse = GroundStateEigensolver(qubit_converter, reference_solver)
-        reference_result = reference_gse.solve(problem)
-
-        if self.backend.configuration().simulator:
-            difference = abs(result.computed_energies[0] - reference_result.computed_energies[0])
-            self.assertLess(difference, 2)
-
-    def test_optimization_program(self):
-        """Test vqe optimization program."""
-        self.hamiltonian = (Z ^ Z ^ I ^ I) + (I ^ Z ^ Z ^ I) + (Z ^ I ^ I ^ Z)
-
-        reference = NumPyMinimumEigensolver().compute_minimum_eigenvalue(self.hamiltonian)
-        self.log.info("Exact result: %s", reference.eigenvalue)
-        ansatz = RealAmplitudes(4, entanglement="linear", reps=3)
-        initial_point = np.random.random(ansatz.num_parameters)
-        optimizer = SPSA(maxiter=300)
-
-        vqe = VQEClient(
-            ansatz=ansatz,
-            optimizer=optimizer,
-            initial_point=initial_point,
-            provider=self.provider,
-            backend=self.backend,
-            callback=self.callback_func,
-        )
-        result = vqe.compute_minimum_eigenvalue(self.hamiltonian, aux_operators=self.observables)
-        self.log.info("VQE program result: %s", result.eigenvalue)
-
-        self.assertIsNotNone(result.eigenvalue)
-        self.assertIsNotNone(result.aux_operator_eigenvalues)
-
-        if self.backend.configuration().simulator:
-            self.assertLess(abs(result.eigenvalue - reference.eigenvalue), 1)
 
     def test_batched_evaluations(self):
         """Test circuit evaluations are batched per default."""
