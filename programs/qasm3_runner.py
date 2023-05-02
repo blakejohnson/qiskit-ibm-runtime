@@ -1,5 +1,4 @@
 # This code is part of Qiskit.
-# THIS COMMENT IS ADDED FOR TESTING
 #
 # (C) Copyright IBM 2022.
 #
