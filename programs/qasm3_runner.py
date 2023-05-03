@@ -513,8 +513,8 @@ class QASM3Options:
 
         # Counts is the default so don't set unless overridden
         # as older compiler versions do not support.
-        if self.meas_level != MeasurementReportingLevel.COUNTS:
-            extra_compile_args.append(f"--lp-measure-report-level={int(self.meas_level)}")
+        if MeasurementReportingLevel(self.meas_level) != MeasurementReportingLevel.COUNTS:
+            extra_compile_args.append(f"--rta-measure-report-level={int(self.meas_level)}")
 
         filtered_run_config = {
             "extra_compile_args": extra_compile_args,
