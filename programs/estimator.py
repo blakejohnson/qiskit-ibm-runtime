@@ -28,6 +28,7 @@ from os import environ
 from typing import Dict, List, Optional, cast, Union
 
 import numpy as np
+import qiskit
 from qiskit.circuit import Parameter, QuantumCircuit
 from qiskit.circuit.library import RZGate, XGate
 from qiskit.circuit.parametertable import ParameterView
@@ -1033,19 +1034,26 @@ def dynamical_decoupling_pass(backend: Union[BackendV1, BackendV2]) -> Optional[
             durations = target.durations()
             timing_constraints = target.timing_constraints()
         else:
+            target = None
             durations = InstructionDurations.from_backend(backend)
             timing_constraints = TimingConstraints(**backend.configuration().timing_constraints)
     except AttributeError:
         logger.warning("Backend (%s) does not support dynamical decoupling.", backend)
         return None
 
+    # This can be removed after qiskit-terra 0.24 is released and installed.
+    extra_params = {}
+    version_parts = qiskit.__version__.split(".")
+    if (int(version_parts[0]) == 0 and int(version_parts[1]) >= 24) or int(version_parts[0]) > 0:
+        extra_params["target"] = target
+
     dd_sequence = [XGate(), RZGate(np.pi), XGate(), RZGate(-np.pi)]
     spacing = [1 / 4, 1 / 2, 0, 0, 1 / 4]
-    schedule_pass = ALAPScheduleAnalysis(durations)
+    schedule_pass = ALAPScheduleAnalysis(durations, **extra_params)
 
     return PassManager(
         [
-            TimeUnitConversion(durations),
+            TimeUnitConversion(durations, **extra_params),
             schedule_pass,
             InstructionDurationCheck(
                 acquire_alignment=timing_constraints.acquire_alignment,
@@ -1060,6 +1068,7 @@ def dynamical_decoupling_pass(backend: Union[BackendV1, BackendV2]) -> Optional[
                 dd_sequence=dd_sequence,
                 spacing=spacing,
                 pulse_alignment=timing_constraints.pulse_alignment,
+                **extra_params,
             ),
         ]
     )
