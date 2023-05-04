@@ -1486,7 +1486,11 @@ def main(
     transpile_options = transpilation_settings.copy()
     optimization_level = optimization_settings.get("level", 1)
     transpile_options["optimization_level"] = optimization_level
-    if optimization_level >= 1 and not skip_transpilation:
+
+    # Bypass DD for ibm_seattle. Can remove after
+    # https://github.com/Qiskit/qiskit-terra/issues/10067 is released.
+    _backend_name = backend.name if backend.version == 2 else backend.name()
+    if optimization_level >= 1 and not skip_transpilation and _backend_name != "ibm_seattle":
         bound_pass_manager = dynamical_decoupling_pass(backend)
     else:
         bound_pass_manager = None
