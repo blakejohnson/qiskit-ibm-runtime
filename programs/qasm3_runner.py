@@ -301,7 +301,7 @@ class CircuitMerger:
         meas_level = combined_res.get("meas_level")
         meas_levels = set(combined_res.get("meas_levels", []))
         meas_levels.add(meas_level)
-        meas_return = combined_res.get("meas_return", "avg")
+        meas_return = combined_res.get("meas_return", MeasurementReturnType.AVG.value)
 
         combined_data = combined_res["data"]
         unwrapped_results = []
@@ -367,9 +367,9 @@ class CircuitMerger:
                     combined_data["counts"], bit_offset, num_clbits
                 )
 
-            if MeasurementReportingLevel.IQ.value in meas_levels:
-                # Handle measurement level 1 memory as IQ data.
-                if meas_return == "avg":
+            if MeasurementReportingLevel.KERNELED.value in meas_levels:
+                # Handle measurement level 1 memory as KERNELED data.
+                if meas_return == MeasurementReturnType.AVG.value:
                     res["data"]["memory"] = extract_kernels_avg(
                         combined_data["memory"], bit_offset, num_clbits
                     )
@@ -406,10 +406,19 @@ class Qasm3Encoder(RuntimeEncoder):
 
 
 class MeasurementReportingLevel(Enum):
-    """Measurement result reporting level"""
+    """Measurement result reporting level."""
 
-    IQ = 1
-    COUNTS = 2
+    KERNELED = 1
+    CLASSIFIED = 2
+
+
+class MeasurementReturnType(Enum):
+    """Measurement return type."""
+
+    AVERAGE = "average"
+    AVG = "avg"
+    # Same as average
+    SINGLE = "single"
 
 
 @dataclass
@@ -420,10 +429,11 @@ class QASM3Options:
     merge_circuits: bool = True
     shots: int = 4000
     # Number of repetitions of each circuit, for sampling.
-    meas_level: MeasurementReportingLevel = MeasurementReportingLevel.COUNTS
+    meas_level: MeasurementReportingLevel = MeasurementReportingLevel.CLASSIFIED
     # meas_level: The reporting level for measurements results:
     #    Level 2: Discriminated measurement counts
-    #   Level 1: IQ measurement kernel values.
+    #   Level 1: KERNELED measurement kernel values.
+    meas_return: MeasurementReturnType = MeasurementReturnType.AVERAGE
     init_circuit: Optional[QuantumCircuit] = None
     rep_delay: float = 100.0e-6
     # The number of seconds of delay to insert before each circuit execution.
@@ -442,6 +452,7 @@ class QASM3Options:
         non_none = (
             "shots",
             "meas_level",
+            "meas_return",
             "init_delay",
             "init_num_resets",
             "run_config",
@@ -505,7 +516,18 @@ class QASM3Options:
             kwargs["init_num_resets"] = 0.0
             kwargs["init_circuit"] = None
 
+        QASM3Options.are_valid_options(**kwargs)
         return QASM3Options(**kwargs)
+
+    @classmethod
+    def are_valid_options(cls, **kwargs) -> None:
+        """Check if supplied options are valid."""
+        arg_names = set(kwargs.keys())
+        valid_args = set(cls.__annotations__.keys())
+        if not_in := arg_names - valid_args:
+            raise ValueError(
+                f'The following arguments are not valid for the "qasm3-runner" runtime program: {str(list(not_in))}'
+            )
 
     def prepare_run_config(self):
         """Prepare an externally safe run configuration."""
@@ -513,8 +535,19 @@ class QASM3Options:
 
         # Counts is the default so don't set unless overridden
         # as older compiler versions do not support.
-        if MeasurementReportingLevel(self.meas_level) != MeasurementReportingLevel.COUNTS:
-            extra_compile_args.append(f"--rte-measure-report-level={int(self.meas_level)}")
+        if MeasurementReportingLevel(self.meas_level) != MeasurementReportingLevel.CLASSIFIED:
+            extra_compile_args.append(f"--rta-measure-report-level={int(self.meas_level)}")
+
+        # Average is the default so don't set unless overridden
+        # as older compiler versions do not support.
+        measurement_return_type = MeasurementReturnType(self.meas_return)
+        if measurement_return_type == MeasurementReturnType.AVG:
+            measurement_return_type = MeasurementReturnType.AVERAGE
+
+        if measurement_return_type != MeasurementReturnType.AVERAGE:
+            extra_compile_args.append(
+                f"--rta-measure-report-type={str(measurement_return_type.value)}"
+            )
 
         filtered_run_config = {
             "extra_compile_args": extra_compile_args,

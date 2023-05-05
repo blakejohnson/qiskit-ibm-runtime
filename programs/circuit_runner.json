@@ -41,7 +41,7 @@
           "default": 2
         },
         "meas_return": {
-          "description": "Type of measurement data to return. Only applicable for meas_level=1. If 'single' is sepcified, per-shot information is returned. If 'avg' is specified, average measurement output is returned.",
+          "description": "Type of measurement data to return. Only applicable for meas_level=1. If 'single' is specified, per-shot information is returned. If 'avg' is specified, average measurement output is returned.",
           "type": "string",
           "enum": [
             "single",

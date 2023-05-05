@@ -27,6 +27,11 @@
           "type": "integer",
           "default": 2
         },
+        "meas_return": {
+          "description": "Type of measurement data to return. Only applicable for meas_level=1. If 'single' is specified, per-shot information is returned. If 'average' is specified, average measurement output is returned..",
+          "type": "string",
+          "default": "average"
+        },
         "init_qubits": {
           "description": "Enable qubit initialization. If disabled this sets rep_delay and init_num_resets to 0.",
           "type": [

@@ -23,7 +23,7 @@ from qiskit.providers.fake_provider import FakeBogota
 from qiskit.result.models import ExperimentResultData
 from qiskit_aer import AerSimulator
 
-from programs.qasm3_runner import CircuitMerger
+from programs.qasm3_runner import CircuitMerger, MeasurementReportingLevel, MeasurementReturnType
 
 
 def _create_test_circuits() -> Tuple[QuantumCircuit, QuantumCircuit]:
@@ -289,24 +289,24 @@ class TestCircuitMerger(unittest.TestCase):
 
         result_merged = execute(merged_circuit, backend=self.sim_backend, num_shots=3).result()
 
-        # Dummy IQ data as stored in the transport format
+        # Dummy KERNELED data as stored in the transport format
         raw_memory_0 = [[0.0, 1.0], [1.0, 0.0], [0.5, 0.5], [1.0, 0.0]]
         raw_memory_1 = [[1.0, 0.0], [0.0, 1.0]]
 
-        result_qc0.results[0].meas_level = 1
-        result_qc0.results[0].meas_return = "avg"
+        result_qc0.results[0].meas_level = MeasurementReportingLevel.KERNELED.value
+        result_qc0.results[0].meas_return = MeasurementReturnType.AVG.value
         result_qc0.results[0].data = ExperimentResultData.from_dict(
             dict(memory=raw_memory_0, **result_qc0.results[0].data.to_dict())
         )
-        result_qc1.results[0].meas_level = 1
-        result_qc1.results[0].meas_return = "avg"
+        result_qc1.results[0].meas_level = MeasurementReportingLevel.KERNELED.value
+        result_qc1.results[0].meas_return = MeasurementReturnType.AVG.value
         result_qc1.results[0].data = ExperimentResultData.from_dict(
             dict(memory=raw_memory_1, **result_qc1.results[0].data.to_dict())
         )
 
         raw_memory_merged = raw_memory_0 + raw_memory_1
-        result_merged.results[0].meas_level = 1
-        result_merged.results[0].meas_return = "avg"
+        result_merged.results[0].meas_level = MeasurementReportingLevel.KERNELED.value
+        result_merged.results[0].meas_return = MeasurementReturnType.AVG.value
         result_merged.results[0].data = ExperimentResultData.from_dict(
             dict(memory=raw_memory_merged)
         )
@@ -334,20 +334,20 @@ class TestCircuitMerger(unittest.TestCase):
 
         result_merged = execute(merged_circuit, backend=self.sim_backend, num_shots=3).result()
 
-        # Dummy IQ data as stored in the transport format
+        # Dummy KERNELED data as stored in the transport format
         raw_memory_0 = [
             [[0.0, 1.0], [1.0, 0.0], [0.5, 0.5], [1.0, 0.0]],
             [[0.0, 1.0], [1.0, 0.0], [0.5, 0.5], [1.0, 0.0]],
         ]
         raw_memory_1 = [[[1.0, 0.0], [0.0, 1.0]], [[1.0, 0.0], [0.0, 1.0]]]
 
-        result_qc0.results[0].meas_level = 1
-        result_qc0.results[0].meas_return = "single"
+        result_qc0.results[0].meas_level = MeasurementReportingLevel.KERNELED.value
+        result_qc0.results[0].meas_return = MeasurementReturnType.SINGLE.value
         result_qc0.results[0].data = ExperimentResultData.from_dict(
             dict(memory=raw_memory_0, **result_qc0.results[0].data.to_dict())
         )
-        result_qc1.results[0].meas_level = 1
-        result_qc1.results[0].meas_return = "single"
+        result_qc1.results[0].meas_level = MeasurementReportingLevel.KERNELED.value
+        result_qc1.results[0].meas_return = MeasurementReturnType.SINGLE.value
         result_qc1.results[0].data = ExperimentResultData.from_dict(
             dict(memory=raw_memory_1, **result_qc1.results[0].data.to_dict())
         )
@@ -355,8 +355,8 @@ class TestCircuitMerger(unittest.TestCase):
         raw_memory_merged = []
         for i, _ in enumerate(raw_memory_0):
             raw_memory_merged.append(raw_memory_0[i] + raw_memory_1[i])
-        result_merged.results[0].meas_level = 1
-        result_merged.results[0].meas_return = "single"
+        result_merged.results[0].meas_level = MeasurementReportingLevel.KERNELED.value
+        result_merged.results[0].meas_return = MeasurementReturnType.SINGLE.value
         result_merged.results[0].data = ExperimentResultData.from_dict(
             dict(memory=raw_memory_merged)
         )
