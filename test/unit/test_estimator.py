@@ -227,9 +227,16 @@ class TestEstimatorCircuitIndices(unittest.TestCase):
             random_pauli_list(num_qubits=num_qubits, size=size, seed=seed, phase=False)
         )
         params = np.linspace(0, np.pi, 5)[:, np.newaxis]
-        with RefEstimator(circuits=[circ], observables=[obs]) as ref_est:
-            result = ref_est([0] * len(params), [0] * len(params), params)
-            targets = result.values
+        targets = (
+            RefEstimator()
+            .run(
+                circuits=[circ] * len(params),
+                observables=[obs] * len(params),
+                parameter_values=params,
+            )
+            .result()
+            .values
+        )
         backend = get_simulator(FakeMontreal() if noise else None)
         mit = PauliTwirledMitigation(
             backend=backend,
@@ -477,9 +484,16 @@ class TestEstimatorCircuitIds(unittest.TestCase):
             random_pauli_list(num_qubits=num_qubits, size=size, seed=seed, phase=False)
         )
         params = np.linspace(0, np.pi, 5)[:, np.newaxis]
-        with RefEstimator(circuits=[circ], observables=[obs]) as ref_est:
-            result = ref_est([0] * len(params), [0] * len(params), params)
-            targets = result.values
+        targets = (
+            RefEstimator()
+            .run(
+                circuits=[circ] * len(params),
+                observables=[obs] * len(params),
+                parameter_values=params,
+            )
+            .result()
+            .values
+        )
         backend = get_simulator(FakeMontreal() if noise else None)
         mit = PauliTwirledMitigation(
             backend=backend,
@@ -535,8 +549,12 @@ class TestEstimatorMainCircuitIndices(unittest.TestCase):
         circuits = [0]
         observables = [0]
         params = [[0, 1, 1, 2, 3, 5]]
-        with RefEstimator([self.ansatz], [self.observable]) as estimator:
-            target = estimator(circuits, observables, params).values
+        target = (
+            RefEstimator()
+            .run(circuits=[self.ansatz], observables=[self.observable], parameter_values=params)
+            .result()
+            .values
+        )
         result = main(
             backend=backend,
             user_messenger=None,
@@ -580,8 +598,16 @@ class TestEstimatorMainCircuitIndices(unittest.TestCase):
         circuits = [0, 0]
         observables = [0, 0]
         params = [[0, 1, 1, 2, 3, 5], [1, 1, 2, 3, 5, 8]]
-        with RefEstimator([self.ansatz], [self.observable]) as estimator:
-            target = estimator(circuits, observables, params).values
+        target = (
+            RefEstimator()
+            .run(
+                circuits=[self.ansatz] * len(params),
+                observables=[self.observable] * len(params),
+                parameter_values=params,
+            )
+            .result()
+            .values
+        )
         result = main(
             backend=backend,
             user_messenger=None,
@@ -627,8 +653,16 @@ class TestEstimatorMainCircuitIndices(unittest.TestCase):
         circuits = [0, 0]
         observables = [0, 0]
         params = [[0, 1, 1, 2, 3, 5], [1, 1, 2, 3, 5, 8]]
-        with RefEstimator([self.ansatz], [self.observable]) as estimator:
-            target = estimator(circuits, observables, params).values
+        target = (
+            RefEstimator()
+            .run(
+                circuits=[self.ansatz] * len(params),
+                observables=[self.observable] * len(params),
+                parameter_values=params,
+            )
+            .result()
+            .values
+        )
         result = main(
             backend=backend,
             user_messenger=None,
@@ -739,11 +773,18 @@ class TestEstimatorMainCircuitIds(unittest.TestCase):
         """Test for main without noise with single parameter set"""
         backend = get_simulator(resilience_level)
         shots = 10000
-        circuits = [0]
         observables = [0]
         params = [[0, 1, 1, 2, 3, 5]]
-        with RefEstimator([self.ansatz], [self.observable]) as estimator:
-            target = estimator(circuits, observables, params).values
+        target = (
+            RefEstimator()
+            .run(
+                circuits=[self.ansatz] * len(params),
+                observables=[self.observable] * len(params),
+                parameter_values=params,
+            )
+            .result()
+            .values
+        )
         result = main(
             backend=backend,
             user_messenger=None,
@@ -784,11 +825,18 @@ class TestEstimatorMainCircuitIds(unittest.TestCase):
         """Test for main without noise with multiple parameter sets"""
         backend = get_simulator(resilience_level)
         shots = 10000
-        circuits = [0, 0]
         observables = [0, 0]
         params = [[0, 1, 1, 2, 3, 5], [1, 1, 2, 3, 5, 8]]
-        with RefEstimator([self.ansatz], [self.observable]) as estimator:
-            target = estimator(circuits, observables, params).values
+        target = (
+            RefEstimator()
+            .run(
+                circuits=[self.ansatz] * len(params),
+                observables=[self.observable] * len(params),
+                parameter_values=params,
+            )
+            .result()
+            .values
+        )
         result = main(
             backend=backend,
             user_messenger=None,
@@ -831,11 +879,18 @@ class TestEstimatorMainCircuitIds(unittest.TestCase):
         """Test for T-Rex mitigation w/ and w/o noise"""
         backend = AerSimulator.from_backend(FakeBogota()) if noise else AerSimulator()
         resilience_level = 1
-        circuits = [0, 0]
         observables = [0, 0]
         params = [[0, 1, 1, 2, 3, 5], [1, 1, 2, 3, 5, 8]]
-        with RefEstimator([self.ansatz], [self.observable]) as estimator:
-            target = estimator(circuits, observables, params).values
+        target = (
+            RefEstimator()
+            .run(
+                circuits=[self.ansatz] * len(params),
+                observables=[self.observable] * len(params),
+                parameter_values=params,
+            )
+            .result()
+            .values
+        )
         result = main(
             backend=backend,
             user_messenger=None,

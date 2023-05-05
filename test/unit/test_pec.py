@@ -51,8 +51,16 @@ class TestPEC(unittest.TestCase):
         circuits = [0]
         observables = [0]
         params = [[0, 1, 1, 2, 3, 5]]
-        with RefEstimator([ansatz], [observable]) as estimator:
-            target = estimator(circuits, observables, params).values
+        target = (
+            RefEstimator()
+            .run(
+                circuits=[ansatz] * len(params),
+                observables=[observable] * len(params),
+                parameter_values=params,
+            )
+            .result()
+            .values
+        )
         pec_cache = {}
         trex_cache = {}
         result = main(
