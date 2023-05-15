@@ -22,11 +22,10 @@ from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
 
 from qiskit.circuit.library import Barrier
 from qiskit.circuit.quantumcircuit import ClassicalRegister, Delay, QuantumCircuit, QuantumRegister
-from qiskit.compiler import transpile
 from qiskit.dagcircuit import DAGCircuit
-from qiskit.qasm3 import Exporter
+from qiskit.qasm3 import Exporter, ExperimentalFeatures
 from qiskit.result import Result
-from qiskit.transpiler import PassManager
+from qiskit.transpiler import PassManager, Layout
 from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.transpiler.instruction_durations import InstructionDurations
 from qiskit.transpiler.passes import TimeUnitConversion
@@ -270,8 +269,12 @@ class CircuitMerger:
 
         # create empty circuit into which to merge all others;
         # use transpile for mapping to physical qubits
-        merged_circuit = transpile(
-            QuantumCircuit(*regs), backend=self.backend, optimization_level=0
+        merged_circuit = QuantumCircuit(*regs)
+        # Set the layout to physical qubits.
+        # This avoids having to call transpile.
+        # This sets a private method, but this is how transpiler passes also set this attribute.
+        merged_circuit._layout = Layout(
+            {qubit: idx for idx, qubit in enumerate(merged_circuit.qubits)}
         )
 
         used_qubits = self._used_qubits(self.circuits)
@@ -515,6 +518,7 @@ class QASM3Options:
             kwargs["rep_delay"] = 0.0
             kwargs["init_num_resets"] = 0.0
             kwargs["init_circuit"] = None
+            kwargs["merge_circuits"] = False
 
         QASM3Options.are_valid_options(**kwargs)
         return QASM3Options(**kwargs)
@@ -623,6 +627,15 @@ def main(
                     init_circuit=options.init_circuit,
                 )
             ]
+        else:
+            # If not circuit merging we must still modify the circuit
+            # to workaround https://github.com/Qiskit/qiskit-terra/issues/10112
+            # which is throwing out physical qubit information.
+            for circuit in circuits:
+                # Set the layout to physical qubits.
+                # This avoids having to call transpile.
+                # This sets a private method, but this is how transpiler passes also set this attribute.
+                circuit._layout = Layout({qubit: idx for idx, qubit in enumerate(circuit.qubits)})
 
         # Convert circuits to qasm3
         qasm3_strs = []
@@ -630,6 +643,7 @@ def main(
             "includes": (),
             "disable_constants": True,
             "basis_gates": backend.configuration().basis_gates,
+            "experimental": ExperimentalFeatures.SWITCH_CASE_V1,
         }
         for circ in circuits:
             qasm3_strs.append(Exporter(**exporter_config).dumps(circ))
