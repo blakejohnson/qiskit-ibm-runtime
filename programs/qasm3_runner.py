@@ -16,9 +16,11 @@ combined circuit into OpenQASM3.
 This program can also take and execute one or more OpenQASM3 strings. Note that this
 program can only run on a backend that supports OpenQASM3."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
 
 from qiskit.circuit.library import Barrier
 from qiskit.circuit.quantumcircuit import ClassicalRegister, Delay, QuantumCircuit, QuantumRegister
@@ -300,103 +302,142 @@ class CircuitMerger:
         Returns: Result object that behaves as if the circuits in this
             instance had been executed separately.
         """
+        return QiskitQobjResultUnwrapper().prepare_execution_result(self.circuits, result)
+
+
+class QiskitQobjResultUnwrapper:
+    """Unwraps a result from the backend and populates its metadata."""
+
+    def prepare_execution_result(self, circuits: List[QuantumCircuit], result: Result):
+        """Unwrap results from executing a merged circuit.
+
+        Postprocess the result of executing the merged circuit and separate
+        the result data per circuit. Create a corresponding result object
+        that allows retrieving counts and memory individually, such as if the
+        circuits in this instance had been executed separately.
+
+        Args:
+            circuits: Quantum circuits which were executed.
+            result: Result of the execution of the merged circuit.
+
+        Returns: Result object that behaves as if the circuits in this
+            instance had been executed separately.
+        """
         combined_res = result.results[0].to_dict()
         meas_level = combined_res.get("meas_level")
         meas_levels = set(combined_res.get("meas_levels", []))
         meas_levels.add(meas_level)
         meas_return = combined_res.get("meas_return", MeasurementReturnType.AVG.value)
 
-        combined_data = combined_res["data"]
         unwrapped_results = []
         bit_offset = 0
-
-        def extract_bits(bitstring: str, bit_position: int, num_bits: int) -> str:
-            assert bitstring.startswith("0x") or bitstring.startswith("0b")
-            bitstring_as_int = int(bitstring, 0)
-            bitstring_as_int >>= bit_position
-            mask = (1 << num_bits) - 1
-            return hex(bitstring_as_int & mask)
-
-        def extract_kernels_avg(
-            memory: List[Tuple[float, float]], bit_position: int, num_bits: int
-        ) -> List[Tuple[float, float]]:
-            return memory[bit_position : bit_position + num_bits]
-
-        def extract_kernels_single(
-            memory: List[Tuple[float, float]], bit_position: int, num_bits: int
-        ) -> List[Tuple[float, float]]:
-            extracted_results = []
-            for shot_result in memory:
-                extracted_results.append(extract_kernels_avg(shot_result, bit_position, num_bits))
-            return extracted_results
-
-        def extract_counts(
-            combined_counts: Dict[str, int], bit_offset: int, num_clbits: int
-        ) -> Dict[str, int]:
-            extracted_counts: Dict[str, int] = {}
-            for bitstring, count in combined_counts.items():
-                extracted_hex = extract_bits(bitstring, bit_offset, num_clbits)
-                if extracted_hex in extracted_counts:
-                    extracted_counts[extracted_hex] += count
-                else:
-                    extracted_counts[extracted_hex] = count
-            return extracted_counts
-
-        for circuit in self.circuits:
-            res = combined_res.copy()
-            assert "data" in res
-
-            res["header"] = res["header"].copy()
-            res["data"] = res["data"].copy()
-
-            header = res["header"]
-            header["name"] = res["name"] = circuit.name
-
-            header["metadata"] = circuit.metadata
-
-            # see qiskit/assembler/assemble_circuits.py for how Qiskit builds
-            # the information about classical bits and registers in a
-            # result's header.
-            header["creg_sizes"] = [[creg.name, creg.size] for creg in circuit.cregs]
-            num_clbits = sum([creg.size for creg in circuit.cregs])
-            header["memory_slots"] = num_clbits
-
-            header["clbit_labels"] = [
-                [creg.name, i] for creg in circuit.cregs for i in range(creg.size)
-            ]
-
-            if "counts" in combined_data:
-                res["data"]["counts"] = extract_counts(
-                    combined_data["counts"], bit_offset, num_clbits
-                )
-
-            if MeasurementReportingLevel.KERNELED.value in meas_levels:
-                # Handle measurement level 1 memory as KERNELED data.
-                if meas_return == MeasurementReturnType.AVG.value:
-                    res["data"]["memory"] = extract_kernels_avg(
-                        combined_data["memory"], bit_offset, num_clbits
-                    )
-                elif meas_return == "single":
-                    res["data"]["memory"] = extract_kernels_single(
-                        combined_data["memory"], bit_offset, num_clbits
-                    )
-                else:
-                    raise ValueError(f"Measurement return type {meas_return} is not supported.")
-
-            elif "memory" in combined_data:
-                # Handle measurement level 2 memory as counts.
-                extracted_memory = [
-                    extract_bits(bitstring, bit_offset, num_clbits)
-                    for bitstring in combined_data["memory"]
-                ]
-                res["data"]["memory"] = extracted_memory
-
-            bit_offset += num_clbits
-            unwrapped_results.append(res)
+        for circuit in circuits:
+            circuit_result = self.prepare_circuit_result(
+                combined_res, circuit, bit_offset, meas_levels, meas_return
+            )
+            bit_offset += len(circuit.clbits)
+            unwrapped_results.append(circuit_result)
 
         res_dict = result.to_dict()
         res_dict["results"] = unwrapped_results
         return Result.from_dict(res_dict)
+
+    def prepare_circuit_result(
+        self,
+        orig_result: Dict[str, Any],
+        circuit: QuantumCircuit,
+        bit_offset: int,
+        meas_levels: List[MeasurementReportingLevel],
+        meas_return: MeasurementReturnType,
+    ) -> Dict[str, Any]:
+        """Prepare the Qiskit result from the Qobj result that was returned
+        which contains no circuit metadata."""
+        res = orig_result.copy()
+        combined_data = orig_result["data"]
+        assert "data" in res
+
+        res["header"] = res["header"].copy()
+        res["data"] = res["data"].copy()
+
+        header = res["header"]
+        header["name"] = res["name"] = circuit.name
+
+        header["metadata"] = circuit.metadata
+
+        # see qiskit/assembler/assemble_circuits.py for how Qiskit builds
+        # the information about classical bits and registers in a
+        # result's header.
+        header["creg_sizes"] = [[creg.name, creg.size] for creg in circuit.cregs]
+        num_clbits = len(circuit.clbits)
+        header["memory_slots"] = num_clbits
+
+        header["clbit_labels"] = [
+            [creg.name, i] for creg in circuit.cregs for i in range(creg.size)
+        ]
+
+        if "counts" in combined_data:
+            res["data"]["counts"] = self.extract_counts(
+                combined_data["counts"], bit_offset, num_clbits
+            )
+
+        if MeasurementReportingLevel.KERNELED.value in meas_levels:
+            # Handle measurement level 1 memory as KERNELED data.
+            if meas_return == MeasurementReturnType.AVG.value:
+                res["data"]["memory"] = self.extract_kernels_avg(
+                    combined_data["memory"], bit_offset, num_clbits
+                )
+            elif meas_return == "single":
+                res["data"]["memory"] = self.extract_kernels_single(
+                    combined_data["memory"], bit_offset, num_clbits
+                )
+            else:
+                raise ValueError(f"Measurement return type {meas_return} is not supported.")
+
+        elif "memory" in combined_data:
+            # Handle measurement level 2 memory as counts.
+            extracted_memory = [
+                self.extract_bits(bitstring, bit_offset, num_clbits)
+                for bitstring in combined_data["memory"]
+            ]
+            res["data"]["memory"] = extracted_memory
+
+        return res
+
+    def extract_bits(self, bitstring: str, bit_position: int, num_bits: int) -> str:
+        """Extract selected bits from the bitstring"""
+        assert bitstring.startswith("0x") or bitstring.startswith("0b")
+        bitstring_as_int = int(bitstring, 0)
+        bitstring_as_int >>= bit_position
+        mask = (1 << num_bits) - 1
+        return hex(bitstring_as_int & mask)
+
+    def extract_kernels_avg(
+        self, memory: List[Tuple[float, float]], bit_position: int, num_bits: int
+    ) -> List[Tuple[float, float]]:
+        """Extract selected bits from the average kernel memory"""
+        return memory[bit_position : bit_position + num_bits]
+
+    def extract_kernels_single(
+        self, memory: List[Tuple[float, float]], bit_position: int, num_bits: int
+    ) -> List[Tuple[float, float]]:
+        """Extract selected bits from the single kernel memory"""
+        extracted_results = []
+        for shot_result in memory:
+            extracted_results.append(self.extract_kernels_avg(shot_result, bit_position, num_bits))
+        return extracted_results
+
+    def extract_counts(
+        self, combined_counts: Dict[str, int], bit_offset: int, num_clbits: int
+    ) -> Dict[str, int]:
+        """Extract selected bits from the binned counts"""
+        extracted_counts: Dict[str, int] = {}
+        for bitstring, count in combined_counts.items():
+            extracted_hex = self.extract_bits(bitstring, bit_offset, num_clbits)
+            if extracted_hex in extracted_counts:
+                extracted_counts[extracted_hex] += count
+            else:
+                extracted_counts[extracted_hex] = count
+        return extracted_counts
 
 
 class Qasm3Encoder(RuntimeEncoder):
@@ -667,6 +708,9 @@ def main(
 
     if use_merging:
         result = merger.unwrap_results(result)
+    elif is_qc:
+        # If a quantum circuit was submitted without merging we may still inject metadata
+        result = QiskitQobjResultUnwrapper().prepare_execution_result(circuits, result)
 
     return result.to_dict()
 
