@@ -54,6 +54,11 @@
           "type": [
             "object"
           ]
+        },
+        "memory": {
+          "description": "Whether to return per-shot measurement bitstrings. Currently only `true` is supported and per-shot results will be reported for all jobs.",
+          "type": "boolean",
+          "default": true
         }
       },
       "required": [

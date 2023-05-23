@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+import logging
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
 
 from qiskit.circuit.library import Barrier
@@ -33,6 +34,9 @@ from qiskit.transpiler.instruction_durations import InstructionDurations
 from qiskit.transpiler.passes import TimeUnitConversion
 from qiskit_ibm_runtime.utils import RuntimeEncoder
 import numpy as np
+
+
+logger = logging.getLogger(__name__)
 
 
 # fix rep_delay in shot loop to 0 since we manually insert
@@ -486,6 +490,9 @@ class QASM3Options:
     # for how this default value was chosen.
     init_num_resets: int = 3
     # The number of qubit resets to insert before each circuit execution.
+    memory: bool = True
+    # Whether to request the individual shot outcomes rather than just the binned counts (if `False`)
+    # Currently this option is always set to `True` even if set to `False`.
 
     @classmethod
     def build_from_runtime(cls, backend, **kwargs) -> "QASM3Options":
@@ -545,6 +552,12 @@ class QASM3Options:
                 "please update your provider to the latest `qiskit_ibm_provider`."
             )
 
+        if kwargs.get("memory", False):
+            logger.warning(
+                "Currently the qasm3-runner does not support `memory=False`. "
+                "Bitstrings will be reported for each shot."
+            )
+
         # Use the default rep_delay from the backend
         try:
             # Simulators do not have this available so only set if is present
@@ -570,7 +583,7 @@ class QASM3Options:
         arg_names = set(kwargs.keys())
         valid_args = set(cls.__annotations__.keys())
         if not_in := arg_names - valid_args:
-            raise ValueError(
+            raise RuntimeError(
                 f'The following arguments are not valid for the "qasm3-runner" runtime program: {str(list(not_in))}'
             )
 
@@ -626,7 +639,7 @@ def main(
         not all(isinstance(circ, QuantumCircuit) for circ in circuits)
         and not all(isinstance(circ, str) for circ in circuits)
     ):
-        raise ValueError(
+        raise RuntimeError(
             "Circuit need to be of type QuantumCircuit or str and \
             circuit types need to be consistent in a list of circuits."
         )
@@ -634,7 +647,7 @@ def main(
     # TODO Better validation once we can query for input_allowed
     _backend_name = backend.name if backend.version == 2 else backend.name()
     if backend.configuration().simulator and _backend_name not in SIMULATORS:
-        raise ValueError(
+        raise RuntimeError(
             f"The selected backend ({_backend_name}) does not support dynamic circuit capabilities"
         )
 
@@ -651,7 +664,7 @@ def main(
             if options.init_circuit is not None and not isinstance(
                 options.init_circuit, QuantumCircuit
             ):
-                raise ValueError(
+                raise RuntimeError(
                     "init_circuit must be of type QuantumCircuit but is "
                     f"{options.init_circuit.__class__}."
                 )
@@ -695,7 +708,7 @@ def main(
             payload = circuits
     else:
         if _backend_name == QASM2_SIM_NAME:
-            raise ValueError(
+            raise RuntimeError(
                 "This simulator backend does not support OpenQASM 3 source strings as input. "
                 "Please submit a quantum circuit instead."
             )

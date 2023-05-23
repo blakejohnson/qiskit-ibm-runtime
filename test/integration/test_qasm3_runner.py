@@ -12,7 +12,7 @@
 
 """Test circuit_runner_qasm3."""
 
-from unittest import SkipTest
+from unittest import SkipTest, expectedFailure
 
 from test.unit.test_circuit_merger import _create_test_circuits
 
@@ -171,6 +171,42 @@ class TestQASM3Runner(BaseTestCase):
         )
         self.assertIsNotNone(result.get_memory(0))
 
+    def test_memory_true(self):
+        """Test setting the memory true for an input circuit."""
+        if self._check_backend(self.backend_name).configuration().simulator:
+            self.skipTest(
+                "Currently we cannot determine qubit initialization delay for a simulator."
+            )
+        qc1, qc2 = _create_test_circuits()
+
+        result = self._run_program(
+            circuits=[qc1, qc2],
+            block_for_result=True,
+            memory=True,
+            decode=True,
+        )
+        self.assertIsNotNone(result.get_memory(0))
+
+    @expectedFailure
+    def test_memory_false(self):
+        """Test setting the memory false for an input circuit.
+
+        Currently expected failure as we do not support turning off memory at this point.
+        """
+        if self._check_backend(self.backend_name).configuration().simulator:
+            self.skipTest(
+                "Currently we cannot determine qubit initialization delay for a simulator."
+            )
+        qc1, qc2 = _create_test_circuits()
+
+        result = self._run_program(
+            circuits=[qc1, qc2],
+            block_for_result=True,
+            memory=False,
+            decode=True,
+        )
+        self.assertIsNone(result.get_memory(0))
+
     def test_shots(self):
         """Test setting the shots for an input circuit."""
         shots = 1337
@@ -195,6 +231,7 @@ class TestQASM3Runner(BaseTestCase):
         init_delay=None,
         init_circuit=None,
         meas_level=None,
+        memory=None,
         shots=None,
         decode=False,
     ):
@@ -237,6 +274,8 @@ class TestQASM3Runner(BaseTestCase):
             program_inputs["init_circuit"] = init_circuit
         if meas_level is not None:
             program_inputs["meas_level"] = meas_level
+        if memory is not None:
+            program_inputs["memory"] = memory
         if shots is not None:
             program_inputs["shots"] = shots
 
