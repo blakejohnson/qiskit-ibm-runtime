@@ -18,7 +18,6 @@ from ddt import ddt
 import numpy as np
 from qiskit import QuantumCircuit
 from qiskit.circuit.library import RealAmplitudes
-from qiskit.opflow import PauliSumOp
 from qiskit.primitives import Estimator as RefEstimator
 from qiskit.providers.fake_provider import FakeNairobi, FakeVigo, FakeMontreal
 from qiskit.quantum_info import SparsePauliOp
@@ -38,7 +37,7 @@ class TestPEC(unittest.TestCase):
         resilience_level = EstimatorConstant.PEC_RESILIENCE_LEVEL
         backend = AerSimulator.from_backend(FakeMontreal(), noise_model=None)
         ansatz = RealAmplitudes(num_qubits=2, reps=2)
-        observable = PauliSumOp.from_list(
+        observable = SparsePauliOp.from_list(
             [
                 ("II", -1.052373245772859),
                 ("IZ", 0.39793742484318045),

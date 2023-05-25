@@ -1,6 +1,6 @@
 # This code is part of Qiskit.
 #
-# (C) Copyright IBM 2022.
+# (C) Copyright IBM 2022, 2023.
 #
 # This code is licensed under the Apache License, Version 2.0. You may
 # obtain a copy of this license in the LICENSE.txt file in the root directory
@@ -23,7 +23,6 @@ from qiskit import QuantumCircuit
 from qiskit.circuit import Parameter
 from qiskit.circuit.library import RealAmplitudes
 from qiskit.exceptions import QiskitError
-from qiskit.opflow import PauliSumOp
 from qiskit.primitives import Estimator as RefEstimator
 from qiskit.primitives import EstimatorResult
 from qiskit.providers import Backend
@@ -73,7 +72,7 @@ class TestEstimatorCircuitIndices(unittest.TestCase):
     def setUp(self):
         super().setUp()
         self.ansatz = RealAmplitudes(num_qubits=2, reps=2)
-        self.observable = PauliSumOp.from_list(
+        self.observable = SparsePauliOp.from_list(
             [
                 ("II", -1.052373245772859),
                 ("IZ", 0.39793742484318045),
@@ -269,7 +268,7 @@ class TestEstimatorCircuitIds(unittest.TestCase):
     def setUp(self):
         super().setUp()
         self.ansatz = RealAmplitudes(num_qubits=2, reps=2)
-        self.observable = PauliSumOp.from_list(
+        self.observable = SparsePauliOp.from_list(
             [
                 ("II", -1.052373245772859),
                 ("IZ", 0.39793742484318045),

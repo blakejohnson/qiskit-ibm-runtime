@@ -15,7 +15,7 @@
 import numpy as np
 
 from qiskit.circuit.library import RealAmplitudes
-from qiskit.opflow import PauliSumOp
+from qiskit.quantum_info import SparsePauliOp
 from qiskit.providers.jobstatus import JobStatus
 from qiskit.providers.ibmq.runtime.exceptions import RuntimeJobFailureError
 
@@ -36,7 +36,7 @@ class TestEstimatorCircuitIndices(BaseTestCase):
         cls.backend_name = backend_name
         cls.options = {"backend_name": backend_name}
         cls.program_id = "estimator"
-        cls.observable = PauliSumOp.from_list(
+        cls.observable = SparsePauliOp.from_list(
             [
                 ("II", -1.052373245772859),
                 ("IZ", 0.39793742484318045),
@@ -136,7 +136,7 @@ class TestEstimatorCircuitIds(BaseTestCase):
         cls.backend_name = backend_name
         cls.options = {"backend_name": backend_name}
         cls.program_id = "estimator"
-        cls.observable = PauliSumOp.from_list(
+        cls.observable = SparsePauliOp.from_list(
             [
                 ("II", -1.052373245772859),
                 ("IZ", 0.39793742484318045),
